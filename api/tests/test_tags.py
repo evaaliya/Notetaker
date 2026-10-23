@@ -42,13 +42,28 @@ async def test_tags_crud_and_multi(client: AsyncClient):
     assert patched.json()["name"] == "Office"
     assert patched.json()["color"] == "#FF00AA"
 
-    # several tags can exist; attach to note is exercised when notes API lands
     assert t1["id"] != t2["id"]
+
+    note = await client.post(
+        "/api/notes",
+        json={
+            "title": "multi",
+            "body": "",
+            "starts_at": "2026-10-24T09:00:00Z",
+            "tag_ids": [t1["id"], t2["id"]],
+        },
+    )
+    assert note.status_code == 201
+    assert set(note.json()["tag_ids"]) == {t1["id"], t2["id"]}
 
     deleted = await client.delete(f"/api/tags/{t2['id']}")
     assert deleted.status_code == 204
     after = await client.get("/api/tags")
     assert {t["name"] for t in after.json()} == {"Office"}
+
+    # deleting a tag detaches it from notes (FK cascade on note_tags)
+    note_after = await client.get(f"/api/notes/{note.json()['id']}")
+    assert note_after.json()["tag_ids"] == [t1["id"]] or set(note_after.json()["tag_ids"]) == {t1["id"]}
 
     missing = await client.delete(f"/api/tags/{t2['id']}")
     assert missing.status_code == 404

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.clock import SystemClock
 from app.errors import AppError, app_error_handler
 from app.migrate import run_migrations
-from app.routers import auth, health, me, tags
+from app.routers import auth, health, me, notes, tags
 
 
 @asynccontextmanager
@@ -34,3 +34,4 @@ app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(me.router, prefix="/api")
 app.include_router(tags.router, prefix="/api")
+app.include_router(notes.router, prefix="/api")
