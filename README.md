@@ -38,6 +38,6 @@ docker compose up --build
 ## Документы
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — лог решений с временем
 - [`docs/TOOLING.md`](docs/TOOLING.md) — чем делали и почему
-- [`docs/sessions/`](docs/sessions/) — промпты и экспорт сессий агента
+- [`docs/sessions/`](docs/sessions/) — экспорты чатов Cursor
 - [`docs/CREDITS.md`](docs/CREDITS.md) — чужие основы и зависимости
 - [`STATUS.md`](STATUS.md) — что работает, что нет, что дальше
