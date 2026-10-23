@@ -26,8 +26,8 @@ async def _create(client: AsyncClient, **kw):
 
 
 @pytest.mark.asyncio
-async def perf_search_10k(client: AsyncClient):
-    """T17 search/filters — functional (no 10k seed in M1)."""
+async def test_list_search_filters(client: AsyncClient):
+    """T17 search/filters — functional (perf_search_10k with 10k + latency asserts — M6)."""
     await _register(client)
     tag = (await client.post("/api/tags", json={"name": "red", "color": "#FF0000"})).json()
     tag2 = (await client.post("/api/tags", json={"name": "blue", "color": "#0000FF"})).json()
@@ -80,8 +80,8 @@ async def perf_search_10k(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def perf_list_10k(client: AsyncClient):
-    """T17 keyset list — functional pages (no 10k seed in M1)."""
+async def test_list_keyset_pagination(client: AsyncClient):
+    """T17 keyset pages — functional (perf_list_10k with 10k + latency asserts — M6)."""
     await _register(client)
     for i in range(5):
         await _create(client, title=f"n{i}", starts_at=f"2026-11-0{i + 1}T12:00:00Z")
