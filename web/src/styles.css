@@ -108,7 +108,60 @@ button.link {
 }
 
 .page.shell {
-  max-width: 52rem;
+  max-width: 72rem;
+}
+
+.calendar-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.calendar-layout.with-panel {
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .calendar-layout.with-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+.calendar-main {
+  margin: 0;
+  overflow: auto;
+}
+
+.calendar-main .fc {
+  font-family: inherit;
+  --fc-border-color: var(--line);
+  --fc-button-bg-color: var(--accent);
+  --fc-button-border-color: var(--accent);
+  --fc-button-hover-bg-color: #0c5549;
+  --fc-button-hover-border-color: #0c5549;
+  --fc-button-active-bg-color: #0c5549;
+  --fc-button-active-border-color: #0c5549;
+  --fc-event-bg-color: var(--accent);
+  --fc-event-border-color: var(--accent);
+}
+
+.side-panel {
+  margin: 0;
+  position: sticky;
+  top: 0.5rem;
+}
+
+.upcoming-sections {
+  display: grid;
+  gap: 1rem;
+}
+
+.upcoming-bucket {
+  margin: 0;
+}
+
+.upcoming-bucket h3 {
+  margin: 0 0 0.5rem;
 }
 
 .app-nav {

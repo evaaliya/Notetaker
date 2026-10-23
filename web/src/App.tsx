@@ -2,10 +2,12 @@ import { FormEvent, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, User } from "./api";
+import { CalendarPage } from "./pages/CalendarPage";
 import { ListPage } from "./pages/ListPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TagsPage } from "./pages/TagsPage";
 import { TrashPage } from "./pages/TrashPage";
+import { UpcomingPage } from "./pages/UpcomingPage";
 
 export function App() {
   const qc = useQueryClient();
@@ -59,7 +61,7 @@ function AuthScreen({ onDone }: { onDone: (user: User) => void }) {
   return (
     <main className="page auth">
       <h1>Notetaker</h1>
-      <p className="muted">Заметки, теги, корзина — M1.</p>
+      <p className="muted">Заметки, календарь, ближайшее.</p>
       <form onSubmit={submit} className="card">
         <label>
           Логин
@@ -112,19 +114,22 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         </div>
       </header>
       <nav className="app-nav">
+        <NavLink to="/calendar">Календарь</NavLink>
+        <NavLink to="/upcoming">Ближайшее</NavLink>
         <NavLink to="/list">Список</NavLink>
         <NavLink to="/tags">Теги</NavLink>
         <NavLink to="/trash">Корзина</NavLink>
         <NavLink to="/settings">Настройки</NavLink>
-        <span className="muted small nav-soon">Календарь · M2</span>
       </nav>
       <Routes>
-        <Route path="/" element={<Navigate to="/list" replace />} />
+        <Route path="/" element={<Navigate to="/calendar" replace />} />
+        <Route path="/calendar" element={<CalendarPage user={user} />} />
+        <Route path="/upcoming" element={<UpcomingPage user={user} />} />
         <Route path="/list" element={<ListPage user={user} />} />
         <Route path="/tags" element={<TagsPage />} />
         <Route path="/trash" element={<TrashPage user={user} />} />
         <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/list" replace />} />
+        <Route path="*" element={<Navigate to="/calendar" replace />} />
       </Routes>
     </main>
   );
