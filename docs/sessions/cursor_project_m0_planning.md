@@ -1,5 +1,5 @@
 # Project M0 planning
-_Exported on 10/23/2026 at 06:16:07 GMT+6 from Cursor (3.26.16)_
+_Exported on 10/23/2026 at 07:06:45 GMT+6 from Cursor (3.26.16)_
 
 ---
 
@@ -166,5 +166,69 @@ $ curl -sS http://localhost:8000/api/health
 $ make test
 ... (6 tests) ...
 ============================== 6 passed in 2.65s ===============================
+```
+
+---
+
+**User**
+
+Удали docs/sessions/PROMPTS.md и docs/sessions/README.md: вместо них
+в docs/sessions/ лежат экспорты чатов Cursor. Сначала найди через grep
+все ссылки на эти два файла и на «PROMPTS» в spec.md, README.md,
+docs/*.md и .cursor/rules/, исправь их так, чтобы везде говорилось
+только про экспорты чатов в docs/sessions/. Проверь, что ссылок на
+удалённые файлы не осталось (покажи вывод grep). Отдельный коммит.
+
+---
+
+**Cursor**
+
+Ищу все ссылки на эти файлы и «PROMPTS», затем поправлю и удалю.
+
+Проверяю grep ещё раз чистым поиском — `rg` ругался на битый glob в `.gitignore`.
+
+Сделано. Коммит `6e4b32a`.
+
+**Правки ссылок:** `spec.md`, `README.md`, `docs/CREDITS.md` — везде только «экспорты чатов Cursor» в `docs/sessions/`.  
+**Удалены:** `docs/sessions/PROMPTS.md`, `docs/sessions/README.md`.
+
+**Проверка — ссылок на удалённые файлы / `PROMPTS` нет:**
+
+```
+$ rg -n --no-ignore 'PROMPTS|sessions/README|sessions/PROMPTS|docs/sessions/README|docs/sessions/PROMPTS' \
+    spec.md README.md docs/ .cursor/rules/
+exit:1   # совпадений нет
+```
+
+Оставшиеся упоминания `docs/sessions/` — только про экспорты (README, spec, TOOLING, CREDITS, process rule, экспорт чата).
+
+```
+$ git log --oneline -1
+6e4b32a docs: sessions — только экспорты чатов, без PROMPTS/README
+```
+
+Замечание: в `.gitignore` строка `{.cursor/` ломает парсинг glob у `rg` без `--no-ignore`. Могу поправить отдельно.
+
+---
+
+**User**
+
+ок 
+
+---
+
+**Cursor**
+
+Папки `{.cursor` уже нет — убираю битую строку из `.gitignore`.
+
+Строка `{.cursor/` удалена (самой папки уже не было). `rg` снова парсит `.gitignore` без ошибок.
+
+```
+$ rg -n 'PROMPTS|sessions/README' spec.md README.md docs/ .cursor/rules/
+rg_exit:1
+
+$ git log --oneline -2
+6d9c0f0 fix: убрать битый glob {.cursor/ из .gitignore
+6e4b32a docs: sessions — только экспорты чатов, без PROMPTS/README
 ```
 
