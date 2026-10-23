@@ -16,7 +16,7 @@
 | react-router-dom | маршруты UI |
 | TanStack Query | кэш; позже — инвалидация по WS |
 | TanStack Virtual (`@tanstack/react-virtual`) | виртуализация списка заметок (M1) |
-| FullCalendar | календарь (с M2) |
+| FullCalendar 6 (`@fullcalendar/react`, daygrid, timegrid, interaction) | календарь месяц/неделя/день + DnD (M2) |
 | pytest, pytest-asyncio, testcontainers | тесты на реальном Postgres |
 | Playwright | e2e (с M4+) |
 | PostgreSQL 16 | БД (`citext`, `pg_trgm`, `SKIP LOCKED`, `LISTEN/NOTIFY`) |

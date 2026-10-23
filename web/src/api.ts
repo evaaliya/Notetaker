@@ -34,6 +34,21 @@ export type NoteList = {
   next_cursor: string | null;
 };
 
+export type Occurrence = {
+  occurrence_start: string;
+  note: Note;
+};
+
+export type CalendarList = {
+  items: Occurrence[];
+};
+
+export type Upcoming = {
+  today: Occurrence[];
+  week: Occurrence[];
+  past: Occurrence[];
+};
+
 export type NoteListParams = {
   q?: string;
   tags?: string[];
@@ -142,4 +157,10 @@ export const api = {
   trash: () => request<Note[]>("/api/notes/trash"),
   restoreNote: (id: string) =>
     request<Note>(`/api/notes/${id}/restore`, { method: "POST" }),
+
+  calendar: (from: string, to: string) =>
+    request<CalendarList>(
+      `/api/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  upcoming: () => request<Upcoming>("/api/upcoming"),
 };

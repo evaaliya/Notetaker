@@ -41,6 +41,22 @@ export function localInputToUtcIso(localValue: string, timeZone: string): string
   return new Date(guess).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+/**
+ * Move an instant to a new calendar day in `timeZone`, keeping wall-clock time.
+ * Used by calendar drag-and-drop (spec §6).
+ */
+export function relocateKeepWallTime(
+  startsAtIso: string,
+  dropInstant: Date,
+  timeZone: string,
+): string {
+  const wall = utcIsoToLocalInput(startsAtIso, timeZone);
+  const timePart = wall.split("T")[1] ?? "00:00";
+  const dropLocal = utcIsoToLocalInput(dropInstant.toISOString(), timeZone);
+  const datePart = dropLocal.split("T")[0];
+  return localInputToUtcIso(`${datePart}T${timePart}`, timeZone);
+}
+
 /** UTC ISO → value for <input type="datetime-local"> in user TZ. */
 export function utcIsoToLocalInput(iso: string, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {

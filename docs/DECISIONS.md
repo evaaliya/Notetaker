@@ -131,3 +131,9 @@
 **Причина:** спека — «сегодня / неделя / прошедшие активные»; границы в TZ пользователя совпадают с отображением; серверный Clock позволяет тесты без sleep (клиентский `useNow` — M4).
 **Последствия:** «неделя» не совпадает с ISO-неделей; заметка ровно на границе суток попадает в today, не в week.
 
+### D-019 · 2026-10-23 07:59 +06 · M2 · FullCalendar 6 + DnD через PATCH version
+**Решение:** UI календаря на `@fullcalendar/*@6.1.22` (dayGrid/timeGrid/interaction); `timeZone={user.timezone}`; drop вызывает `relocateKeepWallTime` → `PATCH /notes/{id}` с `version` (дата в TZ меняется, HH:mm сохраняется).
+**Альтернативы:** свой grid; FullCalendar 7 (+ Temporal); слать `starts_at` как есть из FC без пересчёта wall-time.
+**Причина:** CREDITS уже планировал FullCalendar; v6 совместим с React 18 без Temporal; явный wall-time защищает от сдвига часов при DnD через DST/UTC.
+**Последствия:** бандл ~500KB; серии/overrides в календаре — M5.
+
