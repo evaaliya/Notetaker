@@ -1,0 +1,312 @@
+import { FormEvent, useMemo, useRef, useState } from "react";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { api, Note, Tag, User } from "../api";
+import { formatInZone, localInputToUtcIso, utcIsoToLocalInput } from "../format";
+
+type Filters = {
+  q: string;
+  status: string;
+  tagId: string;
+  sort: "starts_at" | "updated_at";
+  dir: "asc" | "desc";
+};
+
+export function ListPage({ user }: { user: User }) {
+  const qc = useQueryClient();
+  const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
+  const [filters, setFilters] = useState<Filters>({
+    q: "",
+    status: "",
+    tagId: "",
+    sort: "starts_at",
+    dir: "asc",
+  });
+  const [draft, setDraft] = useState<Filters>(filters);
+  const [editing, setEditing] = useState<Note | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const listQuery = useInfiniteQuery({
+    queryKey: ["notes", filters],
+    queryFn: ({ pageParam }) =>
+      api.listNotes({
+        q: filters.q || undefined,
+        status: filters.status || undefined,
+        tags: filters.tagId ? [filters.tagId] : undefined,
+        sort: filters.sort,
+        dir: filters.dir,
+        cursor: pageParam,
+        limit: 40,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
+  });
+
+  const notes = useMemo(
+    () => listQuery.data?.pages.flatMap((p) => p.items) ?? [],
+    [listQuery.data],
+  );
+
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: notes.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 64,
+    overscan: 8,
+  });
+
+  function applyFilters(e: FormEvent) {
+    e.preventDefault();
+    setFilters(draft);
+  }
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api.deleteNote(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notes"] });
+      qc.invalidateQueries({ queryKey: ["trash"] });
+    },
+  });
+
+  const toggle = useMutation({
+    mutationFn: (n: Note) =>
+      n.status === "active" ? api.deactivateNote(n.id) : api.activateNote(n.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notes"] }),
+  });
+
+  return (
+    <section className="list-page">
+      <div className="list-toolbar">
+        <h2>Список</h2>
+        <button type="button" onClick={() => { setCreating(true); setEditing(null); }}>
+          Новая заметка
+        </button>
+      </div>
+
+      <form className="filters card" onSubmit={applyFilters}>
+        <input
+          placeholder="Поиск"
+          value={draft.q}
+          onChange={(e) => setDraft({ ...draft, q: e.target.value })}
+        />
+        <select
+          value={draft.status}
+          onChange={(e) => setDraft({ ...draft, status: e.target.value })}
+        >
+          <option value="">Все статусы</option>
+          <option value="active">active</option>
+          <option value="inactive">inactive</option>
+        </select>
+        <select
+          value={draft.tagId}
+          onChange={(e) => setDraft({ ...draft, tagId: e.target.value })}
+        >
+          <option value="">Все теги</option>
+          {(tags.data ?? []).map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={`${draft.sort}:${draft.dir}`}
+          onChange={(e) => {
+            const [sort, dir] = e.target.value.split(":") as [
+              Filters["sort"],
+              Filters["dir"],
+            ];
+            setDraft({ ...draft, sort, dir });
+          }}
+        >
+          <option value="starts_at:asc">дата ↑</option>
+          <option value="starts_at:desc">дата ↓</option>
+          <option value="updated_at:desc">изменены ↓</option>
+          <option value="updated_at:asc">изменены ↑</option>
+        </select>
+        <button type="submit">Применить</button>
+      </form>
+
+      {(creating || editing) && (
+        <NoteForm
+          user={user}
+          tags={tags.data ?? []}
+          note={editing}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setCreating(false);
+            setEditing(null);
+            qc.invalidateQueries({ queryKey: ["notes"] });
+          }}
+        />
+      )}
+
+      <div
+        ref={parentRef}
+        className="virtual-list"
+        onScroll={() => {
+          const el = parentRef.current;
+          if (!el || !listQuery.hasNextPage || listQuery.isFetchingNextPage) return;
+          if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
+            listQuery.fetchNextPage();
+          }
+        }}
+      >
+        {listQuery.isLoading && <p className="muted">Загрузка…</p>}
+        {!listQuery.isLoading && notes.length === 0 && (
+          <p className="muted">Нет заметок по фильтру.</p>
+        )}
+        <div
+          style={{
+            height: virtualizer.getTotalSize(),
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualizer.getVirtualItems().map((row) => {
+            const n = notes[row.index];
+            return (
+              <div
+                key={n.id}
+                className="note-row virtual-row"
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${row.size}px`,
+                  transform: `translateY(${row.start}px)`,
+                }}
+              >
+                <button type="button" className="note-main linkish" onClick={() => { setEditing(n); setCreating(false); }}>
+                  <strong>{n.title || "Без названия"}</strong>
+                  <span className="muted small">
+                    {formatInZone(n.starts_at, user.timezone)}
+                    {n.status === "inactive" ? " · inactive" : ""}
+                    {n.rec_freq ? " · повтор" : ""}
+                  </span>
+                </button>
+                <div className="note-actions">
+                  <button type="button" className="secondary" onClick={() => toggle.mutate(n)}>
+                    {n.status === "active" ? "Выкл" : "Вкл"}
+                  </button>
+                  <button type="button" className="link" onClick={() => remove.mutate(n.id)}>
+                    В корзину
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {listQuery.isFetchingNextPage && <p className="muted small">Ещё…</p>}
+      </div>
+    </section>
+  );
+}
+
+function NoteForm({
+  user,
+  tags,
+  note,
+  onClose,
+  onSaved,
+}: {
+  user: User;
+  tags: Tag[];
+  note: Note | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = useState(note?.title ?? "");
+  const [body, setBody] = useState(note?.body ?? "");
+  const [startsLocal, setStartsLocal] = useState(
+    note
+      ? utcIsoToLocalInput(note.starts_at, user.timezone)
+      : utcIsoToLocalInput(new Date().toISOString(), user.timezone),
+  );
+  const [tagIds, setTagIds] = useState<string[]>(note?.tag_ids ?? []);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const starts_at = localInputToUtcIso(startsLocal, user.timezone);
+      if (note) {
+        await api.patchNote(note.id, {
+          version: note.version,
+          title,
+          body,
+          starts_at,
+          tag_ids: tagIds,
+        });
+      } else {
+        await api.createNote({ title, body, starts_at, tag_ids: tagIds });
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleTag(id: string) {
+    setTagIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  return (
+    <form className="card form-grid" onSubmit={submit}>
+      <h3>{note ? "Редактировать" : "Новая заметка"}</h3>
+      <label>
+        Заголовок
+        <input value={title} onChange={(e) => setTitle(e.target.value)} />
+      </label>
+      <label>
+        Текст
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} />
+      </label>
+      <label>
+        Время ({user.timezone})
+        <input
+          type="datetime-local"
+          value={startsLocal}
+          onChange={(e) => setStartsLocal(e.target.value)}
+          required
+        />
+      </label>
+      <fieldset className="tag-pick">
+        <legend>Теги</legend>
+        {tags.map((t) => (
+          <label key={t.id} className="inline">
+            <input
+              type="checkbox"
+              checked={tagIds.includes(t.id)}
+              onChange={() => toggleTag(t.id)}
+            />
+            <span className="tag-swatch tiny" style={{ background: t.color }} />
+            {t.name}
+          </label>
+        ))}
+      </fieldset>
+      {error && <p className="error">{error}</p>}
+      <div className="row-actions">
+        <button type="submit" disabled={busy}>
+          Сохранить
+        </button>
+        <button type="button" className="secondary" onClick={onClose}>
+          Отмена
+        </button>
+      </div>
+    </form>
+  );
+}

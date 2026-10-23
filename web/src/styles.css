@@ -106,3 +106,164 @@ button.link {
   padding-left: 1.2rem;
   color: var(--muted);
 }
+
+.page.shell {
+  max-width: 52rem;
+}
+
+.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.app-nav a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.app-nav a.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-soon {
+  margin-left: auto;
+}
+
+.form-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+  align-items: end;
+}
+
+.list-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.virtual-list {
+  height: min(70vh, 36rem);
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.note-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.note-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.virtual-row {
+  box-sizing: border-box;
+}
+
+.note-main {
+  display: grid;
+  gap: 0.15rem;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+.note-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.tag-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.tag-swatch {
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.tag-swatch.tiny {
+  width: 0.75rem;
+  height: 0.75rem;
+  display: inline-block;
+  margin-right: 0.25rem;
+  vertical-align: middle;
+}
+
+.tag-pick {
+  border: 1px solid var(--line);
+  padding: 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+}
+
+.tag-pick .inline {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.65rem;
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+textarea,
+select {
+  font: inherit;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  background: #fff;
+  width: 100%;
+}
+
+.linkish {
+  font: inherit;
+}

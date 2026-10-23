@@ -15,7 +15,7 @@
 | React 18, Vite, TypeScript | frontend |
 | react-router-dom | маршруты UI |
 | TanStack Query | кэш; позже — инвалидация по WS |
-| TanStack Virtual | виртуализация списков (с M1+) |
+| TanStack Virtual (`@tanstack/react-virtual`) | виртуализация списка заметок (M1) |
 | FullCalendar | календарь (с M2) |
 | pytest, pytest-asyncio, testcontainers | тесты на реальном Postgres |
 | Playwright | e2e (с M4+) |

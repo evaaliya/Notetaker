@@ -1,6 +1,11 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
+import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, User } from "./api";
+import { ListPage } from "./pages/ListPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { TagsPage } from "./pages/TagsPage";
+import { TrashPage } from "./pages/TrashPage";
 
 export function App() {
   const qc = useQueryClient();
@@ -54,7 +59,7 @@ function AuthScreen({ onDone }: { onDone: (user: User) => void }) {
   return (
     <main className="page auth">
       <h1>Notetaker</h1>
-      <p className="muted">M0: вход и сессия. Остальные экраны — с M1.</p>
+      <p className="muted">Заметки, теги, корзина — M1.</p>
       <form onSubmit={submit} className="card">
         <label>
           Логин
@@ -96,25 +101,31 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   }
 
   return (
-    <main className="page">
+    <main className="page shell">
       <header className="shell-header">
         <h1>Notetaker</h1>
-        <div>
+        <div className="shell-user">
           <span className="muted">{user.login}</span>{" "}
           <button type="button" onClick={logout} disabled={busy}>
             Выйти
           </button>
         </div>
       </header>
-      <p>Скелет готов. Календарь, список и напоминания появятся на следующих этапах.</p>
-      <ul className="nav-stub">
-        <li>Календарь — M2</li>
-        <li>Список — M1</li>
-        <li>Ближайшее — M2</li>
-        <li>Корзина — M1</li>
-        <li>Теги — M1</li>
-        <li>Настройки — M1</li>
-      </ul>
+      <nav className="app-nav">
+        <NavLink to="/list">Список</NavLink>
+        <NavLink to="/tags">Теги</NavLink>
+        <NavLink to="/trash">Корзина</NavLink>
+        <NavLink to="/settings">Настройки</NavLink>
+        <span className="muted small nav-soon">Календарь · M2</span>
+      </nav>
+      <Routes>
+        <Route path="/" element={<Navigate to="/list" replace />} />
+        <Route path="/list" element={<ListPage user={user} />} />
+        <Route path="/tags" element={<TagsPage />} />
+        <Route path="/trash" element={<TrashPage user={user} />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/list" replace />} />
+      </Routes>
     </main>
   );
 }
