@@ -77,6 +77,11 @@ class NotePatch(BaseModel):
         return value
 
 
+class NoteListOut(BaseModel):
+    items: list["NoteOut"]
+    next_cursor: str | None
+
+
 class NoteOut(BaseModel):
     id: UUID
     title: str

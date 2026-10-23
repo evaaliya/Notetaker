@@ -1,7 +1,8 @@
 import uuid
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,10 +11,44 @@ from app.clock import Clock
 from app.db import get_session
 from app.errors import AppError
 from app.models import Note, User
-from app.schemas.notes import NoteCreate, NoteOut, NotePatch
+from app.schemas.notes import NoteCreate, NoteListOut, NoteOut, NotePatch
+from app.services.note_list import list_notes
 from app.services.notes import note_to_out, replace_note_tags
 
 router = APIRouter(prefix="/notes", tags=["notes"])
+
+
+@router.get("", response_model=NoteListOut)
+async def get_notes(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+    q: str | None = None,
+    tags: Annotated[list[uuid.UUID] | None, Query()] = None,
+    tag_mode: Literal["any", "all"] = "any",
+    status: str | None = None,
+    from_: Annotated[datetime | None, Query(alias="from")] = None,
+    to: datetime | None = None,
+    sort: Literal["starts_at", "updated_at"] = "starts_at",
+    dir: Literal["asc", "desc"] = "asc",
+    cursor: str | None = None,
+    limit: int = 50,
+) -> NoteListOut:
+    rows, next_cursor = await list_notes(
+        db,
+        user_id=user.id,
+        q=q,
+        tags=tags,
+        tag_mode=tag_mode,
+        status=status,
+        from_dt=from_,
+        to_dt=to,
+        sort=sort,
+        dir=dir,
+        cursor=cursor,
+        limit=limit,
+    )
+    items = [await note_to_out(db, n) for n in rows]
+    return NoteListOut(items=items, next_cursor=next_cursor)
 
 
 @router.post("", response_model=NoteOut, status_code=201)
