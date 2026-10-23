@@ -1,17 +1,25 @@
 # Чужие основы и зависимости
 
-**Стартовый шаблон / генератор:** <ЗАПОЛНИТЬ: «не использовались» или название + ссылка>.
+**Стартовый шаблон / генератор:** не использовались. Репозиторий собран с нуля по `spec.md`.
 
 ## Основные библиотеки
 
 | Библиотека | Зачем |
 |---|---|
-| FastAPI, SQLAlchemy 2, Alembic | backend, ORM, миграции |
+| FastAPI, Uvicorn | HTTP API |
+| SQLAlchemy 2 (asyncio), asyncpg | async ORM и драйвер Postgres |
+| Alembic, psycopg2-binary | миграции (sync-путь; см. D-008) |
+| pydantic-settings | конфиг из env |
 | argon2-cffi | хеш паролей |
-| React, Vite, TypeScript | frontend |
-| TanStack Query, TanStack Virtual | кэш с инвалидацией по WS, виртуализация списков |
-| FullCalendar | календарь (месяц/неделя/день, drag-and-drop) |
-| pytest, testcontainers, Playwright | тесты на реальном Postgres и e2e |
+| httpx | async HTTP-клиент в тестах API |
+| React 18, Vite, TypeScript | frontend |
+| react-router-dom | маршруты UI |
+| TanStack Query | кэш; позже — инвалидация по WS |
+| TanStack Virtual | виртуализация списков (с M1+) |
+| FullCalendar | календарь (с M2) |
+| pytest, pytest-asyncio, testcontainers | тесты на реальном Postgres |
+| Playwright | e2e (с M4+) |
+| PostgreSQL 16 | БД (`citext`, `pg_trgm`, `SKIP LOCKED`, `LISTEN/NOTIFY`) |
 | MailHog | SMTP-заглушка |
 
 Обновлять, если по ходу работы зависимости добавились или заменились.
