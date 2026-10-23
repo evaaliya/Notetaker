@@ -1,13 +1,13 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-23 05:45 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-10-23 07:25 +06.
 
 ## Этапы
 
 | Этап | Статус | Что проверено |
 |---|---|---|
 | M0 Скелет | готов | `docker compose up --build`; `/api/health` → ok + worker; register/login/me; pytest 6 passed (testcontainers) |
-| M1 Заметки/теги/корзина/список | не начат | — |
+| M1 Заметки/теги/корзина/список | готов | T20 `test_tags_crud_and_multi`; T17 server `perf_list_10k` / `perf_search_10k` (без 10k-сида); `make test` → 12 passed; curl tags/notes/list/me |
 | M2 Календарь и «Ближайшее» | не начат | — |
 | M3 Воркер напоминаний + outbox | не начат | — |
 | M4 Realtime | не начат | — |
@@ -15,22 +15,24 @@
 | M6 Нагрузка и verify | не начат | — |
 
 ## Работает
-- `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
-- Миграции Alembic применяются при старте api/worker (схема §3 + `worker_heartbeat`).
-- Auth: `POST /api/auth/register|login|logout`, opaque-сессия в httpOnly cookie (argon2).
-- `GET/PATCH /api/me` (email, IANA timezone).
-- `GET /api/health` — БД + heartbeat воркера.
-- Web: экран входа/регистрации и заглушка shell (http://localhost:5173).
-- Тесты: `cd api && ../.venv/bin/pytest -v` → 6 passed на реальном Postgres (testcontainers).
+- Auth, `/api/me`, `/api/health` (как в M0).
+- Теги: `GET/POST/PATCH/DELETE /api/tags`, цвет `#RRGGBB`, уникальность имени без регистра через `name_lower` (`set_tag_name`).
+- Заметки: create/get/patch/delete, activate/deactivate, trash/restore; PATCH с `version` → `409` + актуальная `note`.
+- Список: `GET /api/notes` — `q`, теги (`any`/`all`), status, период `from`/`to`, sort/dir, keyset `cursor`/`limit`.
+- Web: экраны Список (виртуализация + infinite scroll), Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
+- Тесты: `make test` → 12 passed на реальном Postgres (testcontainers).
 
 ## Не работает
-- Заметки, теги, корзина, календарь, напоминания, WS, повторы — вне M0.
+- Календарь / «Ближайшее» — M2.
+- Materialization reminders, outbox, purge корзины — M3 (`TODO(spec-gap)` в create/patch).
+- WS / `pg_notify` / конфликт-диалог на клиенте — M4 (API 409 уже есть).
+- Генерация вхождений / overrides / split серии — M5 (поля `rec_*` сохраняются).
+- Нагрузка 10k (`perf_*` с сидом), `e2e_scroll_10k`, `make verify` — M6.
 
 ## Не делали и почему
-- Логика воркера (reminders/outbox/materializer/purge) — этап M3; сейчас только heartbeat (`TODO(spec-gap)`).
-- Экраны приложения кроме auth/shell — M1+.
-- `make seed` / demo / Playwright / `make verify` — M1/M6.
-- См. «Известные ограничения» ниже (из спеки).
+- 10k seed и perf-пороги — критерий M6; в M1 T17 закрыт функционально.
+- Playwright e2e — M4+.
+- Live-события при CRUD — M4.
 
 ## Известные ограничения
 - Интервал повтора только 1; нет «по дням недели» и «последняя пятница».
