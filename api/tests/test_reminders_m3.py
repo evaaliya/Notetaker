@@ -14,7 +14,7 @@ import app.db as db_module
 import app.worker as worker_mod
 from app.clock import FrozenClock
 from app.models import EmailOutbox, Note, Notification, Reminder
-from app.services.worker_jobs import OutboxPayload, process_due_reminders, purge_trash
+from app.services.worker_jobs import OutboxPayload, purge_trash
 from app.worker import tick
 
 UTC = timezone.utc
@@ -102,20 +102,18 @@ async def test_reminder_single_email_with_two_workers(client: AsyncClient, clock
 
     clock.set(clock.now() + timedelta(minutes=50, seconds=1))
 
-    async def one_claim() -> int:
-        async with db_module.SessionLocal() as session:
-            async with session.begin():
-                return await process_due_reminders(session, clock.now())
-
-    results = await asyncio.gather(*[one_claim() for _ in range(2)])
-    assert sum(results) >= 1
+    # Two concurrent production ticks — each opens its own SessionLocal (own connection).
+    await asyncio.gather(
+        tick(clock.now(), smtp_send=_noop_smtp),
+        tick(clock.now(), smtp_send=_noop_smtp),
+    )
 
     assert await _count(Reminder, note_id=note_id, status="sent") == 1
     assert await _notif_count_for_note(note_id) == 1
     assert await _outbox_count_for_note(note_id) == 1
 
     for _ in range(1000):
-        await tick(clock.now(), smtp_send=_noop_smtp, run_outbox=True)
+        await tick(clock.now(), smtp_send=_noop_smtp)
 
     assert await _outbox_count_for_note(note_id) == 1
     assert await _notif_count_for_note(note_id) == 1
