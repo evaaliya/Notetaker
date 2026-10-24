@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ApiError, api, Note, Tag, User } from "../api";
 import { localInputToUtcIso, utcIsoToLocalInput } from "../format";
 import { ConflictDialog } from "./ConflictDialog";
+import { ReminderOffsetsField, offsetsEqual } from "./ReminderOffsetsField";
 
 type Props = {
   user: User;
@@ -17,6 +18,7 @@ function formFromNote(note: Note, timeZone: string) {
     body: note.body,
     startsLocal: utcIsoToLocalInput(note.starts_at, timeZone),
     tagIds: [...note.tag_ids],
+    reminderOffsets: [...(note.reminder_offsets ?? [])],
     version: note.version,
   };
 }
@@ -27,6 +29,7 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
   const [body, setBody] = useState(initial.body);
   const [startsLocal, setStartsLocal] = useState(initial.startsLocal);
   const [tagIds, setTagIds] = useState(initial.tagIds);
+  const [reminderOffsets, setReminderOffsets] = useState(initial.reminderOffsets);
   const [version, setVersion] = useState(initial.version);
   const [baseline, setBaseline] = useState(note);
   const [error, setError] = useState<string | null>(null);
@@ -43,9 +46,10 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
       title !== baseline.title ||
       body !== baseline.body ||
       starts !== baseline.starts_at ||
-      !tagsSame
+      !tagsSame ||
+      !offsetsEqual(reminderOffsets, baseline.reminder_offsets ?? [])
     );
-  }, [title, body, startsLocal, tagIds, baseline, user.timezone]);
+  }, [title, body, startsLocal, tagIds, reminderOffsets, baseline, user.timezone]);
 
   useEffect(() => {
     if (note.id !== baseline.id) {
@@ -54,6 +58,7 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
       setBody(f.body);
       setStartsLocal(f.startsLocal);
       setTagIds(f.tagIds);
+      setReminderOffsets(f.reminderOffsets);
       setVersion(f.version);
       setBaseline(note);
       setRemoteBanner(false);
@@ -68,6 +73,7 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
       setBody(f.body);
       setStartsLocal(f.startsLocal);
       setTagIds(f.tagIds);
+      setReminderOffsets(f.reminderOffsets);
       setVersion(f.version);
       setBaseline(note);
       setRemoteBanner(false);
@@ -86,9 +92,11 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
         body,
         starts_at: localInputToUtcIso(startsLocal, user.timezone),
         tag_ids: tagIds,
+        reminder_offsets: reminderOffsets,
       });
       setVersion(updated.version);
       setBaseline(updated);
+      setReminderOffsets([...(updated.reminder_offsets ?? [])]);
       setConflictNote(null);
       setRemoteBanner(false);
       onSaved(updated);
@@ -118,6 +126,7 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
     setBody(f.body);
     setStartsLocal(f.startsLocal);
     setTagIds(f.tagIds);
+    setReminderOffsets(f.reminderOffsets);
     setVersion(f.version);
     setBaseline(server);
     setConflictNote(null);
@@ -156,6 +165,7 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
             required
           />
         </label>
+        <ReminderOffsetsField value={reminderOffsets} onChange={setReminderOffsets} />
         <fieldset className="tag-pick">
           <legend>Теги</legend>
           {tags.map((t) => (

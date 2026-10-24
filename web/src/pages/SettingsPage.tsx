@@ -49,6 +49,7 @@ export function SettingsPage() {
           Email
           <input
             type="email"
+            data-testid="settings-email"
             value={emailValue}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="для напоминаний"

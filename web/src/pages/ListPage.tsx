@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api, Note, Tag, User } from "../api";
+import { ReminderOffsetsField } from "../components/ReminderOffsetsField";
 import { formatInZone, localInputToUtcIso, utcIsoToLocalInput } from "../format";
 
 type Filters = {
@@ -83,7 +84,14 @@ export function ListPage({ user }: { user: User }) {
     <section className="list-page">
       <div className="list-toolbar">
         <h2>Список</h2>
-        <button type="button" onClick={() => { setCreating(true); setEditing(null); }}>
+        <button
+          type="button"
+          data-testid="new-note"
+          onClick={() => {
+            setCreating(true);
+            setEditing(null);
+          }}
+        >
           Новая заметка
         </button>
       </div>
@@ -232,6 +240,9 @@ function NoteForm({
       : utcIsoToLocalInput(new Date().toISOString(), user.timezone),
   );
   const [tagIds, setTagIds] = useState<string[]>(note?.tag_ids ?? []);
+  const [reminderOffsets, setReminderOffsets] = useState<number[]>(
+    note?.reminder_offsets ?? [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -248,9 +259,16 @@ function NoteForm({
           body,
           starts_at,
           tag_ids: tagIds,
+          reminder_offsets: reminderOffsets,
         });
       } else {
-        await api.createNote({ title, body, starts_at, tag_ids: tagIds });
+        await api.createNote({
+          title,
+          body,
+          starts_at,
+          tag_ids: tagIds,
+          reminder_offsets: reminderOffsets,
+        });
       }
       onSaved();
     } catch (err) {
@@ -265,25 +283,36 @@ function NoteForm({
   }
 
   return (
-    <form className="card form-grid" onSubmit={submit}>
+    <form className="card form-grid" onSubmit={submit} data-testid="note-form">
       <h3>{note ? "Редактировать" : "Новая заметка"}</h3>
       <label>
         Заголовок
-        <input value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input
+          data-testid="note-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
       </label>
       <label>
         Текст
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} />
+        <textarea
+          data-testid="note-body"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={4}
+        />
       </label>
       <label>
         Время ({user.timezone})
         <input
           type="datetime-local"
+          data-testid="note-starts"
           value={startsLocal}
           onChange={(e) => setStartsLocal(e.target.value)}
           required
         />
       </label>
+      <ReminderOffsetsField value={reminderOffsets} onChange={setReminderOffsets} />
       <fieldset className="tag-pick">
         <legend>Теги</legend>
         {tags.map((t) => (
