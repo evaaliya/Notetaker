@@ -320,3 +320,94 @@ select {
 .linkish {
   font: inherit;
 }
+
+.toast-stack {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  display: grid;
+  gap: 0.65rem;
+  z-index: 40;
+  max-width: min(22rem, calc(100vw - 2rem));
+}
+
+.toast {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.85rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--accent);
+  box-shadow: 0 8px 24px rgba(28, 26, 23, 0.12);
+}
+
+.toast p {
+  margin: 0.25rem 0 0;
+}
+
+.banner {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  background: #fff4e5;
+  border: 1px solid #e0b56a;
+  color: #5c3b00;
+  font-size: 0.9rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 26, 23, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 1rem;
+}
+
+.modal {
+  max-width: 36rem;
+  width: 100%;
+  margin: 0;
+}
+
+.conflict-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.conflict-compare h4 {
+  margin: 0 0 0.35rem;
+}
+
+@media (max-width: 640px) {
+  .conflict-compare {
+    grid-template-columns: 1fr;
+  }
+}
+
+.shell-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bell-wrap {
+  position: relative;
+}
+
+.inbox {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  width: min(20rem, 80vw);
+  margin: 0;
+  z-index: 30;
+  max-height: 16rem;
+  overflow: auto;
+}
+
+.inbox h4 {
+  margin: 0;
+}

@@ -1,7 +1,9 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, User } from "./api";
+import { api, RealtimeEvent, User } from "./api";
+import { ToastItem, ToastStack } from "./components/ToastStack";
+import { useRealtime } from "./hooks/useRealtime";
 import { CalendarPage } from "./pages/CalendarPage";
 import { ListPage } from "./pages/ListPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -91,6 +93,37 @@ function AuthScreen({ onDone }: { onDone: (user: User) => void }) {
 
 function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [inboxOpen, setInboxOpen] = useState(false);
+
+  const unseen = useQuery({
+    queryKey: ["notifications", "unseen"],
+    queryFn: () => api.listNotifications(true),
+  });
+
+  const onNotificationNew = useCallback((ev: RealtimeEvent) => {
+    const id = ev.ids?.[0];
+    if (!id) return;
+    setToasts((prev) => {
+      if (prev.some((t) => t.id === id)) return prev;
+      return [...prev, { id, title: ev.title ?? "Напоминание", body: ev.body ?? "" }];
+    });
+  }, []);
+
+  const onNotificationSeen = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  useRealtime(true, { onNotificationNew, onNotificationSeen });
+
+  async function dismissToast(id: string) {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+    try {
+      await api.markNotificationSeen(id);
+    } catch {
+      /* ignore — toast already hidden locally */
+    }
+  }
 
   async function logout() {
     setBusy(true);
@@ -102,11 +135,47 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
     }
   }
 
+  const unseenCount = unseen.data?.length ?? 0;
+
   return (
     <main className="page shell">
       <header className="shell-header">
         <h1>Notetaker</h1>
         <div className="shell-user">
+          <div className="bell-wrap">
+            <button
+              type="button"
+              className="secondary"
+              data-testid="notif-bell"
+              aria-label="Уведомления"
+              onClick={() => setInboxOpen((v) => !v)}
+            >
+              Увед.{unseenCount > 0 ? ` ${unseenCount}` : ""}
+            </button>
+            {inboxOpen && (
+              <div className="inbox card" data-testid="notif-inbox">
+                <h4>Непрочитанные</h4>
+                {unseenCount === 0 && <p className="muted small">Пусто</p>}
+                <ul className="note-list">
+                  {(unseen.data ?? []).map((n) => (
+                    <li key={n.id} className="note-row">
+                      <div className="note-main">
+                        <strong>{n.title}</strong>
+                        <span className="muted small">{n.body}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => dismissToast(n.id)}
+                      >
+                        Прочитано
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
           <span className="muted">{user.login}</span>{" "}
           <button type="button" onClick={logout} disabled={busy}>
             Выйти
@@ -131,6 +200,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/calendar" replace />} />
       </Routes>
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </main>
   );
 }

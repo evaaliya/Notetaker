@@ -49,6 +49,23 @@ export type Upcoming = {
   past: Occurrence[];
 };
 
+export type Notification = {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  seen_at: string | null;
+  reminder_id: string;
+};
+
+export type RealtimeEvent = {
+  type: string;
+  ids?: string[];
+  version?: number;
+  title?: string;
+  body?: string;
+};
+
 export type NoteListParams = {
   q?: string;
   tags?: string[];
@@ -163,4 +180,19 @@ export const api = {
       `/api/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
   upcoming: () => request<Upcoming>("/api/upcoming"),
+
+  listNotifications: (unseen?: boolean) =>
+    request<Notification[]>(
+      unseen ? "/api/notifications?unseen=1" : "/api/notifications",
+    ),
+  markNotificationSeen: (id: string) =>
+    request<Notification>(`/api/notifications/${id}/seen`, { method: "POST" }),
+
+  e2eMakeReminderDue: (noteId: string) =>
+    request<{ updated: number }>("/api/e2e/make_reminder_due", {
+      method: "POST",
+      body: JSON.stringify({ note_id: noteId }),
+    }),
+  e2eTickReminders: () =>
+    request<{ claimed: number }>("/api/e2e/tick_reminders", { method: "POST" }),
 };

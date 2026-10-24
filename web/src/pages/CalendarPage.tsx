@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -39,6 +39,14 @@ export function CalendarPage({ user }: { user: User }) {
       })),
     [cal.data],
   );
+
+  useEffect(() => {
+    if (!selected || !cal.data) return;
+    const found = cal.data.items.find((it) => it.note.id === selected.id);
+    if (found && found.note.version !== selected.version) {
+      setSelected(found.note);
+    }
+  }, [cal.data, selected]);
 
   const onDatesSet = useCallback((arg: DatesSetArg) => {
     setRange({ from: toIsoZ(arg.start), to: toIsoZ(arg.end) });

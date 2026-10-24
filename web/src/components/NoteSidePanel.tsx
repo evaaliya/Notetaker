@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
-import { api, Note, Tag, User } from "../api";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ApiError, api, Note, Tag, User } from "../api";
 import { localInputToUtcIso, utcIsoToLocalInput } from "../format";
+import { ConflictDialog } from "./ConflictDialog";
 
 type Props = {
   user: User;
@@ -10,49 +11,118 @@ type Props = {
   onSaved: (note: Note) => void;
 };
 
+function formFromNote(note: Note, timeZone: string) {
+  return {
+    title: note.title,
+    body: note.body,
+    startsLocal: utcIsoToLocalInput(note.starts_at, timeZone),
+    tagIds: [...note.tag_ids],
+    version: note.version,
+  };
+}
+
 export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
-  const [title, setTitle] = useState(note.title);
-  const [body, setBody] = useState(note.body);
-  const [startsLocal, setStartsLocal] = useState(
-    utcIsoToLocalInput(note.starts_at, user.timezone),
-  );
-  const [tagIds, setTagIds] = useState<string[]>(note.tag_ids);
-  const [version, setVersion] = useState(note.version);
+  const initial = formFromNote(note, user.timezone);
+  const [title, setTitle] = useState(initial.title);
+  const [body, setBody] = useState(initial.body);
+  const [startsLocal, setStartsLocal] = useState(initial.startsLocal);
+  const [tagIds, setTagIds] = useState(initial.tagIds);
+  const [version, setVersion] = useState(initial.version);
+  const [baseline, setBaseline] = useState(note);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [remoteBanner, setRemoteBanner] = useState(false);
+  const [conflictNote, setConflictNote] = useState<Note | null>(null);
+
+  const dirty = useMemo(() => {
+    const starts = localInputToUtcIso(startsLocal, user.timezone);
+    const tagsSame =
+      tagIds.length === baseline.tag_ids.length &&
+      tagIds.every((id) => baseline.tag_ids.includes(id));
+    return (
+      title !== baseline.title ||
+      body !== baseline.body ||
+      starts !== baseline.starts_at ||
+      !tagsSame
+    );
+  }, [title, body, startsLocal, tagIds, baseline, user.timezone]);
 
   useEffect(() => {
-    setTitle(note.title);
-    setBody(note.body);
-    setStartsLocal(utcIsoToLocalInput(note.starts_at, user.timezone));
-    setTagIds(note.tag_ids);
-    setVersion(note.version);
-    setError(null);
-  }, [note, user.timezone]);
+    if (note.id !== baseline.id) {
+      const f = formFromNote(note, user.timezone);
+      setTitle(f.title);
+      setBody(f.body);
+      setStartsLocal(f.startsLocal);
+      setTagIds(f.tagIds);
+      setVersion(f.version);
+      setBaseline(note);
+      setRemoteBanner(false);
+      setConflictNote(null);
+      setError(null);
+      return;
+    }
+    if (note.version === baseline.version) return;
+    if (!dirty) {
+      const f = formFromNote(note, user.timezone);
+      setTitle(f.title);
+      setBody(f.body);
+      setStartsLocal(f.startsLocal);
+      setTagIds(f.tagIds);
+      setVersion(f.version);
+      setBaseline(note);
+      setRemoteBanner(false);
+    } else {
+      setRemoteBanner(true);
+    }
+  }, [note, baseline.id, baseline.version, dirty, user.timezone]);
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function saveWithVersion(v: number) {
     setBusy(true);
     setError(null);
     try {
       const updated = await api.patchNote(note.id, {
-        version,
+        version: v,
         title,
         body,
         starts_at: localInputToUtcIso(startsLocal, user.timezone),
         tag_ids: tagIds,
       });
       setVersion(updated.version);
+      setBaseline(updated);
+      setConflictNote(null);
+      setRemoteBanner(false);
       onSaved(updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      if (err instanceof ApiError && err.status === 409 && err.note) {
+        setConflictNote(err.note);
+      } else {
+        setError(err instanceof Error ? err.message : "Ошибка");
+      }
     } finally {
       setBusy(false);
     }
   }
 
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    await saveWithVersion(version);
+  }
+
   function toggleTag(id: string) {
     setTagIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function acceptServer(server: Note) {
+    const f = formFromNote(server, user.timezone);
+    setTitle(f.title);
+    setBody(f.body);
+    setStartsLocal(f.startsLocal);
+    setTagIds(f.tagIds);
+    setVersion(f.version);
+    setBaseline(server);
+    setConflictNote(null);
+    setRemoteBanner(false);
+    onSaved(server);
   }
 
   return (
@@ -64,6 +134,11 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
             Закрыть
           </button>
         </div>
+        {remoteBanner && (
+          <p className="banner" data-testid="remote-edit-banner">
+            Заметка изменена на другом устройстве. При сохранении возможен конфликт.
+          </p>
+        )}
         <label>
           Заголовок
           <input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -100,6 +175,17 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
           Сохранить
         </button>
       </form>
+      {conflictNote && (
+        <ConflictDialog
+          draft={{ title, body, startsLocal }}
+          server={conflictNote}
+          timeZone={user.timezone}
+          formatStarts={(iso) => utcIsoToLocalInput(iso, user.timezone)}
+          onMine={() => saveWithVersion(conflictNote.version)}
+          onTheirs={() => acceptServer(conflictNote)}
+          onClose={() => setConflictNote(null)}
+        />
+      )}
     </aside>
   );
 }

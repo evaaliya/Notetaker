@@ -11,6 +11,11 @@ export default defineConfig({
         target: process.env.VITE_PROXY_API || "http://api:8000",
         changeOrigin: true,
       },
+      "/ws": {
+        target: process.env.VITE_PROXY_API || "http://api:8000",
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 });
