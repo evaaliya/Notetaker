@@ -185,3 +185,9 @@
 **Причина:** живой сценарий требовал выбор пояса и честный UX по «не сработает»; T15 — `fire_at`/`starts_at` в UTC не двигаются.
 **Последствия:** API register без `timezone` по-прежнему → UTC (тесты/скрипты).
 
+### D-028 · 2026-10-24 15:03 +06 · M5 · Генератор вхождений + DST-gap вперёд
+**Решение:** `app.services.recurrence.iter_occurrence_starts` / `wall_to_utc`: wall-time якоря в `rec_tz`; monthly через индекс месяцев + clamp дня; DST-gap — если round-trip UTC→local ломает wall, сдвиг на `utcoffset_after − utcoffset_before`.
+**Альтернативы:** `dateutil.rrule` (пропускает короткие месяцы); игнорировать gap / брать fold=1 без сдвига.
+**Причина:** D-006 / §4.3 — свой генератор; правило 31-го и DST зафиксированы в T12 (`test_monthly_clamp`, Berlin/NY).
+**Последствия:** поддерживаем сами; бесконечный `range_to=None` ограничен safety-cap итераций.
+
