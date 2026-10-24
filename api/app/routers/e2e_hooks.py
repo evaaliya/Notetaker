@@ -14,10 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_clock, get_current_user
 from app.clock import Clock
 from app.config import get_settings
-from app.db import get_session
+from app.db import SessionLocal, get_session
 from app.errors import AppError
 from app.models import Note, Reminder, User
-from app.services.worker_jobs import process_due_reminders
+from app.services.worker_jobs import process_due_reminders, process_outbox
 
 router = APIRouter(prefix="/e2e", tags=["e2e"])
 
@@ -60,6 +60,9 @@ async def tick_reminders(
 ) -> dict:
     _require_e2e()
     _ = user
-    claimed = await process_due_reminders(db, clock.now())
+    now = clock.now()
+    claimed = await process_due_reminders(db, now)
     await db.commit()
-    return {"claimed": claimed}
+    # Flush outbox so MailHog sees the letter without waiting on the worker cycle.
+    sent = await process_outbox(SessionLocal, now)
+    return {"claimed": claimed, "outbox_sent": sent}
