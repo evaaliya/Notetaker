@@ -20,11 +20,11 @@ test:
 	fi
 
 e2e:
-	cd web && npx playwright test
+	cd web && npx playwright install chromium && npx playwright test
 
 verify:
 	@mkdir -p reports
 	@TS=$$(date +%Y%m%d-%H%M%S); \
 	{ echo "# verify $$TS"; echo; \
 	  docker compose run --rm api pytest -v 2>&1; \
-	  cd web && npx playwright test 2>&1; } | tee reports/verify-$$TS.md
+	  cd web && npx playwright install chromium && npx playwright test 2>&1; } | tee reports/verify-$$TS.md

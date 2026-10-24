@@ -28,12 +28,15 @@ docker compose up --build
 | `make up` / `make down` | поднять / остановить сервисы |
 | `make seed` | демо-пользователь и данные |
 | `make test` | backend-тесты (реальный Postgres) |
-| `make e2e` | Playwright |
+| `make e2e` | Playwright (ставит Chromium при необходимости) |
 | `make verify` | всё вместе + отчёт в `reports/` |
 
 ## Как проверить работоспособность
-1. `make verify` — отчёт `reports/verify-<время>.md` сопоставляет требования T1–T21 с результатами тестов.
-2. Живая демонстрация: `python scripts/demo.py` создаёт заметку на «через 2 минуты». Письмо появится в MailHog, toast — в открытых вкладках.
+1. Поднять стек с хуками для e2e: `E2E_HOOKS=true docker compose up --build -d`.
+2. Backend: `make test` (реальный Postgres через testcontainers).
+3. Frontend e2e: `make e2e` — перед прогоном сам ставит Chromium (`npx playwright install chromium`). Отдельно ставить браузер не нужно.
+4. Полный прогон: `make verify` → отчёт `reports/verify-<время>.md`.
+5. Живая демонстрация: `docker compose exec api python scripts/demo.py` создаёт заметку на «через 2 минуты». Письмо — в MailHog, toast — в открытых вкладках.
 
 ## Документы
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — лог решений с временем
