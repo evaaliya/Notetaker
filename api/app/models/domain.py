@@ -175,7 +175,7 @@ class EmailOutbox(Base):
     __tablename__ = "email_outbox"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending', 'sent', 'failed')",
+            "status IN ('pending', 'sending', 'sent', 'failed')",
             name="ck_email_outbox_status",
         ),
     )

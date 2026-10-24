@@ -145,7 +145,12 @@ async def process_outbox(
     batch_size: int = BATCH,
     smtp_send: Callable[[OutboxPayload], None] | None = None,
 ) -> int:
-    """Claim pending outbox, send SMTP outside the transaction, then mark sent/failed."""
+    """Claim pending outbox as ``sending``, SMTP outside the TX, then sent/failed.
+
+    Status flips to ``sending`` under ``FOR UPDATE SKIP LOCKED`` before commit so a
+    concurrent worker (or e2e ``tick_reminders`` + real worker) cannot re-claim the
+    same row while SMTP is in flight (D-031).
+    """
     settings = settings or get_settings()
 
     async with session_factory() as session:
@@ -168,6 +173,7 @@ async def process_outbox(
                 row = await session.get(EmailOutbox, oid)
                 if row is None or row.status != "pending":
                     continue
+                row.status = "sending"
                 row.attempts = int(row.attempts or 0) + 1
                 payloads.append(
                     OutboxPayload(
@@ -190,7 +196,7 @@ async def process_outbox(
                 async with session.begin():
                     await session.execute(
                         update(EmailOutbox)
-                        .where(EmailOutbox.id == payload.id, EmailOutbox.status == "pending")
+                        .where(EmailOutbox.id == payload.id, EmailOutbox.status == "sending")
                         .values(status="sent", sent_at=now)
                     )
         except Exception:
@@ -199,7 +205,7 @@ async def process_outbox(
                 async with session.begin():
                     await session.execute(
                         update(EmailOutbox)
-                        .where(EmailOutbox.id == payload.id, EmailOutbox.status == "pending")
+                        .where(EmailOutbox.id == payload.id, EmailOutbox.status == "sending")
                         .values(status="failed")
                     )
     return len(payloads)
