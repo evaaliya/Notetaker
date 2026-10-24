@@ -25,16 +25,28 @@ docker compose up --build
 ## Команды
 | Команда | Что делает |
 |---|---|
-| `make up` / `make down` | поднять / остановить сервисы |
+| `make up` / `make down` | поднять / остановить сервисы (`E2E_HOOKS` выключен) |
 | `make seed` | демо-пользователь и данные |
 | `make test` | backend-тесты (реальный Postgres) |
-| `make e2e` | Playwright (ставит Chromium при необходимости) |
+| `make e2e` | поднимает стек с `E2E_HOOKS=true`, Playwright, затем возвращает api в обычный режим |
 | `make verify` | всё вместе + отчёт в `reports/` |
 
+## E2E (Playwright)
+```bash
+make e2e
+```
+`make e2e` сам:
+1. поднимает compose с override `docker-compose.e2e.yml` (`E2E_HOOKS=true` у api);
+2. ждёт готовности api/web;
+3. ставит Chromium при необходимости и гоняет тесты;
+4. пересоздаёт api **без** override — ручки `/api/e2e/*` снова отдают 404.
+
+Обычный `make up` / `docker compose up` хуки не включает. Вручную: `docker compose -f docker-compose.yml -f docker-compose.e2e.yml up --build`.
+
 ## Как проверить работоспособность
-1. Поднять стек с хуками для e2e: `E2E_HOOKS=true docker compose up --build -d`.
+1. С нуля: `docker compose down -v && docker compose up --build`.
 2. Backend: `make test` (реальный Postgres через testcontainers).
-3. Frontend e2e: `make e2e` — перед прогоном сам ставит Chromium (`npx playwright install chromium`). Отдельно ставить браузер не нужно.
+3. Frontend e2e: `make e2e` (см. выше; отдельно ставить браузер и выставлять `E2E_HOOKS` не нужно).
 4. Полный прогон: `make verify` → отчёт `reports/verify-<время>.md`.
 5. Живая демонстрация: `docker compose exec api python scripts/demo.py` создаёт заметку на «через 2 минуты». Письмо — в MailHog, toast — в открытых вкладках.
 

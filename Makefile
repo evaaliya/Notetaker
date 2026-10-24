@@ -1,10 +1,13 @@
 .PHONY: up down seed test e2e verify
 
+COMPOSE=docker compose
+COMPOSE_E2E=docker compose -f docker-compose.yml -f docker-compose.e2e.yml
+
 up:
-	docker compose up --build
+	$(COMPOSE) up --build
 
 down:
-	docker compose down
+	$(COMPOSE) down
 
 seed:
 	docker compose exec api python scripts/seed.py --notes 10000
@@ -19,8 +22,27 @@ test:
 			api pytest -v; \
 	fi
 
+# Поднимает стек с E2E_HOOKS=true, гоняет Playwright, затем пересоздаёт api
+# без override — обычный режим (ручки /api/e2e/* снова 404).
 e2e:
-	cd web && npx playwright install chromium && npx playwright test
+	$(COMPOSE_E2E) up --build -d
+	@echo "waiting for api/web..."
+	@ok=0; for i in $$(seq 1 60); do \
+		if curl -sf http://127.0.0.1:8000/api/health >/dev/null \
+			&& curl -sf http://127.0.0.1:5173 >/dev/null; then ok=1; break; fi; \
+		sleep 2; \
+	done; \
+	if [ "$$ok" != "1" ]; then echo "api/web not ready"; exit 1; fi
+	@curl -sf -o /dev/null -w "e2e hooks (expect 401/422 not 404): %{http_code}\n" \
+		-X POST http://127.0.0.1:8000/api/e2e/tick_reminders || true
+	cd web && npx playwright install chromium && npx playwright test; \
+	status=$$?; \
+	echo "restoring api without E2E_HOOKS..."; \
+	$(COMPOSE) up -d --force-recreate --no-deps api; \
+	sleep 3; \
+	code=$$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8000/api/e2e/tick_reminders || true); \
+	echo "e2e hooks after restore (expect 404): $$code"; \
+	exit $$status
 
 verify:
 	@mkdir -p reports

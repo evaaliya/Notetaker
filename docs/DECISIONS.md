@@ -221,3 +221,9 @@
 **Причина:** инвариант «всё чтение времени через Clock»; тесты без wall-clock; RFC 5322 ожидает Date.
 **Последствия:** при ручном ретрае письма Date = время тика отправки, не создания outbox-строки.
 
+### D-034 · 2026-10-24 17:50 +06 · M6 · make e2e включает E2E_HOOKS через compose override
+**Решение:** `docker-compose.e2e.yml` только переопределяет `api.environment.E2E_HOOKS=true`; `make e2e` поднимает стек с `-f docker-compose.yml -f docker-compose.e2e.yml`, гоняет Playwright, затем `docker compose up -d --force-recreate --no-deps api` без override (хуки снова выкл.). Обычный `make up` хуки не включает.
+**Альтернативы:** всегда `E2E_HOOKS=true` в `.env`; отдельный compose-профиль с дублированием сервиса; ручной экспорт переменной перед e2e.
+**Причина:** спека/STATUS — хуки только для Playwright; проверяющий не должен помнить про env; после прогона API безопасен.
+**Последствия:** recreate api рвёт текущие WS на время перезапуска; e2e сам ждёт health перед прогоном.
+

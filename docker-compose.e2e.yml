@@ -1,0 +1,6 @@
+# Override for Playwright: enables /api/e2e/* only for the e2e run.
+# Used by `make e2e`; do not use with ordinary `make up`.
+services:
+  api:
+    environment:
+      E2E_HOOKS: "true"
