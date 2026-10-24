@@ -1,6 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ApiError, EditScope, api, Note, Tag, User } from "../api";
-import { localInputToUtcIso, utcIsoToLocalInput } from "../format";
+import {
+  formatSeriesRecurrenceHint,
+  localInputToUtcIso,
+  utcIsoToLocalInput,
+} from "../format";
 import { ConflictDialog } from "./ConflictDialog";
 import { EditScopeDialog } from "./EditScopeDialog";
 import { ReminderOffsetsField, offsetsEqual } from "./ReminderOffsetsField";
@@ -194,9 +198,7 @@ export function NoteSidePanel({
         </div>
         {isSeriesOcc && (
           <p className="muted small" data-testid="series-occ-hint">
-            Серия · {note.rec_freq}
-            {note.rec_until ? ` до ${note.rec_until}` : ""} · ключ{" "}
-            {occurrenceOriginalStart}
+            {formatSeriesRecurrenceHint(note.rec_freq, note.rec_until)}
           </p>
         )}
         {remoteBanner && (

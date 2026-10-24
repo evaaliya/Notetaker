@@ -10,6 +10,27 @@ export function formatTimeHm(iso: string, timeZone: string): string {
   }).format(new Date(iso));
 }
 
+const FREQ_LABEL: Record<string, string> = {
+  daily: "каждый день",
+  weekly: "каждую неделю",
+  monthly: "каждый месяц",
+};
+
+/** Human-readable series summary for the side panel (no occurrence keys). */
+export function formatSeriesRecurrenceHint(
+  freq: string | null | undefined,
+  until: string | null | undefined,
+): string {
+  const freqLabel = (freq && FREQ_LABEL[freq]) || "с повтором";
+  if (!until) {
+    return `Повторяется ${freqLabel}`;
+  }
+  // rec_until is a calendar date (YYYY-MM-DD); show as DD.MM.YYYY.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(until);
+  const untilLabel = m ? `${m[3]}.${m[2]}.${m[1]}` : until;
+  return `Повторяется ${freqLabel} до ${untilLabel}`;
+}
+
 /** Date + HH:MM in ``timeZone`` (no AM/PM, minutes always shown). */
 export function formatInZone(
   iso: string,

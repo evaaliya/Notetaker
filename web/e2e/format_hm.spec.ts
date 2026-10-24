@@ -1,6 +1,22 @@
 import { expect, test } from "@playwright/test";
-import { formatInZone, formatTimeHm } from "../src/format";
+import {
+  formatInZone,
+  formatSeriesRecurrenceHint,
+  formatTimeHm,
+} from "../src/format";
 import { apiCreateNote, registerUi, uniqueLogin } from "./helpers";
+
+test("formatSeriesRecurrenceHint_human_readable", () => {
+  expect(formatSeriesRecurrenceHint("daily", "2026-10-28")).toBe(
+    "Повторяется каждый день до 28.10.2026",
+  );
+  expect(formatSeriesRecurrenceHint("weekly", null)).toBe(
+    "Повторяется каждую неделю",
+  );
+  expect(formatSeriesRecurrenceHint("monthly", "2026-02-01")).toBe(
+    "Повторяется каждый месяц до 01.02.2026",
+  );
+});
 
 test("formatTimeHm_always_hhmm_in_zone", () => {
   // :00 must not collapse to a bare hour (FullCalendar omitZeroMinute bug class).
@@ -60,4 +76,12 @@ test("e2e_calendar_list_upcoming_time_hhmm", async ({ page }) => {
   // Bucket rows show occurrence time as HH:MM (via formatInZone).
   const row = page.locator(".note-row").filter({ hasText: titleOnHour });
   await expect(row).toContainText(/\d{2}:\d{2}/);
+
+  await page.goto("/calendar");
+  await page.locator(".fc-event").filter({ hasText: titleOnHour }).click();
+  const hint = page.getByTestId("series-occ-hint");
+  await expect(hint).toBeVisible();
+  await expect(hint).toHaveText("Повторяется каждый день до 25.10.2026");
+  await expect(hint).not.toContainText("ключ");
+  await expect(hint).not.toContainText("T04:00");
 });
