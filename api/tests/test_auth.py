@@ -73,3 +73,22 @@ async def test_patch_me_timezone_and_email(client: AsyncClient):
     body = ok.json()
     assert body["timezone"] == "Asia/Bishkek"
     assert body["email"] == "eva@example.com"
+
+
+@pytest.mark.asyncio
+async def test_register_with_timezone(client: AsyncClient):
+    login = _login()
+    reg = await client.post(
+        "/api/auth/register",
+        json={"login": login, "password": "x", "timezone": "Europe/Berlin"},
+    )
+    assert reg.status_code == 200
+    assert reg.json()["timezone"] == "Europe/Berlin"
+    me = await client.get("/api/me")
+    assert me.json()["timezone"] == "Europe/Berlin"
+
+    bad = await client.post(
+        "/api/auth/register",
+        json={"login": _login(), "password": "x", "timezone": "Not/AZone"},
+    )
+    assert bad.status_code == 422

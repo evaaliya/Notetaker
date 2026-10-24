@@ -474,3 +474,34 @@ async def test_downtime_past_marked_missed(client: AsyncClient, clock: FrozenClo
     assert rem.status == "missed"
     assert await _outbox_count_for_note(note_id) == 0
     assert await _notif_count_for_note(note_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_timezone_change_keeps_fire_at(client: AsyncClient, clock: FrozenClock):
+    """T15: PATCH timezone does not move reminder fire_at (UTC truth)."""
+    await _setup_user(client)
+    starts = clock.now() + timedelta(hours=2)
+    created = await client.post(
+        "/api/notes",
+        json={
+            "title": "tz",
+            "body": "",
+            "starts_at": starts.isoformat().replace("+00:00", "Z"),
+            "reminder_offsets": [60],
+            "tag_ids": [],
+        },
+    )
+    note_id = uuid.UUID(created.json()["id"])
+    before = await _one_reminder(note_id)
+    fire_before = before.fire_at
+    starts_before = created.json()["starts_at"]
+
+    patched = await client.patch("/api/me", json={"timezone": "America/New_York"})
+    assert patched.status_code == 200
+    assert patched.json()["timezone"] == "America/New_York"
+
+    note = await client.get(f"/api/notes/{note_id}")
+    assert note.json()["starts_at"] == starts_before
+    after = await _one_reminder(note_id)
+    assert after.fire_at == fire_before
+    assert after.status == "pending"

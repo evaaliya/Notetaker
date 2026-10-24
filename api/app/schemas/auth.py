@@ -8,6 +8,18 @@ from pydantic import BaseModel, Field, field_serializer, field_validator
 class RegisterRequest(BaseModel):
     login: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=256)
+    timezone: str | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_register_timezone(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError(f"Unknown IANA timezone: {value}") from exc
+        return value
 
 
 class LoginRequest(BaseModel):

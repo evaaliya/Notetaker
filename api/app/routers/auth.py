@@ -48,6 +48,7 @@ async def register(
     user = User(
         login=login,
         password_hash=hash_password(body.password),
+        timezone=body.timezone or "UTC",
         created_at=clock.now(),
     )
     db.add(user)
