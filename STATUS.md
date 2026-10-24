@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-24 13:24 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-10-24 13:55 +06.
 
 ## Этапы
 
@@ -10,7 +10,7 @@
 | M1 Заметки/теги/корзина/список | готов | T20 `test_tags_crud_and_multi`; T17 server `test_list_search_filters` / `test_list_keyset_pagination`; `perf_*_10k` — M6; `make test` → 12 passed; curl tags/notes/list/me |
 | M2 Календарь и «Ближайшее» | готов | `test_calendar_range_singles`, `test_upcoming_buckets`; `make test` → 14 passed; curl `/calendar`, `/upcoming`; UI-смоки (см. ниже) |
 | M3 Воркер напоминаний + outbox | готов | T1, T4–T8, T18–T19 (`test_reminder_*`, `test_inactive_*`, `test_reactivate_*`, `test_reschedule_*`, `test_sent_*`, `test_delete_*`, `test_restore_*`, `test_trash_purge_30d`, `test_restart_*`, `test_downtime_*`); `make test` → 26 passed; MailHog smoke (см. ниже) |
-| M4 Realtime | готов | T2/T3/T13/T14/T16 Playwright; API `test_pg_notify_*` / `test_notification_*` / `test_concurrent_patch_409`; `make test` → 29 passed; `npx playwright test` → 5 passed (см. ниже) |
+| M4 Realtime | готов | T2/T3/T13/T14/T16 + `e2e_reminder_from_ui_toast_and_mail`; API realtime; `make test` → 29 passed; Playwright → 6 passed; напоминания в UI (D-026) |
 | M5 Повторы | не начат | — |
 | M6 Нагрузка и verify | не начат | — |
 
@@ -38,6 +38,9 @@
 - Диалог конфликта при 409: «Моя версия поверх» / «Принять серверную» / «Сравнить» (T14); черновик не стирается.
 - `useNow` + клиентский перенос в «Прошедшие» без reload (T16).
 - Playwright e2e: `make e2e` / `cd web && npx playwright test` (нужен стек с `E2E_HOOKS=true`, D-024).
+- **Напоминания в UI:** мультивыбор «за 10 минут / за час / за день» в форме списка и боковой панели → `reminder_offsets`; при редактировании отображаются текущие (D-026).
+- Настройки: поле Email есть, сохраняется через `PATCH /me` (проверено e2e).
+- `scripts/demo.py` — заметка с offset=10, fire ≈ через 2 минуты; `docker compose exec api python scripts/demo.py`.
 
 ### UI-смоки M2 (2026-10-23)
 **Автоматически (pytest + curl после `docker compose up --build`):**
@@ -60,12 +63,14 @@
 ### Смоки M4 (2026-10-24)
 **Автоматически:**
 - `make test` → 29 passed (в т.ч. `test_pg_notify_note_changed_on_user_channel`, `test_notification_new_over_user_channel`, `test_notifications_unseen_and_seen`, `test_concurrent_patch_409`).
-- `E2E_HOOKS=true docker compose up --build -d` затем `cd web && npx playwright test` → 5 passed:
+- `E2E_HOOKS=true docker compose up --build -d` затем `cd web && npx playwright test` → 6 passed:
   - `e2e_toast_in_two_tabs` (T2)
   - `e2e_toast_not_repeated_after_reload` (T3)
   - `e2e_edit_in_tab_a_visible_in_tab_b` (T13)
   - `e2e_conflict_dialog` (T14)
   - `e2e_upcoming_moves_to_past_live` (T16)
+  - `e2e_reminder_from_ui_toast_and_mail` — форма UI + toast в 2 вкладках + ровно 1 письмо в MailHog
+- `docker compose exec api python scripts/demo.py` → создал `Demo … UTC`, offsets `[10]`.
 
 ## Не работает
 - Генерация вхождений / overrides / split серии / материализация горизонта 60д для серий — M5 (поля `rec_freq` сохраняются; в календаре/upcoming серии пока скрыты; reminders для `rec_freq IS NOT NULL` не создаются).
