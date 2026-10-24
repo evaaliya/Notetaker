@@ -19,12 +19,18 @@ from app.errors import AppError
 from app.models import Note, Reminder, User
 from app.services.worker_jobs import process_due_reminders, process_outbox
 
-router = APIRouter(prefix="/e2e", tags=["e2e"])
 
-
-def _require_e2e() -> None:
+def require_e2e_enabled() -> None:
+    """Fail with 404 before auth when hooks are off (ordinary ``make up``)."""
     if not get_settings().e2e_hooks:
         raise AppError("not_found", "not found", status_code=404)
+
+
+router = APIRouter(
+    prefix="/e2e",
+    tags=["e2e"],
+    dependencies=[Depends(require_e2e_enabled)],
+)
 
 
 class MakeDueBody(BaseModel):
@@ -38,7 +44,6 @@ async def make_reminder_due(
     db: Annotated[AsyncSession, Depends(get_session)],
     clock: Annotated[Clock, Depends(get_clock)],
 ) -> dict:
-    _require_e2e()
     note = await db.get(Note, body.note_id)
     if note is None or note.user_id != user.id:
         raise AppError("not_found", "note not found", status_code=404)
@@ -58,7 +63,6 @@ async def tick_reminders(
     db: Annotated[AsyncSession, Depends(get_session)],
     clock: Annotated[Clock, Depends(get_clock)],
 ) -> dict:
-    _require_e2e()
     _ = user
     now = clock.now()
     claimed = await process_due_reminders(db, now)
