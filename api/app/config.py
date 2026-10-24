@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     worker_heartbeat_stale_seconds: int = 10
     recurrence_horizon_days: int = 60
     trash_retention_days: int = 30
+    e2e_hooks: bool = False
 
 
 @lru_cache

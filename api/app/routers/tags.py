@@ -11,6 +11,7 @@ from app.db import get_session
 from app.errors import AppError
 from app.models import Tag, User
 from app.schemas.tags import TagCreate, TagOut, TagPatch
+from app.services.realtime import notify_user
 from app.services.tags import set_tag_name
 
 router = APIRouter(prefix="/tags", tags=["tags"])
@@ -40,6 +41,7 @@ async def create_tag(
         raise AppError("validation_error", str(exc)) from exc
     db.add(tag)
     try:
+        await notify_user(db, user.id, "tag.changed", ids=[tag.id])
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -67,6 +69,7 @@ async def patch_tag(
     if "color" in data:
         tag.color = data["color"]
     try:
+        await notify_user(db, user.id, "tag.changed", ids=[tag.id])
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
@@ -82,7 +85,9 @@ async def delete_tag(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
     tag = await _get_owned_tag(db, user.id, tag_id)
+    tag_id_val = tag.id
     await db.delete(tag)
+    await notify_user(db, user.id, "tag.changed", ids=[tag_id_val])
     await db.commit()
 
 

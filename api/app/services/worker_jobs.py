@@ -6,7 +6,6 @@ SMTP stays outside DB transactions (D-005). Time comes from ``Clock`` via ``tick
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import smtplib
 import uuid
@@ -21,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings, get_settings
 from app.models import EmailOutbox, Note, Notification, Reminder, User
+from app.services.realtime import notify_user
 
 logger = logging.getLogger("worker")
 
@@ -111,9 +111,12 @@ async def process_due_reminders(session: AsyncSession, now: datetime, *, batch_s
             )
 
         rem.status = "sent"
-        await session.execute(
-            text("SELECT pg_notify('notification.new', :payload)"),
-            {"payload": json.dumps({"id": str(notify_id), "user_id": str(note.user_id)})},
+        await notify_user(
+            session,
+            note.user_id,
+            "notification.new",
+            ids=[notify_id],
+            extra={"title": title, "body": body},
         )
 
     return len(ids)

@@ -8,6 +8,7 @@ from app.db import get_session
 from app.errors import AppError
 from app.models import User
 from app.schemas.auth import MePatch, UserOut
+from app.services.realtime import notify_user
 
 router = APIRouter(tags=["me"])
 
@@ -30,6 +31,7 @@ async def patch_me(
         user.email = data["email"]
     if "timezone" in data:
         user.timezone = data["timezone"]
+    await notify_user(db, user.id, "settings.changed", ids=[user.id])
     await db.commit()
     await db.refresh(user)
     return user

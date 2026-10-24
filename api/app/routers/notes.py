@@ -14,6 +14,7 @@ from app.models import Note, User
 from app.schemas.notes import NoteCreate, NoteListOut, NoteOut, NotePatch
 from app.services.note_list import list_notes
 from app.services.notes import note_to_out, replace_note_tags
+from app.services.realtime import notify_user
 from app.services.reminders import materialize_single_note, rebuild_pending_for_note
 
 router = APIRouter(prefix="/notes", tags=["notes"])
@@ -88,6 +89,7 @@ async def create_note(
             reminder_offsets=list(note.reminder_offsets or []),
             now=now,
         )
+    await notify_user(db, user.id, "note.changed", ids=[note.id], version=note.version)
     await db.commit()
     await db.refresh(note)
     return await note_to_out(db, note)
@@ -190,6 +192,8 @@ async def patch_note(
                 now=now,
             )
 
+    note = await _get_owned_note(db, user_id, note_id, allow_deleted=False)
+    await notify_user(db, user_id, "note.changed", ids=[note.id], version=note.version)
     await db.commit()
     note = await _get_owned_note(db, user_id, note_id, allow_deleted=False)
     return await note_to_out(db, note)
@@ -207,6 +211,7 @@ async def delete_note(
     note.deleted_at = now
     note.updated_at = now
     note.version += 1
+    await notify_user(db, user.id, "note.deleted", ids=[note.id], version=note.version)
     await db.commit()
     await db.refresh(note)
     return await note_to_out(db, note)
@@ -246,6 +251,7 @@ async def restore_note(
     note.deleted_at = None
     note.updated_at = now
     note.version += 1
+    await notify_user(db, user.id, "note.restored", ids=[note.id], version=note.version)
     await db.commit()
     await db.refresh(note)
     return await note_to_out(db, note)
@@ -262,6 +268,7 @@ async def _set_status(
     note.status = status
     note.updated_at = clock.now()
     note.version += 1
+    await notify_user(db, user_id, "note.changed", ids=[note.id], version=note.version)
     await db.commit()
     await db.refresh(note)
     return await note_to_out(db, note)

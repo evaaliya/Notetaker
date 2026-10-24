@@ -10,9 +10,10 @@ from testcontainers.postgres import PostgresContainer
 
 from app.clock import FrozenClock
 from app.config import get_settings
-from app.db import Base, get_session
+from app.db import get_session
 from app.main import app
 from app.migrate import run_migrations
+from app.realtime_hub import RealtimeHub
 
 
 @pytest.fixture(scope="session")
@@ -59,10 +60,17 @@ async def client(postgres_url: str) -> AsyncGenerator[AsyncClient, None]:
     db_module.engine = engine
     db_module.SessionLocal = session_factory
 
+    # Hub connects lazily on the test event loop (asyncpg is loop-bound).
+    hub = RealtimeHub(get_settings())
+    app.state.realtime_hub = hub
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
+    await hub.stop()
+    if getattr(app.state, "realtime_hub", None) is hub:
+        delattr(app.state, "realtime_hub")
     app.dependency_overrides.clear()
     db_module.engine = old_engine
     db_module.SessionLocal = old_session
