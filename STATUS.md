@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-24 12:39 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-10-24 13:24 +06.
 
 ## Этапы
 
@@ -10,7 +10,7 @@
 | M1 Заметки/теги/корзина/список | готов | T20 `test_tags_crud_and_multi`; T17 server `test_list_search_filters` / `test_list_keyset_pagination`; `perf_*_10k` — M6; `make test` → 12 passed; curl tags/notes/list/me |
 | M2 Календарь и «Ближайшее» | готов | `test_calendar_range_singles`, `test_upcoming_buckets`; `make test` → 14 passed; curl `/calendar`, `/upcoming`; UI-смоки (см. ниже) |
 | M3 Воркер напоминаний + outbox | готов | T1, T4–T8, T18–T19 (`test_reminder_*`, `test_inactive_*`, `test_reactivate_*`, `test_reschedule_*`, `test_sent_*`, `test_delete_*`, `test_restore_*`, `test_trash_purge_30d`, `test_restart_*`, `test_downtime_*`); `make test` → 26 passed; MailHog smoke (см. ниже) |
-| M4 Realtime | не начат | — |
+| M4 Realtime | готов | T2/T3/T13/T14/T16 Playwright; API `test_pg_notify_*` / `test_notification_*` / `test_concurrent_patch_409`; `make test` → 29 passed; `npx playwright test` → 5 passed (см. ниже) |
 | M5 Повторы | не начат | — |
 | M6 Нагрузка и verify | не начат | — |
 
@@ -26,11 +26,18 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 26 passed на реальном Postgres (testcontainers).
+- Тесты: `make test` → 29 passed на реальном Postgres (testcontainers).
 - Напоминания (singles): материализация при create/patch (`fire_at = starts_at − offset`, без `fire_at <= now`); rebuild pending при смене времени/offsets; `sent` не трогаем (D-020).
-- Воркер `tick(now)`: claim `FOR UPDATE SKIP LOCKED` (лимит 100); inactive/deleted → `skipped`; `occurrence_start < now` → `missed` (D-007); иначе `notifications` + `email_outbox` + `sent` + `pg_notify('notification.new')`.
+- Воркер `tick(now)`: claim `FOR UPDATE SKIP LOCKED` (лимит 100); inactive/deleted → `skipped`; `occurrence_start < now` → `missed` (D-007); иначе `notifications` + `email_outbox` + `sent` + `pg_notify` на канал `u_<user_id>` (`notification.new`, D-023).
 - Outbox: SMTP (`smtplib`) вне транзакции; фиксированный `Message-ID = <{outbox_id}@notetaker.local>` (D-021); без email у пользователя — только in-app notification.
 - Автоочистка корзины раз в час: `deleted_at < now − 30d` (D-022).
+- Realtime (M4): `pg_notify('u_<user_id>', …)` в той же транзакции, что мутация; api LISTEN → fan-out; `GET /ws` (cookie); клиент только инвалидирует TanStack Query (D-025).
+- `GET /api/notifications?unseen=1`, `POST /api/notifications/{id}/seen` (+ `notification.seen` по WS).
+- Toast только на `notification.new` за сессию WS; после закрытия — `seen`; reload без повторного toast (T2/T3).
+- Синхронизация правок между вкладками без reload (список / календарь / «Ближайшее», T13).
+- Диалог конфликта при 409: «Моя версия поверх» / «Принять серверную» / «Сравнить» (T14); черновик не стирается.
+- `useNow` + клиентский перенос в «Прошедшие» без reload (T16).
+- Playwright e2e: `make e2e` / `cd web && npx playwright test` (нужен стек с `E2E_HOOKS=true`, D-024).
 
 ### UI-смоки M2 (2026-10-23)
 **Автоматически (pytest + curl после `docker compose up --build`):**
@@ -50,16 +57,24 @@
 - `make test` → 26 passed (в т.ч. T1, T4–T8, T18–T19).
 - MailHog: после create + `UPDATE reminders SET fire_at = now() - 1s` воркер отправил письмо; `curl http://localhost:8025/api/v2/messages` → `total: 1`, Subject `M3 MailHog smoke`, `Message-ID: <…@notetaker.local>`; reminder/outbox `status=sent`.
 
+### Смоки M4 (2026-10-24)
+**Автоматически:**
+- `make test` → 29 passed (в т.ч. `test_pg_notify_note_changed_on_user_channel`, `test_notification_new_over_user_channel`, `test_notifications_unseen_and_seen`, `test_concurrent_patch_409`).
+- `E2E_HOOKS=true docker compose up --build -d` затем `cd web && npx playwright test` → 5 passed:
+  - `e2e_toast_in_two_tabs` (T2)
+  - `e2e_toast_not_repeated_after_reload` (T3)
+  - `e2e_edit_in_tab_a_visible_in_tab_b` (T13)
+  - `e2e_conflict_dialog` (T14)
+  - `e2e_upcoming_moves_to_past_live` (T16)
+
 ## Не работает
-- WS / toast UI / конфликт-диалог / `useNow` live-переход в «прошедшие» — M4 (API 409 уже есть; воркер шлёт `pg_notify('notification.new')`).
 - Генерация вхождений / overrides / split серии / материализация горизонта 60д для серий — M5 (поля `rec_freq` сохраняются; в календаре/upcoming серии пока скрыты; reminders для `rec_freq IS NOT NULL` не создаются).
 - Нагрузка 10k (`perf_list_10k` / `perf_search_10k` с сидом и порогами §8), `e2e_scroll_10k`, `make verify` — M6.
 
 ## Не делали и почему
 - LISTEN `reminders_changed` для немедленного тика — достаточно секундного poll; NOTIFY при rebuild пишем, подписчик воркера — по желанию позже.
-- `useNow` и live-переход заметок в «прошедшие» без reload — M4 (T16).
 - Раскрытие повторов в `/calendar` и `/upcoming`, series reminders — M5 (T9–T12).
-- `make seed` / demo / Playwright / `make verify` — M6 (и e2e с M4+).
+- `make seed` / demo / `make verify` — M6 (Playwright realtime закрыт в M4).
 - 10k seed и perf-пороги — критерий M6.
 - См. «Известные ограничения» ниже (из спеки).
 
@@ -73,6 +88,7 @@
 - Нет rate-limit, сброса пароля, подтверждения email.
 - «Неделя» в `/upcoming` — скользящее окно `[завтра, сегодня+7d)`, не ISO-неделя Пн–Вс (D-018).
 - Purge: `deleted_at < now − 30d` (ровно 30д0ч ещё не удаляется; D-022).
+- E2E_HOOKS — только для Playwright (D-024); в проде держать `false`.
 
 ## Следующий заход
 - Web Push / Service Worker.
