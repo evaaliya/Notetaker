@@ -137,6 +137,33 @@ async def process_due_reminders(session: AsyncSession, now: datetime, *, batch_s
     return len(ids)
 
 
+async def reclaim_stale_sending(
+    session: AsyncSession,
+    now: datetime,
+    *,
+    timeout_minutes: int,
+) -> int:
+    """Return ``sending`` rows older than timeout to ``pending`` (D-032).
+
+    Increments ``attempts`` so abandoned in-flight claims stay visible in metrics.
+    """
+    cutoff = now - timedelta(minutes=timeout_minutes)
+    result = await session.execute(
+        update(EmailOutbox)
+        .where(
+            EmailOutbox.status == "sending",
+            EmailOutbox.sending_at.is_not(None),
+            EmailOutbox.sending_at <= cutoff,
+        )
+        .values(
+            status="pending",
+            sending_at=None,
+            attempts=EmailOutbox.attempts + 1,
+        )
+    )
+    return result.rowcount or 0
+
+
 async def process_outbox(
     session_factory: async_sessionmaker[AsyncSession],
     now: datetime,
@@ -149,7 +176,8 @@ async def process_outbox(
 
     Status flips to ``sending`` under ``FOR UPDATE SKIP LOCKED`` before commit so a
     concurrent worker (or e2e ``tick_reminders`` + real worker) cannot re-claim the
-    same row while SMTP is in flight (D-031).
+    same row while SMTP is in flight (D-031). Stuck ``sending`` rows are returned by
+    ``reclaim_stale_sending`` on each tick (D-032).
     """
     settings = settings or get_settings()
 
@@ -174,6 +202,7 @@ async def process_outbox(
                 if row is None or row.status != "pending":
                     continue
                 row.status = "sending"
+                row.sending_at = now
                 row.attempts = int(row.attempts or 0) + 1
                 payloads.append(
                     OutboxPayload(
@@ -197,7 +226,7 @@ async def process_outbox(
                     await session.execute(
                         update(EmailOutbox)
                         .where(EmailOutbox.id == payload.id, EmailOutbox.status == "sending")
-                        .values(status="sent", sent_at=now)
+                        .values(status="sent", sent_at=now, sending_at=None)
                     )
         except Exception:
             logger.exception("SMTP failed for outbox %s", payload.id)
@@ -206,7 +235,7 @@ async def process_outbox(
                     await session.execute(
                         update(EmailOutbox)
                         .where(EmailOutbox.id == payload.id, EmailOutbox.status == "sending")
-                        .values(status="failed")
+                        .values(status="failed", sending_at=None)
                     )
     return len(payloads)
 

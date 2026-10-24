@@ -191,6 +191,7 @@ class EmailOutbox(Base):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     message_id: Mapped[str] = mapped_column(Text, nullable=False)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sending_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class WorkerHeartbeat(Base):

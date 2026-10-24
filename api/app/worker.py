@@ -14,7 +14,12 @@ from app.config import get_settings
 from app.migrate import run_migrations
 from app.models import WorkerHeartbeat
 from app.services.reminders import extend_all_series_horizons
-from app.services.worker_jobs import process_due_reminders, process_outbox, purge_trash
+from app.services.worker_jobs import (
+    process_due_reminders,
+    process_outbox,
+    purge_trash,
+    reclaim_stale_sending,
+)
 
 logger = logging.getLogger("worker")
 
@@ -50,6 +55,13 @@ async def tick(
             n = await process_due_reminders(session, now, batch_size=settings.worker_batch_size)
             if n:
                 logger.info("claimed %s due reminder(s)", n)
+            reclaimed = await reclaim_stale_sending(
+                session,
+                now,
+                timeout_minutes=settings.outbox_sending_timeout_minutes,
+            )
+            if reclaimed:
+                logger.info("reclaimed %s stale sending outbox row(s)", reclaimed)
 
     if run_outbox:
         sent = await process_outbox(

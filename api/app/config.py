@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     worker_heartbeat_stale_seconds: int = 10
     recurrence_horizon_days: int = 60
     trash_retention_days: int = 30
+    outbox_sending_timeout_minutes: int = 2
     e2e_hooks: bool = False
 
 

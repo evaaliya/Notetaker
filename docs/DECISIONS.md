@@ -209,3 +209,9 @@
 **Причина:** e2e `tick_reminders` и реальный worker оба вызывали `process_outbox`; после commit claim строка ещё `pending` → второй цикл слал то же письмо (MailHog: 2× один Message-ID, outbox.attempts=2).
 **Последствия:** зависший `sending` после краша процесса не переотправится автоматически (нужен ручной/ретрай-джоб) — приемлемо для at-least-once с фиксированным Message-ID.
 
+### D-032 · 2026-10-24 17:47 +06 · M6 · Reclaim протухшего outbox sending
+**Решение:** колонка `email_outbox.sending_at` (ставится при claim); на каждом тике `reclaim_stale_sending`: `sending` с `sending_at <= now − OUTBOX_SENDING_TIMEOUT_MINUTES` (дефолт 2) → `pending`, `attempts += 1`, `sending_at = null`; затем обычный outbox-цикл. Тесты на FrozenClock без sleep.
+**Альтернативы:** оставлять зависший `sending` навсегда (D-031); TTL без колонки (невозможно отличить свежий claim); сразу `failed` вместо возврата в pending.
+**Причина:** краш между claim и SMTP иначе навсегда глушит письмо; возврат в `pending` сохраняет at-least-once + фиксированный Message-ID; отдельный `sending_at` не путается с `sent_at`.
+**Последствия:** при очень долгом SMTP (> timeout) возможен повторный claim другим воркером → дубль письма (тот же Message-ID); attempts растёт и при reclaim, и при следующем claim.
+
