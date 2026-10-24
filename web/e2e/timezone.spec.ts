@@ -30,6 +30,9 @@ test("e2e_timezone_change_updates_display_keeps_instant", async ({ page }) => {
   const tzInput = page.getByTestId("settings-timezone");
   await tzInput.fill(targetTz);
   await page.getByRole("option", { name: targetTz, exact: true }).click();
+  // List can linger over the save button (pointer intercept) — close explicitly.
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#tz-picker-list")).toHaveCount(0);
   await page.getByRole("button", { name: "Сохранить" }).click();
   await expect(page.getByText("Сохранено")).toBeVisible();
 

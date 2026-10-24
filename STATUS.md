@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-24 14:29 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-10-24 15:19 +06.
 
 ## Этапы
 
@@ -11,7 +11,7 @@
 | M2 Календарь и «Ближайшее» | готов | `test_calendar_range_singles`, `test_upcoming_buckets`; `make test` → 14 passed; curl `/calendar`, `/upcoming`; UI-смоки (см. ниже) |
 | M3 Воркер напоминаний + outbox | готов | T1, T4–T8, T18–T19 (`test_reminder_*`, `test_inactive_*`, `test_reactivate_*`, `test_reschedule_*`, `test_sent_*`, `test_delete_*`, `test_restore_*`, `test_trash_purge_30d`, `test_restart_*`, `test_downtime_*`); `make test` → 26 passed; MailHog smoke (см. ниже) |
 | M4 Realtime | готов | T2/T3/T13/T14/T15/T16 + UI reminders/timezone e2e; `make test` → 31 passed; Playwright → 9 passed (D-023–D-027) |
-| M5 Повторы | не начат | — |
+| M5 Повторы | готов | T9–T12 (`test_series_reminder_each_occurrence`, `test_split_series_keeps_past`, `test_override_single_occurrence`, `test_monthly_clamp` + DST); `make test` → 40 passed; `make e2e` → 9 passed; UI-смоки (см. ниже) |
 | M6 Нагрузка и verify | не начат | — |
 
 ## Работает
@@ -26,9 +26,9 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 29 passed на реальном Postgres (testcontainers).
+- Тесты: `make test` → 40 passed на реальном Postgres (testcontainers); `make e2e` → 9 passed.
 - Напоминания (singles): материализация при create/patch (`fire_at = starts_at − offset`, без `fire_at <= now`); rebuild pending при смене времени/offsets; `sent` не трогаем (D-020).
-- Воркер `tick(now)`: claim `FOR UPDATE SKIP LOCKED` (лимит 100); inactive/deleted → `skipped`; `occurrence_start < now` → `missed` (D-007); иначе `notifications` + `email_outbox` + `sent` + `pg_notify` на канал `u_<user_id>` (`notification.new`, D-023).
+- Воркер `tick(now)`: claim `FOR UPDATE SKIP LOCKED` (лимит 100); inactive/deleted → `skipped`; effective occurrence `< now` → `missed` (D-007); иначе `notifications` + `email_outbox` + `sent` + `pg_notify` на канал `u_<user_id>` (`notification.new`, D-023).
 - Outbox: SMTP (`smtplib`) вне транзакции; фиксированный `Message-ID = <{outbox_id}@notetaker.local>` (D-021); без email у пользователя — только in-app notification.
 - Автоочистка корзины раз в час: `deleted_at < now − 30d` (D-022).
 - Realtime (M4): `pg_notify('u_<user_id>', …)` в той же транзакции, что мутация; api LISTEN → fan-out; `GET /ws` (cookie); клиент только инвалидирует TanStack Query (D-025).
@@ -43,6 +43,11 @@
 - **Часовой пояс в UI:** поиск по всем IANA (`Intl.supportedValuesOf`) в Настройках; register шлёт пояс браузера; у поля времени подпись «ввод в поясе …»; смена пояса меняет отображение, не `starts_at`/`fire_at` (T15, D-027).
 - Предупреждение в форме, если выбранное напоминание уже в прошлом (`starts − offset ≤ now`).
 - `scripts/demo.py` — заметка с offset=10, fire ≈ через 2 минуты; `docker compose exec api python scripts/demo.py`.
+- **Повторы (M5):** генератор daily/weekly/monthly в `rec_tz` (D-006/D-028); 31-е → последний день месяца; DST-gap → вперёд; `OccurrenceOut` = `{occurrence_start, original_start, note}` (D-029).
+- `/calendar` и `/upcoming` раскрывают серии с overrides; список — одна строка серии с бейджем «повтор».
+- `PATCH|DELETE /notes/{id}?scope=this|following|all&occurrence_start=` — override / split / мастер; `rec_tz` заморожен.
+- Reminders серий: горизонт 60д при create/rebuild; продление воркером hourly (+ при старте hourly-блока); override delete → skip; fire по effective start.
+- UI: `RecurrenceField` (частота/until) при создании; при правке вхождения — диалог «только это» / «это и следующие»; DnD серии → `scope=this`.
 
 ### UI-смоки M2 (2026-10-23)
 **Автоматически (pytest + curl после `docker compose up --build`):**
@@ -77,14 +82,24 @@
   - `e2e_past_reminder_shows_warning`
 - `docker compose exec api python scripts/demo.py` → создал `Demo … UTC`, offsets `[10]`.
 
+### Смоки M5 (2026-10-24)
+**Автоматически:**
+- `make test` → 40 passed (T9–T12 + регрессии M0–M4).
+- `make e2e` → 9 passed (после Escape в timezone e2e, чтобы listbox не перехватывал Save).
+
+**Вручную в браузере (localhost:5173):**
+- Список → «Новая заметка» → «Повторять» daily до 2026-10-28, reminder 10м, starts 25.10 10:00 Asia/Bishkek → строка `M5 Series UI · повтор`.
+- Календарь: 4 вхождения серии на 25–28; клик → панель «Вхождение» с `original_start`.
+- Правка заголовка одного вхождения → диалог области → «Только это» → в календаре день 25 = `M5 Only This`, остальные `M5 Series UI`; в БД override на `2026-10-25T04:00:00Z`.
+- Правка 26-го → «Это и следующие» → split: старая серия `rec_until=2026-10-25`, новая `M5 From Here` с `starts=2026-10-26`.
+- Напоминание серии: forced `fire_at` + `process_due_reminders` → claimed 1, outbox 1, MailHog `total ≥ 1`.
+
 ## Не работает
-- Генерация вхождений / overrides / split серии / материализация горизонта 60д для серий — M5 (поля `rec_freq` сохраняются; в календаре/upcoming серии пока скрыты; reminders для `rec_freq IS NOT NULL` не создаются).
 - Нагрузка 10k (`perf_list_10k` / `perf_search_10k` с сидом и порогами §8), `e2e_scroll_10k`, `make verify` — M6.
 
 ## Не делали и почему
 - LISTEN `reminders_changed` для немедленного тика — достаточно секундного poll; NOTIFY при rebuild пишем, подписчик воркера — по желанию позже.
-- Раскрытие повторов в `/calendar` и `/upcoming`, series reminders — M5 (T9–T12).
-- `make seed` / demo / `make verify` — M6 (Playwright realtime закрыт в M4).
+- `make seed` / `make verify` — M6 (Playwright realtime закрыт в M4; повторы закрыты в M5).
 - 10k seed и perf-пороги — критерий M6.
 - См. «Известные ограничения» ниже (из спеки).
 
@@ -94,7 +109,7 @@
 - Удаление отдельного вхождения серии не попадает в корзину.
 - Email: «ровно одно» гарантировано на уровне записей; при падении между SMTP и пометкой `sent` возможен дубль (at-least-once). Снижение риска: фиксированный `Message-ID`.
 - Нет пересинхронизации по журналу событий — после реконнекта WS полная инвалидация.
-- Горизонт материализации напоминаний серий — 60 дней, продлевается воркером раз в час и при старте (M5).
+- Горизонт материализации напоминаний серий — 60 дней, продлевается воркером раз в час и при старте.
 - Нет rate-limit, сброса пароля, подтверждения email.
 - «Неделя» в `/upcoming` — скользящее окно `[завтра, сегодня+7d)`, не ISO-неделя Пн–Вс (D-018).
 - Purge: `deleted_at < now − 30d` (ровно 30д0ч ещё не удаляется; D-022).
