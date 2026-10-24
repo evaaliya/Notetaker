@@ -191,3 +191,9 @@
 **Причина:** D-006 / §4.3 — свой генератор; правило 31-го и DST зафиксированы в T12 (`test_monthly_clamp`, Berlin/NY).
 **Последствия:** поддерживаем сами; бесконечный `range_to=None` ограничен safety-cap итераций.
 
+### D-029 · 2026-10-24 15:10 +06 · M5 · OccurrenceOut + scope на PATCH/DELETE
+**Решение:** вхождение отдаёт `occurrence_start` (effective) и `original_start` (ключ override); `PATCH|DELETE /notes/{id}?scope=this|following|all&occurrence_start=` — this→override, following→split (`rec_until=день_до` + новая серия), all→мастер; `rec_tz` заморожен; reminders серии на 60д, продление в hourly tick.
+**Альтернативы:** только original в `occurrence_start` и effective в note; отдельные `/occurrences` эндпоинты.
+**Причина:** спека §5/§6 фиксирует scope; календарю нужен effective для позиции, PATCH — original; горизонт 60д — §4.4.
+**Последствия:** клиент DnD серии шлёт `scope=this` + `original_start`; UI обязан спрашивать область правки.
+

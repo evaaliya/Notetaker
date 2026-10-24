@@ -1,4 +1,4 @@
-"""M2: GET /calendar range for single notes (series expansion is M5)."""
+"""GET /calendar: singles + expanded series (M5)."""
 
 import uuid
 
@@ -43,10 +43,11 @@ async def test_calendar_range_singles(client: AsyncClient):
         json=_note(
             title="Series",
             starts_at="2026-10-16T10:00:00Z",
-            recurrence={"freq": "daily", "tz": "UTC"},
+            recurrence={"freq": "daily", "until": "2026-10-18", "tz": "UTC"},
         ),
     )
     assert series.status_code == 201
+    series_id = series.json()["id"]
 
     trashed = await client.post(
         "/api/notes",
@@ -69,10 +70,18 @@ async def test_calendar_range_singles(client: AsyncClient):
     items = resp.json()["items"]
     ids = {it["note"]["id"] for it in items}
     assert in_id in ids
-    assert all(it["note"]["rec_freq"] is None for it in items)
     assert tid not in ids
-    assert series.json()["id"] not in ids
+    assert series_id in ids
+    series_occs = [it for it in items if it["note"]["id"] == series_id]
+    assert len(series_occs) == 3  # 16, 17, 18 Oct
+    assert {it["occurrence_start"] for it in series_occs} == {
+        "2026-10-16T10:00:00Z",
+        "2026-10-17T10:00:00Z",
+        "2026-10-18T10:00:00Z",
+    }
+    assert all(it["original_start"] == it["occurrence_start"] for it in series_occs)
 
     hit = next(it for it in items if it["note"]["id"] == in_id)
     assert hit["occurrence_start"] == "2026-10-15T10:00:00Z"
+    assert hit["original_start"] == "2026-10-15T10:00:00Z"
     assert hit["note"]["title"] == "In"

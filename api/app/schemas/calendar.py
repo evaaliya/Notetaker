@@ -10,12 +10,17 @@ def _iso_z(value: datetime) -> str:
 
 
 class OccurrenceOut(BaseModel):
-    """Single calendar occurrence. M2: one per non-recurring note; M5 expands series."""
+    """One visible occurrence.
+
+    ``occurrence_start`` — effective start (calendar position / fire base).
+    ``original_start`` — series key for overrides (equals occurrence_start if not moved).
+    """
 
     occurrence_start: datetime
+    original_start: datetime
     note: NoteOut
 
-    @field_serializer("occurrence_start")
+    @field_serializer("occurrence_start", "original_start")
     def serialize_occ(self, value: datetime) -> str:
         return _iso_z(value)
 

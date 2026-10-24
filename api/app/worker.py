@@ -13,6 +13,7 @@ from app.clock import SystemClock
 from app.config import get_settings
 from app.migrate import run_migrations
 from app.models import WorkerHeartbeat
+from app.services.reminders import extend_all_series_horizons
 from app.services.worker_jobs import process_due_reminders, process_outbox, purge_trash
 
 logger = logging.getLogger("worker")
@@ -68,6 +69,9 @@ async def tick(
                 purged = await purge_trash(session, now, retention_days=settings.trash_retention_days)
                 if purged:
                     logger.info("purged %s trash note(s)", purged)
+                extended = await extend_all_series_horizons(session, now)
+                if extended:
+                    logger.info("extended series reminders: %s row(s)", extended)
         _last_hourly_at = now
 
 

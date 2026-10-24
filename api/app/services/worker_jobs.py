@@ -14,12 +14,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 
-from sqlalchemy import delete, text, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings, get_settings
-from app.models import EmailOutbox, Note, Notification, Reminder, User
+from app.models import EmailOutbox, Note, Notification, OccurrenceOverride, Reminder, User
+from app.services.occurrences import effective_start
 from app.services.realtime import notify_user
 
 logger = logging.getLogger("worker")
@@ -65,14 +66,28 @@ async def process_due_reminders(session: AsyncSession, now: datetime, *, batch_s
         if note is None or note.deleted_at is not None or note.status != "active":
             rem.status = "skipped"
             continue
-        # M5: occurrence deleted via override → skipped; singles use occurrence_start as-is
-        if rem.occurrence_start < now:
+
+        ov = None
+        if note.rec_freq is not None:
+            ov_result = await session.execute(
+                select(OccurrenceOverride).where(
+                    OccurrenceOverride.note_id == note.id,
+                    OccurrenceOverride.original_start == rem.occurrence_start,
+                )
+            )
+            ov = ov_result.scalar_one_or_none()
+            if ov is not None and ov.is_deleted:
+                rem.status = "skipped"
+                continue
+
+        occ_effective = effective_start(rem.occurrence_start, ov)
+        if occ_effective < now:
             rem.status = "missed"
             continue
 
         user = await session.get(User, note.user_id)
-        title = note.title or "(без названия)"
-        body = note.body or ""
+        title = (ov.title if ov is not None and ov.title is not None else note.title) or "(без названия)"
+        body = (ov.body if ov is not None and ov.body is not None else note.body) or ""
         notify_id = uuid.uuid4()
         await session.execute(
             insert(Notification)
@@ -92,7 +107,7 @@ async def process_due_reminders(session: AsyncSession, now: datetime, *, batch_s
         if to_addr:
             outbox_id = uuid.uuid4()
             message_id = f"<{outbox_id}@notetaker.local>"
-            starts = rem.occurrence_start.isoformat().replace("+00:00", "Z")
+            starts = occ_effective.isoformat().replace("+00:00", "Z")
             mail_body = f"{body}\n\nStarts at: {starts}" if body else f"Starts at: {starts}"
             await session.execute(
                 insert(EmailOutbox)

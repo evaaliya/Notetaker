@@ -1,4 +1,4 @@
-"""Calendar range and upcoming buckets (singles only until M5)."""
+"""Calendar range and upcoming buckets (singles + expanded series)."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from app.errors import AppError
 from app.models import Note
 from app.schemas.calendar import OccurrenceOut
 from app.services.notes import note_to_out
+from app.services.occurrences import expand_note_in_range, load_overrides, series_may_intersect
 
 
 def local_midnight_utc(day: date, tz_name: str) -> datetime:
@@ -27,8 +28,8 @@ def upcoming_bounds(now: datetime, tz_name: str) -> tuple[datetime, datetime, da
     """Return (today_start, tomorrow_start, week_end) in UTC.
 
     today = [today_start, tomorrow_start)
-    week  = [tomorrow_start, today_start + 7 days)  # rest of rolling week after today
-    past  = starts_at < now
+    week  = [tomorrow_start, today_start + 7 days)
+    past  = effective start < now
     """
     if now.tzinfo is None:
         raise ValueError("now must be timezone-aware")
@@ -43,41 +44,52 @@ def upcoming_bounds(now: datetime, tz_name: str) -> tuple[datetime, datetime, da
     return today_start, tomorrow_start, week_end
 
 
-async def _singles_in_range(
+async def _notes_for_window(
     db: AsyncSession,
     *,
     user_id: uuid.UUID,
-    from_dt: datetime,
-    to_dt: datetime,
+    range_from: datetime,
+    range_to: datetime,
     status: str | None = None,
 ) -> list[Note]:
-    stmt = (
-        select(Note)
-        .where(
-            Note.user_id == user_id,
-            Note.deleted_at.is_(None),
-            Note.rec_freq.is_(None),
-            Note.starts_at >= from_dt,
-            Note.starts_at < to_dt,
-        )
-        .order_by(Note.starts_at.asc(), Note.id.asc())
-    )
+    """Load candidate notes that may produce occurrences in the window."""
+    stmt = select(Note).where(Note.user_id == user_id, Note.deleted_at.is_(None))
     if status is not None:
         stmt = stmt.where(Note.status == status)
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    notes = list(result.scalars().all())
+    return [n for n in notes if series_may_intersect(n, range_from, range_to) or (
+        n.rec_freq is None and range_from <= n.starts_at.astimezone(timezone.utc) < range_to
+    )]
 
 
-async def _to_occurrences(db: AsyncSession, notes: list[Note]) -> list[OccurrenceOut]:
-    out: list[OccurrenceOut] = []
+async def expand_window(
+    db: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    range_from: datetime,
+    range_to: datetime,
+    status: str | None = None,
+) -> list[OccurrenceOut]:
+    notes = await _notes_for_window(
+        db, user_id=user_id, range_from=range_from, range_to=range_to, status=status
+    )
+    ov_map = await load_overrides(db, [n.id for n in notes])
+    items: list[OccurrenceOut] = []
     for note in notes:
-        out.append(
-            OccurrenceOut(
-                occurrence_start=note.starts_at,
-                note=await note_to_out(db, note),
+        base = await note_to_out(db, note)
+        items.extend(
+            await expand_note_in_range(
+                db,
+                note,
+                range_from=range_from,
+                range_to=range_to,
+                overrides=ov_map,
+                base_out=base,
             )
         )
-    return out
+    items.sort(key=lambda o: (o.occurrence_start, o.note.id))
+    return items
 
 
 async def list_calendar(
@@ -93,8 +105,7 @@ async def list_calendar(
     to_u = to_dt.astimezone(timezone.utc)
     if from_u >= to_u:
         raise AppError("validation_error", "from must be before to")
-    notes = await _singles_in_range(db, user_id=user_id, from_dt=from_u, to_dt=to_u)
-    return await _to_occurrences(db, notes)
+    return await expand_window(db, user_id=user_id, range_from=from_u, range_to=to_u)
 
 
 async def list_upcoming(
@@ -107,38 +118,19 @@ async def list_upcoming(
     today_start, tomorrow_start, week_end = upcoming_bounds(now, tz_name)
     now_u = now.astimezone(timezone.utc)
 
-    today_notes = await _singles_in_range(
-        db,
-        user_id=user_id,
-        from_dt=today_start,
-        to_dt=tomorrow_start,
-        status="active",
+    today = await expand_window(
+        db, user_id=user_id, range_from=today_start, range_to=tomorrow_start, status="active"
     )
-    week_notes = await _singles_in_range(
-        db,
-        user_id=user_id,
-        from_dt=tomorrow_start,
-        to_dt=week_end,
-        status="active",
+    week = await expand_window(
+        db, user_id=user_id, range_from=tomorrow_start, range_to=week_end, status="active"
     )
 
-    past_stmt = (
-        select(Note)
-        .where(
-            Note.user_id == user_id,
-            Note.deleted_at.is_(None),
-            Note.rec_freq.is_(None),
-            Note.status == "active",
-            Note.starts_at < now_u,
-        )
-        .order_by(Note.starts_at.desc(), Note.id.desc())
-        .limit(100)
+    # Past: occurrences with effective start in [now-30d, now) — cap volume for series.
+    past_from = now_u - timedelta(days=30)
+    past_all = await expand_window(
+        db, user_id=user_id, range_from=past_from, range_to=now_u, status="active"
     )
-    past_result = await db.execute(past_stmt)
-    past_notes = list(past_result.scalars().all())
+    past_all.sort(key=lambda o: (o.occurrence_start, o.note.id), reverse=True)
+    past = past_all[:100]
 
-    return (
-        await _to_occurrences(db, today_notes),
-        await _to_occurrences(db, week_notes),
-        await _to_occurrences(db, past_notes),
-    )
+    return today, week, past

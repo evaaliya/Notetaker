@@ -56,15 +56,16 @@ async def test_upcoming_buckets(client: AsyncClient, clock: FrozenClock):
         "/api/notes",
         json=_note(title="InactivePast", starts_at="2026-10-21T09:00:00Z", status="inactive"),
     )
-    # series in today — excluded until M5
-    await client.post(
+    # series occurrence later today (M5: expanded into today bucket)
+    series = await client.post(
         "/api/notes",
         json=_note(
             title="SeriesToday",
-            starts_at="2026-10-23T08:00:00Z",
-            recurrence={"freq": "daily", "tz": "UTC"},
+            starts_at="2026-10-23T16:00:00Z",
+            recurrence={"freq": "daily", "until": "2026-10-23", "tz": "UTC"},
         ),
     )
+    assert series.status_code == 201
 
     resp = await client.get("/api/upcoming")
     assert resp.status_code == 200
@@ -82,7 +83,8 @@ async def test_upcoming_buckets(client: AsyncClient, clock: FrozenClock):
 
     titles_past = {it["note"]["title"] for it in body["past"]}
     assert "InactivePast" not in titles_past
-    assert "SeriesToday" not in {it["note"]["title"] for it in body["today"]}
+    assert "SeriesToday" in {it["note"]["title"] for it in body["today"]}
+    assert series.json()["id"] in today_ids
     assert "Later" not in {it["note"]["title"] for it in body["week"]}
 
     # advancing clock moves today's note into past on next fetch
