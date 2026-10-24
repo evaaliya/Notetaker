@@ -6,7 +6,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { api, Note, Tag, User } from "../api";
+import { api, Note, Recurrence, Tag, User } from "../api";
+import { RecurrenceField } from "../components/RecurrenceField";
 import { ReminderOffsetsField } from "../components/ReminderOffsetsField";
 import { formatInZone, localInputToUtcIso, utcIsoToLocalInput } from "../format";
 
@@ -243,6 +244,15 @@ function NoteForm({
   const [reminderOffsets, setReminderOffsets] = useState<number[]>(
     note?.reminder_offsets ?? [],
   );
+  const [recurrence, setRecurrence] = useState<Recurrence | null>(() =>
+    note?.rec_freq
+      ? {
+          freq: note.rec_freq as Recurrence["freq"],
+          until: note.rec_until,
+          tz: note.rec_tz || user.timezone,
+        }
+      : null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -260,6 +270,7 @@ function NoteForm({
           starts_at,
           tag_ids: tagIds,
           reminder_offsets: reminderOffsets,
+          recurrence: recurrence,
         });
       } else {
         await api.createNote({
@@ -268,6 +279,7 @@ function NoteForm({
           starts_at,
           tag_ids: tagIds,
           reminder_offsets: reminderOffsets,
+          ...(recurrence ? { recurrence } : {}),
         });
       }
       onSaved();
@@ -321,6 +333,12 @@ function NoteForm({
         onChange={setReminderOffsets}
         startsLocal={startsLocal}
         timeZone={user.timezone}
+      />
+      <RecurrenceField
+        value={recurrence}
+        onChange={setRecurrence}
+        timeZone={user.timezone}
+        lockedTz={note?.rec_tz}
       />
       <fieldset className="tag-pick">
         <legend>Теги</legend>

@@ -39,7 +39,10 @@ export function UpcomingPage({ user }: { user: User }) {
   const qc = useQueryClient();
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
   const upcoming = useQuery({ queryKey: ["upcoming"], queryFn: api.upcoming });
-  const [selected, setSelected] = useState<Note | null>(null);
+  const [selected, setSelected] = useState<{
+    note: Note;
+    originalStart: string | null;
+  } | null>(null);
 
   const nearest = useMemo(() => {
     if (!upcoming.data) return null;
@@ -71,21 +74,36 @@ export function UpcomingPage({ user }: { user: User }) {
                 title="Сегодня"
                 items={buckets.today}
                 timeZone={user.timezone}
-                onPick={setSelected}
+                onPick={(it) =>
+                  setSelected({
+                    note: it.note,
+                    originalStart: it.note.rec_freq ? it.original_start : null,
+                  })
+                }
                 testId="bucket-today"
               />
               <Bucket
                 title="Неделя"
                 items={buckets.week}
                 timeZone={user.timezone}
-                onPick={setSelected}
+                onPick={(it) =>
+                  setSelected({
+                    note: it.note,
+                    originalStart: it.note.rec_freq ? it.original_start : null,
+                  })
+                }
                 testId="bucket-week"
               />
               <Bucket
                 title="Прошедшие"
                 items={buckets.past}
                 timeZone={user.timezone}
-                onPick={setSelected}
+                onPick={(it) =>
+                  setSelected({
+                    note: it.note,
+                    originalStart: it.note.rec_freq ? it.original_start : null,
+                  })
+                }
                 testId="bucket-past"
               />
             </>
@@ -95,10 +113,13 @@ export function UpcomingPage({ user }: { user: User }) {
           <NoteSidePanel
             user={user}
             tags={tags.data ?? []}
-            note={selected}
+            note={selected.note}
+            occurrenceOriginalStart={selected.originalStart}
             onClose={() => setSelected(null)}
             onSaved={(n) => {
-              setSelected(n);
+              setSelected((prev) =>
+                prev ? { note: n, originalStart: prev.originalStart } : null,
+              );
               qc.invalidateQueries({ queryKey: ["upcoming"] });
               qc.invalidateQueries({ queryKey: ["calendar"] });
               qc.invalidateQueries({ queryKey: ["notes"] });
@@ -120,7 +141,7 @@ function Bucket({
   title: string;
   items: Occurrence[];
   timeZone: string;
-  onPick: (n: Note) => void;
+  onPick: (it: Occurrence) => void;
   testId: string;
 }) {
   return (
@@ -133,14 +154,15 @@ function Bucket({
       <ul className="note-list">
         {items.map((it) => (
           <li
-            key={`${it.note.id}-${it.occurrence_start}`}
+            key={`${it.note.id}-${it.original_start}`}
             className="note-row"
             data-note-title={it.note.title}
           >
-            <button type="button" className="note-main linkish" onClick={() => onPick(it.note)}>
+            <button type="button" className="note-main linkish" onClick={() => onPick(it)}>
               <strong>{it.note.title || "Без названия"}</strong>
               <span className="muted small">
                 {formatInZone(it.occurrence_start, timeZone)}
+                {it.note.rec_freq ? " · повтор" : ""}
               </span>
             </button>
           </li>

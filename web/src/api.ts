@@ -35,8 +35,19 @@ export type NoteList = {
 };
 
 export type Occurrence = {
+  /** Effective start (calendar position). */
   occurrence_start: string;
+  /** Series key for overrides; equals occurrence_start if not moved. */
+  original_start: string;
   note: Note;
+};
+
+export type EditScope = "this" | "following" | "all";
+
+export type Recurrence = {
+  freq: "daily" | "weekly" | "monthly";
+  until?: string | null;
+  tz: string;
 };
 
 export type CalendarList = {
@@ -168,9 +179,30 @@ export const api = {
   getNote: (id: string) => request<Note>(`/api/notes/${id}`),
   createNote: (body: Record<string, unknown>) =>
     request<Note>("/api/notes", { method: "POST", body: JSON.stringify(body) }),
-  patchNote: (id: string, body: Record<string, unknown>) =>
-    request<Note>(`/api/notes/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
-  deleteNote: (id: string) => request<Note>(`/api/notes/${id}`, { method: "DELETE" }),
+  patchNote: (
+    id: string,
+    body: Record<string, unknown>,
+    opts?: { scope?: EditScope; occurrence_start?: string },
+  ) => {
+    const sp = new URLSearchParams();
+    if (opts?.scope) sp.set("scope", opts.scope);
+    if (opts?.occurrence_start) sp.set("occurrence_start", opts.occurrence_start);
+    const q = sp.toString();
+    return request<Note>(`/api/notes/${id}${q ? `?${q}` : ""}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteNote: (
+    id: string,
+    opts?: { scope?: EditScope; occurrence_start?: string },
+  ) => {
+    const sp = new URLSearchParams();
+    if (opts?.scope) sp.set("scope", opts.scope);
+    if (opts?.occurrence_start) sp.set("occurrence_start", opts.occurrence_start);
+    const q = sp.toString();
+    return request<Note>(`/api/notes/${id}${q ? `?${q}` : ""}`, { method: "DELETE" });
+  },
   activateNote: (id: string) =>
     request<Note>(`/api/notes/${id}/activate`, { method: "POST" }),
   deactivateNote: (id: string) =>

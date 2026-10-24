@@ -5,11 +5,16 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { DatesSetArg, EventClickArg, EventDropArg } from "@fullcalendar/core";
-import { api, Note, User } from "../api";
+import { api, Note, Occurrence, User } from "../api";
 import { NoteSidePanel } from "../components/NoteSidePanel";
 import { relocateKeepWallTime } from "../format";
 
 type Range = { from: string; to: string };
+
+type Selected = {
+  note: Note;
+  originalStart: string | null;
+};
 
 function toIsoZ(d: Date): string {
   return d.toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -19,7 +24,7 @@ export function CalendarPage({ user }: { user: User }) {
   const qc = useQueryClient();
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
   const [range, setRange] = useState<Range | null>(null);
-  const [selected, setSelected] = useState<Note | null>(null);
+  const [selected, setSelected] = useState<Selected | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
 
   const cal = useQuery({
@@ -31,20 +36,27 @@ export function CalendarPage({ user }: { user: User }) {
   const events = useMemo(
     () =>
       (cal.data?.items ?? []).map((it) => ({
-        id: it.note.id,
+        id: `${it.note.id}:${it.original_start}`,
         title: it.note.title || "Без названия",
         start: it.occurrence_start,
         allDay: false,
-        extendedProps: { note: it.note },
+        extendedProps: { occurrence: it },
       })),
     [cal.data],
   );
 
   useEffect(() => {
     if (!selected || !cal.data) return;
-    const found = cal.data.items.find((it) => it.note.id === selected.id);
-    if (found && found.note.version !== selected.version) {
-      setSelected(found.note);
+    const found = cal.data.items.find(
+      (it) =>
+        it.note.id === selected.note.id &&
+        (selected.originalStart == null || it.original_start === selected.originalStart),
+    );
+    if (found && found.note.version !== selected.note.version) {
+      setSelected({
+        note: found.note,
+        originalStart: found.note.rec_freq ? found.original_start : null,
+      });
     }
   }, [cal.data, selected]);
 
@@ -53,14 +65,34 @@ export function CalendarPage({ user }: { user: User }) {
   }, []);
 
   const patchDrop = useMutation({
-    mutationFn: ({ note, starts_at }: { note: Note; starts_at: string }) =>
-      api.patchNote(note.id, { version: note.version, starts_at }),
-    onSuccess: (updated) => {
+    mutationFn: ({
+      note,
+      starts_at,
+      originalStart,
+    }: {
+      note: Note;
+      starts_at: string;
+      originalStart: string | null;
+    }) => {
+      if (note.rec_freq && originalStart) {
+        return api.patchNote(
+          note.id,
+          { version: note.version, starts_at },
+          { scope: "this", occurrence_start: originalStart },
+        );
+      }
+      return api.patchNote(note.id, { version: note.version, starts_at });
+    },
+    onSuccess: (updated, vars) => {
       setDropError(null);
       qc.invalidateQueries({ queryKey: ["calendar"] });
       qc.invalidateQueries({ queryKey: ["upcoming"] });
       qc.invalidateQueries({ queryKey: ["notes"] });
-      setSelected((prev) => (prev && prev.id === updated.id ? updated : prev));
+      setSelected((prev) =>
+        prev && prev.note.id === updated.id
+          ? { note: updated, originalStart: vars.originalStart }
+          : prev,
+      );
     },
     onError: (err: Error) => {
       setDropError(err.message);
@@ -69,23 +101,29 @@ export function CalendarPage({ user }: { user: User }) {
   });
 
   function onEventClick(arg: EventClickArg) {
-    const note = arg.event.extendedProps.note as Note;
-    setSelected(note);
+    const occ = arg.event.extendedProps.occurrence as Occurrence;
+    setSelected({
+      note: occ.note,
+      originalStart: occ.note.rec_freq ? occ.original_start : null,
+    });
   }
 
   function onEventDrop(arg: EventDropArg) {
-    const note = arg.event.extendedProps.note as Note;
+    const occ = arg.event.extendedProps.occurrence as Occurrence;
     const drop = arg.event.start;
     if (!drop) {
       arg.revert();
       return;
     }
-    const starts_at = relocateKeepWallTime(note.starts_at, drop, user.timezone);
+    const baseIso = occ.occurrence_start;
+    const starts_at = relocateKeepWallTime(baseIso, drop, user.timezone);
     patchDrop.mutate(
-      { note, starts_at },
       {
-        onError: () => arg.revert(),
+        note: occ.note,
+        starts_at,
+        originalStart: occ.note.rec_freq ? occ.original_start : null,
       },
+      { onError: () => arg.revert() },
     );
   }
 
@@ -129,10 +167,13 @@ export function CalendarPage({ user }: { user: User }) {
           <NoteSidePanel
             user={user}
             tags={tags.data ?? []}
-            note={selected}
+            note={selected.note}
+            occurrenceOriginalStart={selected.originalStart}
             onClose={() => setSelected(null)}
             onSaved={(n) => {
-              setSelected(n);
+              setSelected((prev) =>
+                prev ? { note: n, originalStart: prev.originalStart } : null,
+              );
               qc.invalidateQueries({ queryKey: ["calendar"] });
               qc.invalidateQueries({ queryKey: ["upcoming"] });
               qc.invalidateQueries({ queryKey: ["notes"] });
