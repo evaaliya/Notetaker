@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.db import SessionLocal, get_session
 from app.errors import AppError
 from app.models import Note, Reminder, User
+from app.services.seed import seed_notes_for_user
 from app.services.worker_jobs import process_due_reminders, process_outbox
 
 
@@ -70,3 +71,22 @@ async def tick_reminders(
     # Flush outbox so MailHog sees the letter without waiting on the worker cycle.
     sent = await process_outbox(SessionLocal, now)
     return {"claimed": claimed, "outbox_sent": sent}
+
+
+class SeedNotesBody(BaseModel):
+    count: int = 10_000
+
+
+@router.post("/seed_notes")
+async def seed_notes(
+    body: SeedNotesBody,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> dict:
+    """Bulk-insert notes for the current user (Playwright T17 scroll)."""
+    if body.count < 1 or body.count > 20_000:
+        raise AppError("bad_request", "count must be 1..20000", status_code=400)
+    n = await seed_notes_for_user(db, user.id, count=body.count, now=clock.now())
+    await db.commit()
+    return {"inserted": n}
