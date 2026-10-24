@@ -1,14 +1,33 @@
 /** Format UTC ISO timestamps in the user's IANA timezone (spec §4.5). */
 
+/** Wall-clock time always as HH:MM (24h) in ``timeZone`` — calendar / list / upcoming. */
+export function formatTimeHm(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(iso));
+}
+
+/** Date + HH:MM in ``timeZone`` (no AM/PM, minutes always shown). */
 export function formatInZone(
   iso: string,
   timeZone: string,
-  options: Intl.DateTimeFormatOptions = {
-    dateStyle: "medium",
-    timeStyle: "short",
-  },
+  options?: Intl.DateTimeFormatOptions,
 ): string {
-  return new Intl.DateTimeFormat(undefined, { ...options, timeZone }).format(new Date(iso));
+  if (options) {
+    return new Intl.DateTimeFormat(undefined, { ...options, timeZone }).format(new Date(iso));
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    timeZone,
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(iso));
 }
 
 /** Local datetime-local value → UTC ISO Z for API. */

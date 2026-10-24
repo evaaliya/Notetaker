@@ -7,7 +7,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import type { DatesSetArg, EventClickArg, EventDropArg } from "@fullcalendar/core";
 import { api, Note, Occurrence, User } from "../api";
 import { NoteSidePanel } from "../components/NoteSidePanel";
-import { relocateKeepWallTime } from "../format";
+import { formatTimeHm, relocateKeepWallTime } from "../format";
 
 type Range = { from: string; to: string };
 
@@ -157,6 +157,32 @@ export function CalendarPage({ user }: { user: User }) {
             editable
             eventStartEditable
             eventDurationEditable={false}
+            // Always HH:MM — FC default omitZeroMinute turns :00 into bare hour ("04").
+            eventTimeFormat={{
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+              omitZeroMinute: false,
+            }}
+            slotLabelFormat={{
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+              omitZeroMinute: false,
+            }}
+            eventContent={(arg) => {
+              const occ = arg.event.extendedProps.occurrence as Occurrence | undefined;
+              const iso =
+                occ?.occurrence_start ??
+                (arg.event.start ? arg.event.start.toISOString() : "");
+              const hm = iso ? formatTimeHm(iso, user.timezone) : arg.timeText;
+              return (
+                <>
+                  <div className="fc-event-time">{hm}</div>
+                  <div className="fc-event-title">{arg.event.title}</div>
+                </>
+              );
+            }}
             events={events}
             datesSet={onDatesSet}
             eventClick={onEventClick}
