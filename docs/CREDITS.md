@@ -18,7 +18,7 @@
 | TanStack Virtual (`@tanstack/react-virtual`) | виртуализация списка заметок (M1) |
 | FullCalendar 6 (`@fullcalendar/react`, daygrid, timegrid, interaction) | календарь месяц/неделя/день + DnD (M2) |
 | pytest, pytest-asyncio, testcontainers | тесты на реальном Postgres |
-| Playwright | e2e (с M4+) |
+| Playwright (`@playwright/test` 1.49) | e2e M4+: T2, T3, T13, T14, T16 (два контекста/вкладки) |
 | PostgreSQL 16 | БД (`citext`, `pg_trgm`, `SKIP LOCKED`, `LISTEN/NOTIFY`) |
 | MailHog | SMTP-заглушка |
 

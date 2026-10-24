@@ -27,6 +27,7 @@ export function useRealtime(enabled: boolean, handlers: Handlers = {}): void {
       ws = new WebSocket(wsUrl());
       ws.onopen = () => {
         attempt = 0;
+        (window as unknown as { __wsReady?: boolean }).__wsReady = true;
       };
       ws.onmessage = (evt) => {
         let ev: RealtimeEvent;
