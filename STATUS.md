@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-24 17:56 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-10-24 18:00 +06.
 
 ## Этапы
 
@@ -103,6 +103,14 @@
 - `make e2e` после `docker compose down -v`: 13→14 passed (добавлен `e2e_scroll_10k`); хуки during=401, after restore=404.
 - `make seed` → `inserted 10000 notes; user 'demo' / 'demo'`.
 - `make verify` → pytest 46 + e2e 14; отчёт `reports/verify-20261024-175604.md` — **T1–T21 все закрыто** (0 пробелов).
+
+**Вручную в браузере (localhost:5173, пользователь `m6ui`, после `docker compose down -v && up --build`):**
+- Регистрация → календарь октябрь 2026; Настройки: email `m6ui@example.com`, пояс `Asia/Bishkek`.
+- Заметка `M6 Reminder UI` с offset 10м → forced `fire_at` → MailHog `total=1`, Subject/Date/Message-ID; toast «toast check» во вкладке списка.
+- Серия `M6 Series UI` daily до 27.10 → в списке бейдж «повтор»; в календаре **4** события `11:59M6 Series UI`.
+- Корзина: `M6 Reminder UI` после DELETE.
+- Смена пояса на `UTC`: в списке время с `17:59` (Bishkek) на `11:59`; `starts_at` в API остался `2026-10-24T11:59:00Z`.
+- Обычный `up`: `POST /api/e2e/tick_reminders` → **404**.
 
 **Таблица T1–T21 (итог M6):**
 
