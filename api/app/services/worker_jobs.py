@@ -11,8 +11,9 @@ import smtplib
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+from email.utils import format_datetime
 
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.postgresql import insert
@@ -217,7 +218,7 @@ async def process_outbox(
     if not payloads:
         return 0
 
-    send = smtp_send or (lambda p: _smtp_send_sync(p, settings))
+    send = smtp_send or (lambda p: _smtp_send_sync(p, settings, now))
     for payload in payloads:
         try:
             await asyncio.to_thread(send, payload)
@@ -240,13 +241,20 @@ async def process_outbox(
     return len(payloads)
 
 
-def _smtp_send_sync(payload: OutboxPayload, settings: Settings) -> None:
+def build_outbox_message(payload: OutboxPayload, settings: Settings, now: datetime) -> EmailMessage:
+    """Build MIME message; ``Date`` from Clock in UTC (D-033)."""
     msg = EmailMessage()
     msg["From"] = settings.smtp_from
     msg["To"] = payload.to_addr
     msg["Subject"] = payload.subject
     msg["Message-ID"] = payload.message_id
+    msg["Date"] = format_datetime(now.astimezone(timezone.utc))
     msg.set_content(payload.body)
+    return msg
+
+
+def _smtp_send_sync(payload: OutboxPayload, settings: Settings, now: datetime) -> None:
+    msg = build_outbox_message(payload, settings, now)
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
         smtp.send_message(msg)
 
