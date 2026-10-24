@@ -8,6 +8,8 @@ dist/
 .pytest_cache/
 playwright-report/
 test-results/
+reports/pytest-*.xml
+reports/playwright-*.json
 .DS_Store
 *.egg-info/
 .coverage
