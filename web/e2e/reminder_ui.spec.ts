@@ -3,11 +3,12 @@ import { loginUi, registerUi, uniqueLogin, waitForWsReady } from "./helpers";
 
 const MAILHOG = process.env.MAILHOG_URL || "http://127.0.0.1:8025";
 
-function utcDatetimeLocal(d: Date): string {
+/** datetime-local value in the machine's local zone (matches browser TZ after register). */
+function localDatetimeLocal(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return (
-    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}` +
-    `T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
   );
 }
 
@@ -73,7 +74,7 @@ test("e2e_reminder_from_ui_toast_and_mail", async ({ browser }) => {
 
     const starts = new Date(Date.now() + 11 * 60 * 1000);
     await a.getByTestId("note-title").fill(title);
-    await a.getByTestId("note-starts").fill(utcDatetimeLocal(starts));
+    await a.getByTestId("note-starts").fill(localDatetimeLocal(starts));
     await a.getByTestId("reminder-offset-10").check();
     await a.getByTestId("note-form").getByRole("button", { name: "Сохранить" }).click();
     await expect(a.getByText(title)).toBeVisible();
@@ -93,8 +94,12 @@ test("e2e_reminder_from_ui_toast_and_mail", async ({ browser }) => {
       data: { note_id: note!.id },
     });
     expect(due.ok(), await due.text()).toBeTruthy();
+    const dueBody = (await due.json()) as { updated: number };
+    expect(dueBody.updated).toBeGreaterThan(0);
     const tick = await a.request.post("/api/e2e/tick_reminders");
     expect(tick.ok(), await tick.text()).toBeTruthy();
+    const tickBody = (await tick.json()) as { claimed: number };
+    expect(tickBody.claimed).toBeGreaterThan(0);
 
     await expect(a.getByTestId("toast").filter({ hasText: title })).toBeVisible();
     await expect(b.getByTestId("toast").filter({ hasText: title })).toBeVisible();

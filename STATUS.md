@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-24 13:55 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-10-24 14:29 +06.
 
 ## Этапы
 
@@ -10,7 +10,7 @@
 | M1 Заметки/теги/корзина/список | готов | T20 `test_tags_crud_and_multi`; T17 server `test_list_search_filters` / `test_list_keyset_pagination`; `perf_*_10k` — M6; `make test` → 12 passed; curl tags/notes/list/me |
 | M2 Календарь и «Ближайшее» | готов | `test_calendar_range_singles`, `test_upcoming_buckets`; `make test` → 14 passed; curl `/calendar`, `/upcoming`; UI-смоки (см. ниже) |
 | M3 Воркер напоминаний + outbox | готов | T1, T4–T8, T18–T19 (`test_reminder_*`, `test_inactive_*`, `test_reactivate_*`, `test_reschedule_*`, `test_sent_*`, `test_delete_*`, `test_restore_*`, `test_trash_purge_30d`, `test_restart_*`, `test_downtime_*`); `make test` → 26 passed; MailHog smoke (см. ниже) |
-| M4 Realtime | готов | T2/T3/T13/T14/T16 + `e2e_reminder_from_ui_toast_and_mail`; API realtime; `make test` → 29 passed; Playwright → 6 passed; напоминания в UI (D-026) |
+| M4 Realtime | готов | T2/T3/T13/T14/T15/T16 + UI reminders/timezone e2e; `make test` → 31 passed; Playwright → 9 passed (D-023–D-027) |
 | M5 Повторы | не начат | — |
 | M6 Нагрузка и verify | не начат | — |
 
@@ -40,6 +40,8 @@
 - Playwright e2e: `make e2e` / `cd web && npx playwright test` (нужен стек с `E2E_HOOKS=true`, D-024).
 - **Напоминания в UI:** мультивыбор «за 10 минут / за час / за день» в форме списка и боковой панели → `reminder_offsets`; при редактировании отображаются текущие (D-026).
 - Настройки: поле Email есть, сохраняется через `PATCH /me` (проверено e2e).
+- **Часовой пояс в UI:** поиск по всем IANA (`Intl.supportedValuesOf`) в Настройках; register шлёт пояс браузера; у поля времени подпись «ввод в поясе …»; смена пояса меняет отображение, не `starts_at`/`fire_at` (T15, D-027).
+- Предупреждение в форме, если выбранное напоминание уже в прошлом (`starts − offset ≤ now`).
 - `scripts/demo.py` — заметка с offset=10, fire ≈ через 2 минуты; `docker compose exec api python scripts/demo.py`.
 
 ### UI-смоки M2 (2026-10-23)
@@ -62,14 +64,17 @@
 
 ### Смоки M4 (2026-10-24)
 **Автоматически:**
-- `make test` → 29 passed (в т.ч. `test_pg_notify_note_changed_on_user_channel`, `test_notification_new_over_user_channel`, `test_notifications_unseen_and_seen`, `test_concurrent_patch_409`).
-- `E2E_HOOKS=true docker compose up --build -d` затем `cd web && npx playwright test` → 6 passed:
+- `make test` → 31 passed (в т.ч. realtime, `test_timezone_change_keeps_fire_at` T15, `test_register_with_timezone`).
+- `E2E_HOOKS=true docker compose up --build -d` затем `cd web && npx playwright test` → 9 passed:
   - `e2e_toast_in_two_tabs` (T2)
   - `e2e_toast_not_repeated_after_reload` (T3)
   - `e2e_edit_in_tab_a_visible_in_tab_b` (T13)
   - `e2e_conflict_dialog` (T14)
   - `e2e_upcoming_moves_to_past_live` (T16)
   - `e2e_reminder_from_ui_toast_and_mail` — форма UI + toast в 2 вкладках + ровно 1 письмо в MailHog
+  - `e2e_timezone_change_updates_display_keeps_instant`
+  - `e2e_register_uses_browser_timezone`
+  - `e2e_past_reminder_shows_warning`
 - `docker compose exec api python scripts/demo.py` → создал `Demo … UTC`, offsets `[10]`.
 
 ## Не работает
