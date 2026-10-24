@@ -361,7 +361,7 @@ select {
   background: rgba(28, 26, 23, 0.35);
   display: grid;
   place-items: center;
-  z-index: 50;
+  z-index: 1000;
   padding: 1rem;
 }
 
