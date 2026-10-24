@@ -14,6 +14,7 @@ from app.models import Note, User
 from app.schemas.notes import NoteCreate, NoteListOut, NoteOut, NotePatch
 from app.services.note_list import list_notes
 from app.services.notes import note_to_out, replace_note_tags
+from app.services.reminders import materialize_single_note, rebuild_pending_for_note
 
 router = APIRouter(prefix="/notes", tags=["notes"])
 
@@ -72,14 +73,21 @@ async def create_note(
         updated_at=now,
     )
     if body.recurrence is not None:
-        # TODO(spec-gap): occurrence generation / materialization — M5 / M3
+        # TODO(spec-gap): occurrence generation / series materialization horizon — M5
         note.rec_freq = body.recurrence.freq
         note.rec_until = body.recurrence.until
         note.rec_tz = body.recurrence.tz
     db.add(note)
     await db.flush()
     await replace_note_tags(db, user_id=user.id, note_id=note.id, tag_ids=body.tag_ids)
-    # TODO(spec-gap): reminder materialization — M3
+    if note.rec_freq is None:
+        await materialize_single_note(
+            db,
+            note_id=note.id,
+            starts_at=note.starts_at,
+            reminder_offsets=list(note.reminder_offsets or []),
+            now=now,
+        )
     await db.commit()
     await db.refresh(note)
     return await note_to_out(db, note)
@@ -123,7 +131,9 @@ async def patch_note(
     if not data:
         raise AppError("validation_error", "No fields to update besides version")
 
-    values: dict = {"version": Note.version + 1, "updated_at": clock.now()}
+    schedule_changed = "starts_at" in data or "reminder_offsets" in data
+    now = clock.now()
+    values: dict = {"version": Note.version + 1, "updated_at": now}
     if "title" in data:
         values["title"] = data["title"]
     if "body" in data:
@@ -132,7 +142,6 @@ async def patch_note(
         values["starts_at"] = data["starts_at"]
     if "reminder_offsets" in data:
         values["reminder_offsets"] = data["reminder_offsets"]
-        # TODO(spec-gap): rebuild pending reminders — M3
     if "recurrence" in data:
         # TODO(spec-gap): series split / overrides — M5
         rec = data["recurrence"]
@@ -169,6 +178,17 @@ async def patch_note(
 
     if "tag_ids" in data:
         await replace_note_tags(db, user_id=user_id, note_id=note_id, tag_ids=data["tag_ids"])
+
+    if schedule_changed:
+        note = await _get_owned_note(db, user_id, note_id, allow_deleted=False)
+        if note.rec_freq is None:
+            await rebuild_pending_for_note(
+                db,
+                note_id=note.id,
+                starts_at=note.starts_at,
+                reminder_offsets=list(note.reminder_offsets or []),
+                now=now,
+            )
 
     await db.commit()
     note = await _get_owned_note(db, user_id, note_id, allow_deleted=False)
