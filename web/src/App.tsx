@@ -3,6 +3,7 @@ import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, RealtimeEvent, User } from "./api";
 import { ToastItem, ToastStack } from "./components/ToastStack";
+import { browserTimeZone } from "./components/TimezonePicker";
 import { useRealtime } from "./hooks/useRealtime";
 import { CalendarPage } from "./pages/CalendarPage";
 import { ListPage } from "./pages/ListPage";
@@ -51,7 +52,7 @@ function AuthScreen({ onDone }: { onDone: (user: User) => void }) {
       const user =
         mode === "login"
           ? await api.login(login, password)
-          : await api.register(login, password);
+          : await api.register(login, password, browserTimeZone());
       onDone(user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");

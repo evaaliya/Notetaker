@@ -411,3 +411,54 @@ select {
 .inbox h4 {
   margin: 0;
 }
+
+.tz-picker {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.tz-picker-control {
+  position: relative;
+}
+
+.tz-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+  max-height: 14rem;
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 20px rgba(28, 26, 23, 0.1);
+}
+
+.tz-picker-list button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0;
+}
+
+.tz-picker-list button:hover,
+.tz-picker-list button.active {
+  background: #e8f3f0;
+  color: var(--accent);
+}
+
+.reminder-past {
+  color: var(--error);
+  font-size: 0.85em;
+}
+
+.reminder-opt {
+  align-items: flex-start;
+}

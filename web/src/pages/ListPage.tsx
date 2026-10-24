@@ -195,7 +195,7 @@ export function ListPage({ user }: { user: User }) {
               >
                 <button type="button" className="note-main linkish" onClick={() => { setEditing(n); setCreating(false); }}>
                   <strong>{n.title || "Без названия"}</strong>
-                  <span className="muted small">
+                  <span className="muted small" data-testid="note-starts-display" data-note-id={n.id}>
                     {formatInZone(n.starts_at, user.timezone)}
                     {n.status === "inactive" ? " · inactive" : ""}
                     {n.rec_freq ? " · повтор" : ""}
@@ -303,7 +303,11 @@ function NoteForm({
         />
       </label>
       <label>
-        Время ({user.timezone})
+        Время
+        <span className="muted small" data-testid="note-tz-hint">
+          {" "}
+          (ввод в поясе {user.timezone})
+        </span>
         <input
           type="datetime-local"
           data-testid="note-starts"
@@ -312,7 +316,12 @@ function NoteForm({
           required
         />
       </label>
-      <ReminderOffsetsField value={reminderOffsets} onChange={setReminderOffsets} />
+      <ReminderOffsetsField
+        value={reminderOffsets}
+        onChange={setReminderOffsets}
+        startsLocal={startsLocal}
+        timeZone={user.timezone}
+      />
       <fieldset className="tag-pick">
         <legend>Теги</legend>
         {tags.map((t) => (

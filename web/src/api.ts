@@ -137,10 +137,14 @@ function notesQuery(params: NoteListParams): string {
 }
 
 export const api = {
-  register: (login: string, password: string) =>
+  register: (login: string, password: string, timezone?: string) =>
     request<User>("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ login, password }),
+      body: JSON.stringify({
+        login,
+        password,
+        ...(timezone ? { timezone } : {}),
+      }),
     }),
   login: (login: string, password: string) =>
     request<User>("/api/auth/login", {

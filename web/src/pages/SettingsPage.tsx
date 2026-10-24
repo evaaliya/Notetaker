@@ -1,14 +1,7 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-
-const COMMON_TZ = [
-  "UTC",
-  "Asia/Bishkek",
-  "Europe/Moscow",
-  "Europe/Berlin",
-  "America/New_York",
-];
+import { TimezonePicker } from "../components/TimezonePicker";
 
 export function SettingsPage() {
   const qc = useQueryClient();
@@ -25,6 +18,10 @@ export function SettingsPage() {
       }),
     onSuccess: (user) => {
       qc.setQueryData(["me"], user);
+      // Re-render wall times on all screens (UTC instants unchanged).
+      qc.invalidateQueries({ queryKey: ["calendar"] });
+      qc.invalidateQueries({ queryKey: ["upcoming"] });
+      qc.invalidateQueries({ queryKey: ["notes"] });
       setMsg("Сохранено");
     },
     onError: (e: Error) => setMsg(e.message),
@@ -57,17 +54,7 @@ export function SettingsPage() {
         </label>
         <label>
           Часовой пояс (IANA)
-          <input
-            list="tz-list"
-            value={tzValue}
-            onChange={(e) => setTimezone(e.target.value)}
-            required
-          />
-          <datalist id="tz-list">
-            {COMMON_TZ.map((z) => (
-              <option key={z} value={z} />
-            ))}
-          </datalist>
+          <TimezonePicker value={tzValue} onChange={setTimezone} />
         </label>
         {msg && <p className={save.isError ? "error" : "muted"}>{msg}</p>}
         <button type="submit" disabled={save.isPending}>

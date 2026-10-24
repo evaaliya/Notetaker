@@ -157,7 +157,11 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
           <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} />
         </label>
         <label>
-          Время ({user.timezone})
+          Время
+          <span className="muted small" data-testid="note-tz-hint">
+            {" "}
+            (ввод в поясе {user.timezone})
+          </span>
           <input
             type="datetime-local"
             value={startsLocal}
@@ -165,7 +169,12 @@ export function NoteSidePanel({ user, tags, note, onClose, onSaved }: Props) {
             required
           />
         </label>
-        <ReminderOffsetsField value={reminderOffsets} onChange={setReminderOffsets} />
+        <ReminderOffsetsField
+          value={reminderOffsets}
+          onChange={setReminderOffsets}
+          startsLocal={startsLocal}
+          timeZone={user.timezone}
+        />
         <fieldset className="tag-pick">
           <legend>Теги</legend>
           {tags.map((t) => (
