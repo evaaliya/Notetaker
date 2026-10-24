@@ -93,6 +93,7 @@
 - Правка заголовка одного вхождения → диалог области → «Только это» → в календаре день 25 = `M5 Only This`, остальные `M5 Series UI`; в БД override на `2026-10-25T04:00:00Z`.
 - Правка 26-го → «Это и следующие» → split: старая серия `rec_until=2026-10-25`, новая `M5 From Here` с `starts=2026-10-26`.
 - Напоминание серии: forced `fire_at` + `process_due_reminders` → claimed 1, outbox 1, MailHog `total ≥ 1`.
+- Формат времени (D-030): `formatTimeHm` / FC `eventContent` — всегда ЧЧ:ММ; e2e `formatTimeHm_always_hhmm_in_zone`, `e2e_calendar_list_upcoming_time_hhmm`.
 
 ## Не работает
 - Нагрузка 10k (`perf_list_10k` / `perf_search_10k` с сидом и порогами §8), `e2e_scroll_10k`, `make verify` — M6.
