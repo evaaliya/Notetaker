@@ -9,7 +9,7 @@
 
 ## Развёртывание с нуля
 ```bash
-git clone <ссылка на репозиторий> && cd notetaker
+git clone https://github.com/evaaliya/Notetaker && cd notetaker
 cp .env.example .env
 docker compose down -v          # чистый том БД (если уже поднимали)
 docker compose up --build
