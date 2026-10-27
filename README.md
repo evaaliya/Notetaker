@@ -68,30 +68,16 @@ copy .env.example .env
 
 ```bash
 docker compose down -v          # чистый том БД, если поднимали раньше
-docker compose up --build -d
+docker compose up --build -d    # -d = в фоне; зависимости ставятся внутри образов
 ```
 
-**Важно про `-d` (detached / фон) — частая путаница:**
+Первый раз может занять несколько минут (скачивание образов и сборка).
 
-| Что видишь | Что это значит |
+| Сервис | URL |
 |---|---|
-| В конце `✔ … Started` и снова приглашение shell (`%` / `$`) | **Норма.** Команда закончилась, контейнеры **продолжают работать в фоне**. Это не остановка. |
-| В терминале нет бесконечного потока логов | **Норма** при `-d`. Логи не пишутся в это окно специально. |
-| Хочешь смотреть логи | `docker compose logs -f` — Ctrl+C **только выходит из просмотра**, контейнеры **не** гасит |
-| Хочешь убедиться, что всё ещё живо | `docker compose ps` — у всех STATUS = `Up` |
-| Реально остановить стек | только `docker compose down` (или Stop в Docker Desktop) |
-
-Без `-d` (`docker compose up --build`) логи идут в терминал, и Ctrl+C **остановит** весь стек — для повседневной работы удобнее `-d`.
-
-Первый раз может занять несколько минут (скачивание образов и сборка).  
-Предупреждение MailHog `platform (linux/amd64) does not match … arm64` на Apple Silicon **безвредно**.
-
-| Сервис | URL | Открыть в браузере |
-|---|---|---|
-| Web (интерфейс) | http://localhost:5173 | да |
-| API (Swagger) | http://localhost:8000/docs | да |
-| Health (JSON) | http://localhost:8000/api/health | да / или `curl` |
-| MailHog (письма) | http://localhost:8025 | да |
+| Web | http://localhost:5173 |
+| API (Swagger) | http://localhost:8000/docs |
+| MailHog (письма) | http://localhost:8025 |
 
 Миграции применяются автоматически при старте `api`.
 
@@ -241,9 +227,6 @@ make e2e
 ---
 
 ## Если что-то не работает
-
-### «Сразу вернуло в shell — значит Docker остановился?»
-Нет. При `docker compose up -d` возврат приглашения — ожидаемое поведение (см. таблицу в §3). Проверьте `docker compose ps` и http://localhost:5173.
 
 ### Docker не запущен
 Сообщение вроде `Cannot connect to the Docker daemon`. Откройте Docker Desktop (или стартуйте сервис Docker на Linux) и повторите команду.
