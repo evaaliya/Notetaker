@@ -1,7 +1,8 @@
 import { FormEvent, useCallback, useState } from "react";
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, RealtimeEvent, User } from "./api";
+import { AppSidebar } from "./components/AppSidebar";
 import { ToastItem, ToastStack } from "./components/ToastStack";
 import { browserTimeZone } from "./components/TimezonePicker";
 import { useRealtime } from "./hooks/useRealtime";
@@ -139,69 +140,29 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const unseenCount = unseen.data?.length ?? 0;
 
   return (
-    <main className="page shell">
-      <header className="shell-header">
-        <h1>Notetaker</h1>
-        <div className="shell-user">
-          <div className="bell-wrap">
-            <button
-              type="button"
-              className="secondary"
-              data-testid="notif-bell"
-              aria-label="Уведомления"
-              onClick={() => setInboxOpen((v) => !v)}
-            >
-              Увед.{unseenCount > 0 ? ` ${unseenCount}` : ""}
-            </button>
-            {inboxOpen && (
-              <div className="inbox card" data-testid="notif-inbox">
-                <h4>Непрочитанные</h4>
-                {unseenCount === 0 && <p className="muted small">Пусто</p>}
-                <ul className="note-list">
-                  {(unseen.data ?? []).map((n) => (
-                    <li key={n.id} className="note-row">
-                      <div className="note-main">
-                        <strong>{n.title}</strong>
-                        <span className="muted small">{n.body}</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => dismissToast(n.id)}
-                      >
-                        Прочитано
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-          <span className="muted">{user.login}</span>{" "}
-          <button type="button" onClick={logout} disabled={busy}>
-            Выйти
-          </button>
-        </div>
-      </header>
-      <nav className="app-nav">
-        <NavLink to="/calendar">Календарь</NavLink>
-        <NavLink to="/upcoming">Ближайшее</NavLink>
-        <NavLink to="/list">Список</NavLink>
-        <NavLink to="/tags">Теги</NavLink>
-        <NavLink to="/trash">Корзина</NavLink>
-        <NavLink to="/settings">Настройки</NavLink>
-      </nav>
-      <Routes>
-        <Route path="/" element={<Navigate to="/calendar" replace />} />
-        <Route path="/calendar" element={<CalendarPage user={user} />} />
-        <Route path="/upcoming" element={<UpcomingPage user={user} />} />
-        <Route path="/list" element={<ListPage user={user} />} />
-        <Route path="/tags" element={<TagsPage />} />
-        <Route path="/trash" element={<TrashPage user={user} />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="*" element={<Navigate to="/calendar" replace />} />
-      </Routes>
+    <div className="app-frame">
+      <AppSidebar
+        unseenCount={unseenCount}
+        inboxOpen={inboxOpen}
+        onToggleInbox={() => setInboxOpen((v) => !v)}
+        onMarkSeen={dismissToast}
+        userLogin={user.login}
+        onLogout={logout}
+        logoutBusy={busy}
+      />
+      <main className="app-main">
+        <Routes>
+          <Route path="/" element={<Navigate to="/calendar" replace />} />
+          <Route path="/calendar" element={<CalendarPage user={user} />} />
+          <Route path="/upcoming" element={<UpcomingPage user={user} />} />
+          <Route path="/list" element={<ListPage user={user} />} />
+          <Route path="/tags" element={<TagsPage />} />
+          <Route path="/trash" element={<TrashPage user={user} />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/calendar" replace />} />
+        </Routes>
+      </main>
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-    </main>
+    </div>
   );
 }

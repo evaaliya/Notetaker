@@ -1,4 +1,5 @@
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   useInfiniteQuery,
   useMutation,
@@ -21,15 +22,24 @@ type Filters = {
 
 export function ListPage({ user }: { user: User }) {
   const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const tagFromUrl = searchParams.get("tag") ?? "";
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
   const [filters, setFilters] = useState<Filters>({
     q: "",
     status: "",
-    tagId: "",
+    tagId: tagFromUrl,
     sort: "starts_at",
     dir: "asc",
   });
   const [draft, setDraft] = useState<Filters>(filters);
+
+  useEffect(() => {
+    if (tagFromUrl === filters.tagId) return;
+    const next = { ...filters, tagId: tagFromUrl };
+    setFilters(next);
+    setDraft(next);
+  }, [tagFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const [editing, setEditing] = useState<Note | null>(null);
   const [creating, setCreating] = useState(false);
 

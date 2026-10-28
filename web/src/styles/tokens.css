@@ -1,0 +1,19 @@
+:root {
+  --paper: #f4efe6;
+  --sidebar: #ede6d8;
+  --surface: #fffdf9;
+  --line: #e4dccd;
+  --line-strong: #d9cfbd;
+  --ink: #2b2620;
+  --muted: #6e655a;
+  --accent: #b4532f;
+  --accent-soft: #fbefe6;
+  --danger: #b4402f;
+  --danger-soft: #fbefea;
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 22px;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --sidebar-width: 248px;
+}
