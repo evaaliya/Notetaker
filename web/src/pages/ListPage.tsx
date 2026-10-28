@@ -14,6 +14,7 @@ import { ReminderOffsetsField } from "../components/ReminderOffsetsField";
 import { Switch } from "../components/Switch";
 import { TagPill } from "../components/TagPill";
 import { formatInZone, localInputToUtcIso, utcIsoToLocalInput } from "../format";
+import { useQuickAdd } from "../hooks/useQuickAdd";
 
 type Filters = {
   q: string;
@@ -25,6 +26,7 @@ type Filters = {
 
 export function ListPage({ user }: { user: User }) {
   const qc = useQueryClient();
+  const quickAdd = useQuickAdd();
   const [searchParams] = useSearchParams();
   const tagFromUrl = searchParams.get("tag") ?? "";
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
@@ -122,6 +124,10 @@ export function ListPage({ user }: { user: User }) {
             className="btn-accent"
             data-testid="new-note"
             onClick={() => {
+              if (window.matchMedia("(max-width: 640px)").matches) {
+                quickAdd.show();
+                return;
+              }
               setCreating(true);
               setEditing(null);
             }}

@@ -3,8 +3,11 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, RealtimeEvent, User } from "./api";
 import { AppSidebar } from "./components/AppSidebar";
+import { MobileNav } from "./components/MobileNav";
+import { QuickAddSheet } from "./components/QuickAddSheet";
 import { ToastItem, ToastStack } from "./components/ToastStack";
 import { browserTimeZone } from "./components/TimezonePicker";
+import { QuickAddProvider, useQuickAdd } from "./hooks/useQuickAdd";
 import { useRealtime } from "./hooks/useRealtime";
 import { CalendarPage } from "./pages/CalendarPage";
 import { ListPage } from "./pages/ListPage";
@@ -35,7 +38,11 @@ export function App() {
     );
   }
 
-  return <Shell user={me.data} onLogout={() => qc.setQueryData(["me"], null)} />;
+  return (
+    <QuickAddProvider>
+      <Shell user={me.data} onLogout={() => qc.setQueryData(["me"], null)} />
+    </QuickAddProvider>
+  );
 }
 
 function AuthScreen({ onDone }: { onDone: (user: User) => void }) {
@@ -138,6 +145,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   }
 
   const unseenCount = unseen.data?.length ?? 0;
+  const quickAdd = useQuickAdd();
 
   return (
     <div className="app-frame">
@@ -162,6 +170,17 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           <Route path="*" element={<Navigate to="/calendar" replace />} />
         </Routes>
       </main>
+      <MobileNav />
+      <button
+        type="button"
+        className="mobile-fab"
+        data-testid="mobile-new-note"
+        aria-label="Новая заметка"
+        onClick={() => quickAdd.show()}
+      >
+        Новая заметка
+      </button>
+      <QuickAddSheet user={user} open={quickAdd.open} onClose={quickAdd.hide} />
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

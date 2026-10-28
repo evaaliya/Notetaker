@@ -1102,28 +1102,130 @@ button.link {
   }
 }
 
+.mobile-nav {
+  display: none;
+}
+
+.mobile-fab {
+  display: none;
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(43, 38, 32, 0.4);
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet {
+  width: min(100%, 480px);
+  margin: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  max-height: 90vh;
+  overflow: auto;
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0));
+}
+
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  margin: 0 auto 12px;
+}
+
 @media (max-width: 640px) {
   .conflict-compare {
     grid-template-columns: 1fr;
   }
 
-  /* Mobile bottom nav lands in M7.5; keep usable stack for now */
   .app-frame {
     grid-template-columns: 1fr;
   }
 
   .app-sidebar {
-    position: relative;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid #e0d7c5;
+    display: none;
   }
 
   .app-main {
-    padding: 20px 16px 32px;
+    padding: 16px 16px calc(96px + env(safe-area-inset-bottom, 0));
   }
 
   .search-input {
     width: 100%;
+  }
+
+  .page-head {
+    flex-direction: column;
+  }
+
+  .page-head-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .mobile-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    background: var(--sidebar);
+    border-top: 1px solid var(--line);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0));
+  }
+
+  .mobile-nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 44px;
+    font: 500 11px var(--font-sans);
+    color: #5b5348;
+    text-decoration: none;
+    border-radius: 10px;
+  }
+
+  .mobile-nav a svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .mobile-nav a.on {
+    color: var(--accent);
+    background: var(--surface);
+  }
+
+  .mobile-fab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 16px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0));
+    z-index: 45;
+    min-height: 44px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font: 600 14px var(--font-sans);
+    box-shadow: 0 8px 20px rgba(43, 38, 32, 0.2);
+  }
+
+  .hero-countdown {
+    font-size: 40px;
+  }
+
+  .hero-title {
+    font-size: 28px;
   }
 }
