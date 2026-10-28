@@ -8,8 +8,11 @@ import {
 } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api, Note, Recurrence, Tag, User } from "../api";
+import { NoteIllustration } from "../components/NoteIllustration";
 import { RecurrenceField } from "../components/RecurrenceField";
 import { ReminderOffsetsField } from "../components/ReminderOffsetsField";
+import { Switch } from "../components/Switch";
+import { TagPill } from "../components/TagPill";
 import { formatInZone, localInputToUtcIso, utcIsoToLocalInput } from "../format";
 
 type Filters = {
@@ -68,7 +71,7 @@ export function ListPage({ user }: { user: User }) {
   const virtualizer = useVirtualizer({
     count: notes.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 64,
+    estimateSize: () => 88,
     overscan: 8,
   });
 
@@ -91,28 +94,63 @@ export function ListPage({ user }: { user: User }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notes"] }),
   });
 
+  const tagList = tags.data ?? [];
+
   return (
     <section className="list-page">
-      <div className="list-toolbar">
-        <h2>Список</h2>
-        <button
-          type="button"
-          data-testid="new-note"
-          onClick={() => {
-            setCreating(true);
-            setEditing(null);
-          }}
-        >
-          Новая заметка
-        </button>
+      <div className="page-head">
+        <div>
+          <h1>Список</h1>
+          <div className="mut">Поиск и фильтры на сервере</div>
+        </div>
+        <div className="page-head-actions">
+          <input
+            className="search-input"
+            placeholder="Поиск"
+            aria-label="Поиск"
+            value={draft.q}
+            onChange={(e) => setDraft({ ...draft, q: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                setFilters(draft);
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="btn-accent"
+            data-testid="new-note"
+            onClick={() => {
+              setCreating(true);
+              setEditing(null);
+            }}
+          >
+            Новая заметка
+          </button>
+        </div>
       </div>
 
       <form className="filters card" onSubmit={applyFilters}>
-        <input
-          placeholder="Поиск"
-          value={draft.q}
-          onChange={(e) => setDraft({ ...draft, q: e.target.value })}
-        />
+        <div className="filter-pills">
+          <button
+            type="button"
+            className={!draft.tagId ? "pill on" : "pill"}
+            onClick={() => setDraft({ ...draft, tagId: "" })}
+          >
+            Все метки
+          </button>
+          {tagList.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={draft.tagId === t.id ? "pill on" : "pill"}
+              onClick={() => setDraft({ ...draft, tagId: t.id })}
+            >
+              <TagPill name={t.name} color={t.color} />
+            </button>
+          ))}
+        </div>
         <select
           value={draft.status}
           onChange={(e) => setDraft({ ...draft, status: e.target.value })}
@@ -120,17 +158,6 @@ export function ListPage({ user }: { user: User }) {
           <option value="">Все статусы</option>
           <option value="active">active</option>
           <option value="inactive">inactive</option>
-        </select>
-        <select
-          value={draft.tagId}
-          onChange={(e) => setDraft({ ...draft, tagId: e.target.value })}
-        >
-          <option value="">Все теги</option>
-          {(tags.data ?? []).map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
         </select>
         <select
           value={`${draft.sort}:${draft.dir}`}
@@ -191,10 +218,18 @@ export function ListPage({ user }: { user: User }) {
         >
           {virtualizer.getVirtualItems().map((row) => {
             const n = notes[row.index];
+            const noteTags = n.tag_ids
+              .map((id) => tagList.find((t) => t.id === id))
+              .filter(Boolean) as Tag[];
+            const first = noteTags[0];
+            const offsets =
+              n.reminder_offsets?.length > 0
+                ? `напоминание за ${n.reminder_offsets.join("/")} мин`
+                : null;
             return (
               <div
                 key={n.id}
-                className="note-row virtual-row"
+                className="note-row virtual-row list-row"
                 style={{
                   position: "absolute",
                   top: 0,
@@ -204,18 +239,50 @@ export function ListPage({ user }: { user: User }) {
                   transform: `translateY(${row.start}px)`,
                 }}
               >
-                <button type="button" className="note-main linkish" onClick={() => { setEditing(n); setCreating(false); }}>
+                <NoteIllustration
+                  title={n.title}
+                  body={n.body}
+                  tagName={first?.name}
+                  tagColor={first?.color}
+                  size={44}
+                />
+                <button
+                  type="button"
+                  className="note-main linkish"
+                  onClick={() => {
+                    setEditing(n);
+                    setCreating(false);
+                  }}
+                >
                   <strong>{n.title || "Без названия"}</strong>
-                  <span className="muted small" data-testid="note-starts-display" data-note-id={n.id}>
+                  {n.body ? (
+                    <span className="muted small list-body-preview">
+                      {n.body.split("\n")[0]}
+                    </span>
+                  ) : null}
+                  <span
+                    className="muted small"
+                    data-testid="note-starts-display"
+                    data-note-id={n.id}
+                  >
                     {formatInZone(n.starts_at, user.timezone)}
-                    {n.status === "inactive" ? " · inactive" : ""}
                     {n.rec_freq ? " · повтор" : ""}
+                    {offsets ? ` · ${offsets}` : ""}
                   </span>
+                  {noteTags.length > 0 && (
+                    <span className="list-tags">
+                      {noteTags.map((t) => (
+                        <TagPill key={t.id} name={t.name} color={t.color} />
+                      ))}
+                    </span>
+                  )}
                 </button>
                 <div className="note-actions">
-                  <button type="button" className="secondary" onClick={() => toggle.mutate(n)}>
-                    {n.status === "active" ? "Выкл" : "Вкл"}
-                  </button>
+                  <Switch
+                    label={n.status === "active" ? "Активна" : "Неактивна"}
+                    checked={n.status === "active"}
+                    onChange={() => toggle.mutate(n)}
+                  />
                   <button type="button" className="link" onClick={() => remove.mutate(n.id)}>
                     В корзину
                   </button>
