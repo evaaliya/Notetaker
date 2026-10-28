@@ -267,6 +267,55 @@ button.link {
   background: currentColor;
 }
 
+.note-illustration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: var(--radius-sm);
+  background: var(--tag-bg, #eee8df);
+  color: var(--tag-fg, #5b5348);
+}
+
+.note-illustration svg {
+  width: 55%;
+  height: 55%;
+}
+
+@keyframes shake {
+  0%,
+  70%,
+  100% {
+    transform: rotate(0);
+  }
+  74% {
+    transform: rotate(-12deg);
+  }
+  78% {
+    transform: rotate(12deg);
+  }
+  82% {
+    transform: rotate(-9deg);
+  }
+  86% {
+    transform: rotate(7deg);
+  }
+  90% {
+    transform: rotate(-3deg);
+  }
+}
+
+.shake {
+  animation: shake 0.8s ease-in-out 1;
+  transform-origin: 50% 10%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shake {
+    animation: none;
+  }
+}
+
 .side-footer {
   margin-top: auto;
   padding-top: 16px;

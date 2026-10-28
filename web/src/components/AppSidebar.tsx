@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -10,6 +9,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "../api";
+import { TagPill } from "./TagPill";
 
 type Props = {
   unseenCount: number;
@@ -80,17 +80,7 @@ export function AppSidebar({
             className="side-tag-row"
             onClick={() => navigate(`/list?tag=${encodeURIComponent(t.id)}`)}
           >
-            <span
-              className="tag-pill side-tag-pill"
-              style={
-                {
-                  "--tag-bg": mixTint(t.color),
-                  "--tag-fg": t.color,
-                } as CSSProperties
-              }
-            >
-              {t.name}
-            </span>
+            <TagPill name={t.name} color={t.color} />
           </button>
         ))}
         {(tags.data ?? []).length === 0 && (
@@ -155,16 +145,4 @@ export function AppSidebar({
 
 function navClass(isActive: boolean) {
   return isActive ? "side-nav-link on" : "side-nav-link";
-}
-
-/** Temporary tint until tagColors lands in M7.2. */
-function mixTint(hex: string): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return "#eee8df";
-  const n = parseInt(m[1], 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  const mix = (c: number) => Math.round(c + (255 - c) * 0.88);
-  return `#${[mix(r), mix(g), mix(b)].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 }
