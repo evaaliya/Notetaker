@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Notetaker — телефон</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+.ic{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.nv{display:flex;gap:12px;align-items:center;width:100%;min-height:44px;padding:0 14px;border:1px solid transparent;border-radius:12px;background:transparent;color:#5B5348;font:500 15px Inter,sans-serif;text-align:left}
+.on{background:#FFFDF9;border-color:#E4DCCD;color:#2B2620;box-shadow:0 1px 2px rgba(43,38,32,.06)}
+.tg{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:12px;background:var(--tb);color:var(--tc);font:600 12px Inter,sans-serif;white-space:nowrap}
+.tg::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--tc)}
+.pic{display:flex;align-items:center;justify-content:center;flex:none;border-radius:12px;background:var(--tb);color:var(--tc)}
+.pic .ic{width:55%;height:55%;stroke-width:1.5}
+.ce{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:12px;border-left:4px solid var(--tc);background:var(--tb);font-family:Inter,sans-serif}
+.ce b{display:block;font-size:13px;font-weight:600;color:#2B2620;line-height:1.25}
+.ce span.t{display:block;margin:2px 0 6px;font-size:12px;color:#5B5348}
+.card{background:#FFFDF9;border:1px solid #E4DCCD;border-radius:18px}
+.row{display:flex;align-items:center;justify-content:space-between}
+.h{font-family:"Source Serif 4",Georgia,serif;font-weight:600;color:#2B2620;margin:0}
+.bt{min-height:44px;padding:0 18px;border:1px solid #D9CFBD;border-radius:12px;background:#FFFDF9;color:#2B2620;font:500 14px Inter,sans-serif}
+.ac{min-height:44px;padding:0 20px;border:0;border-radius:12px;background:#B4532F;color:#fff;font:600 14px Inter,sans-serif}
+.sw{width:44px;height:26px;border-radius:13px;border:0;background:#B4532F;position:relative;flex:none}
+.sw::after{content:"";position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+.sw.off{background:#CFC5B3}
+.sw.off::after{right:auto;left:3px}
+.shake{animation:shake 3s ease-in-out infinite;transform-origin:50% 10%}
+@keyframes shake{0%,70%,100%{transform:rotate(0)}74%{transform:rotate(-12deg)}78%{transform:rotate(12deg)}82%{transform:rotate(-9deg)}86%{transform:rotate(7deg)}90%{transform:rotate(-3deg)}}
+@media (prefers-reduced-motion:reduce){.shake{animation:none}}
+.lab{font:600 11px Inter,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#6E655A}
+.mut{color:#6E655A;font:400 13px Inter,sans-serif}
+.inp{width:100%;height:46px;padding:0 14px;border:1px solid #D9CFBD;border-radius:12px;background:#fff;color:#2B2620;font:400 15px Inter,sans-serif}
+</style>
+</helmet>
+<div style="position:relative;width:390px;height:844px;overflow:hidden;background:#F4EFE6;font-family:Inter,sans-serif;color:#2B2620">
+<div style="padding:56px 20px 0"><div class="mut">Понедельник, 26 октября</div><h1 class="h" style="font-size:32px;margin:4px 0 16px">Добрый вечер</h1>
+<div class="card" style="padding:18px;background:linear-gradient(135deg,#FFFDF9,#FBEFE6);border-color:#EBCDBE"><div style="display:flex;gap:14px;align-items:center"><span class="shake" style="display:flex"><div class="pic" style="--tc:#3E6FB0;--tb:#E4ECF7;width:64px;height:64px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" ><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A15 15 0 013 6a2 2 0 012-2z"/></svg></div></span><div style="flex:1"><div class="lab" style="color:#B4532F">Через 9 минут</div><b class="h" style="font-size:20px;display:block;margin:2px 0 6px">Созвон с командой</b><span class="tg" style="--tc:#3E6FB0;--tb:#E4ECF7">Работа</span></div></div></div>
+<div class="card" style="margin-top:10px"><div class="row" style="gap:16px;padding:12px 14px;"><div class="pic" style="--tc:#2F6B4B;--tb:#E1F0E7;width:44px;height:44px"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" ><path d="M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12"/></svg></div><div style="flex:1"><b style="font-size:15px;font-weight:600">Тренировка</b><div class="mut">Сегодня, 18:30</div></div><span class="tg" style="--tc:#2F6B4B;--tb:#E1F0E7">Здоровье</span></div></div></div>
+<div style="position:absolute;left:0;right:0;bottom:0;padding:12px 20px 30px;border-radius:26px 26px 0 0;background:#FFFDF9;border-top:1px solid #E4DCCD;box-shadow:0 -10px 30px rgba(43,38,32,.1)">
+<div style="width:40px;height:4px;margin:0 auto 14px;border-radius:2px;background:#D9CFBD"></div>
+<div class="h" style="font-size:22px;margin-bottom:10px">Новая заметка</div>
+<label for="t" class="lab" style="display:block;margin-bottom:6px">Название</label>
+<input id="t" class="inp" value="Купить подарок" style="margin-bottom:12px">
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="bt">Сегодня, 15:00</button><button class="bt" style="background:#2B2620;color:#fff;border-color:#2B2620">за 10 мин</button><button class="bt">за час</button><button class="bt">за день</button></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"><button style="min-height:44px;border:0;background:transparent;padding:0"><span class="tg" style="--tc:#3E6FB0;--tb:#E4ECF7">Работа</span></button><button style="min-height:44px;border:0;background:transparent;padding:0"><span class="tg" style="--tc:#6B4A9E;--tb:#EDE6F6">Учёба</span></button><button style="min-height:44px;border:0;background:transparent;padding:0"><span class="tg" style="--tc:#8A5A12;--tb:#F6ECD9">Дом</span></button><button style="min-height:44px;border:0;background:transparent;padding:0"><span class="tg" style="--tc:#2F6B4B;--tb:#E1F0E7">Здоровье</span></button><button style="min-height:44px;border:0;background:transparent;padding:0"><span class="tg" style="--tc:#B4402F;--tb:#F9E3DE">Срочно</span></button></div>
+<button class="ac" style="width:100%;min-height:52px;font-size:16px">Добавить</button></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
