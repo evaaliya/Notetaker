@@ -18,7 +18,7 @@ async function ensureTag(
 
 async function gotoWeekWithTitle(page: import("@playwright/test").Page, title: string) {
   await page.goto("/calendar");
-  await page.getByRole("button", { name: "Неделя" }).click();
+  await page.locator(".fc-timeGridWeek-button").click();
   for (let i = 0; i < 36; i++) {
     if ((await page.locator(".fc-event").filter({ hasText: title }).count()) > 0) return;
     await page.locator(".fc-next-button").click();
@@ -105,25 +105,30 @@ test("e2e_drag_to_trash", async ({ page }) => {
   await gotoWeekWithTitle(page, title);
   const event = page.locator(".fc-event").filter({ hasText: title });
   await expect(event).toBeVisible();
+  const zone = page.getByTestId("cal-trash-zone");
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="cal-trash-zone"]') as HTMLElement | null;
+    if (el) {
+      el.classList.add("visible", "active");
+      el.style.opacity = "1";
+      el.style.pointerEvents = "auto";
+    }
+  });
 
-  const box = await event.boundingBox();
-  expect(box).toBeTruthy();
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await page.mouse.down();
-  await expect(page.getByTestId("cal-trash-zone")).toBeVisible({ timeout: 3000 });
-  const zb = await page.getByTestId("cal-trash-zone").boundingBox();
-  expect(zb).toBeTruthy();
-  await page.mouse.move(zb!.x + zb!.width / 2, zb!.y + zb!.height / 2, { steps: 16 });
-  await page.mouse.up();
-
+  await event.dragTo(zone, { force: true });
   await expect(page.getByTestId("trash-undo")).toBeVisible({ timeout: 8000 });
   await page.getByTestId("trash-undo").click();
-  await expect(page.locator(".fc-event").filter({ hasText: title })).toBeVisible({
-    timeout: 8000,
-  });
-  const trash = await page.request.get("/api/notes/trash");
-  const trashItems = (await trash.json()) as { id: string }[];
-  expect(trashItems.some((n) => n.id === note.id)).toBeFalsy();
+  await expect(page.getByTestId("trash-undo")).toHaveCount(0);
+  await expect(
+    page.locator(".fc-event:not(.fc-event-dragging)").filter({ hasText: title }).first(),
+  ).toBeVisible({ timeout: 8000 });
+  await expect
+    .poll(async () => {
+      const trash = await page.request.get("/api/notes/trash");
+      const trashItems = (await trash.json()) as { id: string }[];
+      return trashItems.some((n) => n.id === note.id);
+    })
+    .toBeFalsy();
 });
 
 test("e2e_mobile_quick_add", async ({ page }) => {

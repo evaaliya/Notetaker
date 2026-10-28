@@ -60,7 +60,10 @@ export function CalendarPage({ user }: { user: User }) {
   const [pendingTrash, setPendingTrash] = useState<PendingTrash | null>(null);
   const [undo, setUndo] = useState<{ noteId: string; title: string } | null>(null);
   const trashZoneRef = useRef<HTMLDivElement>(null);
+  const calendarWrapRef = useRef<HTMLDivElement>(null);
   const dropOnTrashRef = useRef(false);
+  const overTrashRef = useRef(false);
+  const dragOccRef = useRef<Occurrence | null>(null);
 
   const cal = useQuery({
     queryKey: ["calendar", range?.from, range?.to],
@@ -177,34 +180,54 @@ export function CalendarPage({ user }: { user: User }) {
     });
   }
 
-  function onEventDragStart(_arg: EventDragStartArg) {
+  function onEventDragStart(arg: EventDragStartArg) {
     dropOnTrashRef.current = false;
+    dragOccRef.current = (arg.event.extendedProps.occurrence as Occurrence) ?? null;
     setDragging(true);
     setOverTrash(false);
   }
 
   function onEventDragStop(arg: EventDragStopArg) {
-    const zone = trashZoneRef.current;
     const js = arg.jsEvent as MouseEvent | undefined;
-    let hit = false;
-    if (zone && js) {
-      const r = zone.getBoundingClientRect();
-      hit =
-        js.clientX >= r.left &&
-        js.clientX <= r.right &&
-        js.clientY >= r.top &&
-        js.clientY <= r.bottom;
-    }
+    const hit = hitTrashZone(js);
     dropOnTrashRef.current = hit;
+    if (hit && dragOccRef.current) {
+      const occ = dragOccRef.current;
+      dragOccRef.current = null;
+      setDragging(false);
+      setOverTrash(false);
+      const originalStart = occ.note.rec_freq ? occ.original_start : null;
+      if (originalStart) {
+        setPendingTrash({ note: occ.note, originalStart });
+      } else {
+        void trashNote(occ.note).catch((err: Error) => setDropError(err.message));
+      }
+      return;
+    }
+    dragOccRef.current = null;
     setDragging(false);
     setOverTrash(false);
   }
 
+  function hitTrashZone(jsEvent: MouseEvent | undefined | null): boolean {
+    const zone = trashZoneRef.current;
+    if (!zone || !jsEvent) return false;
+    const r = zone.getBoundingClientRect();
+    return (
+      jsEvent.clientX >= r.left &&
+      jsEvent.clientX <= r.right &&
+      jsEvent.clientY >= r.top &&
+      jsEvent.clientY <= r.bottom
+    );
+  }
+
   function onEventDrop(arg: EventDropArg) {
     const occ = arg.event.extendedProps.occurrence as Occurrence;
-    if (dropOnTrashRef.current) {
+    // FC may fire eventDrop before eventDragStop — check zone from jsEvent too.
+    const toTrash = dropOnTrashRef.current || hitTrashZone(arg.jsEvent as MouseEvent);
+    dropOnTrashRef.current = false;
+    if (toTrash) {
       arg.revert();
-      dropOnTrashRef.current = false;
       const originalStart = occ.note.rec_freq ? occ.original_start : null;
       if (originalStart) {
         setPendingTrash({ note: occ.note, originalStart });
@@ -245,6 +268,7 @@ export function CalendarPage({ user }: { user: User }) {
     return (
       <div
         className="cal-event"
+        data-occ-key={`${occ.note.id}:${occ.original_start}`}
         style={
           {
             "--tag-bg": colors.fill,
@@ -276,21 +300,60 @@ export function CalendarPage({ user }: { user: User }) {
   }
 
   useEffect(() => {
-    if (!dragging) return;
-    function onMove(e: MouseEvent) {
-      const zone = trashZoneRef.current;
-      if (!zone) return;
-      const r = zone.getBoundingClientRect();
-      const hit =
-        e.clientX >= r.left &&
-        e.clientX <= r.right &&
-        e.clientY >= r.top &&
-        e.clientY <= r.bottom;
+    const wrap = calendarWrapRef.current;
+    if (!wrap) return;
+    function onPointerDown(e: PointerEvent) {
+      const t = e.target as HTMLElement | null;
+      if (!t?.closest?.(".fc-event")) return;
+      dropOnTrashRef.current = false;
+      overTrashRef.current = false;
+      setDragging(true);
+      setOverTrash(false);
+      const keyEl = t.closest("[data-occ-key]") as HTMLElement | null;
+      const key = keyEl?.getAttribute("data-occ-key");
+      if (key && cal.data) {
+        const found = cal.data.items.find(
+          (it) => `${it.note.id}:${it.original_start}` === key,
+        );
+        if (found) dragOccRef.current = found;
+      }
+    }
+    function onPointerMove(e: PointerEvent) {
+      if (!dragOccRef.current) return;
+      const hit = hitTrashZone(e);
+      overTrashRef.current = hit;
+      dropOnTrashRef.current = hit;
       setOverTrash(hit);
     }
-    window.addEventListener("mousemove", onMove);
-    return () => window.removeEventListener("mousemove", onMove);
-  }, [dragging]);
+    function onPointerUp() {
+      const occ = dragOccRef.current;
+      const hit = overTrashRef.current || dropOnTrashRef.current;
+      setDragging(false);
+      setOverTrash(false);
+      overTrashRef.current = false;
+      if (hit && occ) {
+        dragOccRef.current = null;
+        dropOnTrashRef.current = false;
+        const originalStart = occ.note.rec_freq ? occ.original_start : null;
+        if (originalStart) {
+          setPendingTrash({ note: occ.note, originalStart });
+        } else {
+          void trashNote(occ.note).catch((err: Error) => setDropError(err.message));
+        }
+        return;
+      }
+      dragOccRef.current = null;
+      dropOnTrashRef.current = false;
+    }
+    wrap.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      wrap.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [cal.data]);
 
   return (
     <section className="calendar-page">
@@ -302,7 +365,7 @@ export function CalendarPage({ user }: { user: User }) {
       </div>
       {dropError && <p className="error">{dropError}</p>}
       <div className={`calendar-layout${selected ? " with-panel" : ""}`}>
-        <div className="calendar-main card calendar-main-relative">
+        <div className="calendar-main card calendar-main-relative" ref={calendarWrapRef}>
           {cal.isLoading && <p className="muted">Загрузка…</p>}
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -349,19 +412,18 @@ export function CalendarPage({ user }: { user: User }) {
             eventDragStart={onEventDragStart}
             eventDragStop={onEventDragStop}
           />
-          {dragging && (
-            <div
-              ref={trashZoneRef}
-              className={`cal-trash-zone${overTrash ? " active" : ""}`}
-              data-testid="cal-trash-zone"
-            >
-              <Trash2 aria-hidden="true" />
-              <span>
-                Отпустите, чтобы убрать в корзину{" "}
-                <span className="cal-trash-hint">· вернуть можно в течение 30 дней</span>
-              </span>
-            </div>
-          )}
+          <div
+            ref={trashZoneRef}
+            className={`cal-trash-zone${dragging ? " visible" : ""}${overTrash ? " active" : ""}`}
+            data-testid="cal-trash-zone"
+            aria-hidden={!dragging}
+          >
+            <Trash2 aria-hidden="true" />
+            <span>
+              Отпустите, чтобы убрать в корзину{" "}
+              <span className="cal-trash-hint">· вернуть можно в течение 30 дней</span>
+            </span>
+          </div>
         </div>
         {selected && (
           <NoteSidePanel

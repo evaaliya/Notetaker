@@ -165,7 +165,18 @@ export function UpcomingPage({ user }: { user: User }) {
                 <div className="lab" style={{ color: "var(--accent)" }}>
                   Следующее напоминание
                 </div>
-                <h2 className="hero-title">{hero.note.title || "Без названия"}</h2>
+                <button
+                  type="button"
+                  className="hero-title-btn"
+                  onClick={() =>
+                    setSelected({
+                      note: hero.note,
+                      originalStart: hero.note.rec_freq ? hero.original_start : null,
+                    })
+                  }
+                >
+                  <h2 className="hero-title">{hero.note.title || "Без названия"}</h2>
+                </button>
                 <div className="hero-meta">
                   {heroTag && <TagPill name={heroTag.name} color={heroTag.color} />}
                   <span className="muted">

@@ -528,11 +528,26 @@ button.link {
   font: 600 14px var(--font-sans);
   z-index: 20;
   pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.cal-trash-zone.visible,
+.cal-trash-zone.active {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .cal-trash-zone.active {
   border-color: var(--danger);
   box-shadow: 0 0 0 2px rgba(180, 64, 47, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-trash-zone {
+    transition: none;
+  }
 }
 
 .cal-trash-zone svg {
@@ -886,6 +901,19 @@ button.link {
   margin: 0 0 26px;
   background: linear-gradient(135deg, var(--surface), var(--accent-soft));
   align-items: center;
+}
+
+.hero-title-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: 0;
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .hero-title {

@@ -56,6 +56,18 @@ test("e2e_calendar_list_upcoming_time_hhmm", async ({ page }) => {
   });
 
   await page.goto("/calendar");
+  await page.locator(".fc-dayGridMonth-button").click();
+  // Seeded dates are 2026-10-24/25 — jump if FC opened on another month.
+  for (let i = 0; i < 24; i++) {
+    const n = await page.locator(".fc-event").filter({ hasText: titleOnHour }).count();
+    if (n > 0) break;
+    await page.locator(".fc-next-button").click();
+  }
+  for (let i = 0; i < 24; i++) {
+    const n = await page.locator(".fc-event").filter({ hasText: titleOnHour }).count();
+    if (n > 0) break;
+    await page.locator(".fc-prev-button").click();
+  }
   const onHourEvent = page.locator(".fc-event").filter({ hasText: titleOnHour });
   const withMinEvent = page.locator(".fc-event").filter({ hasText: titleWithMin });
   await expect(onHourEvent).toBeVisible();
@@ -78,7 +90,16 @@ test("e2e_calendar_list_upcoming_time_hhmm", async ({ page }) => {
   await expect(row).toContainText(/\d{2}:\d{2}/);
 
   await page.goto("/calendar");
-  await page.locator(".fc-event").filter({ hasText: titleOnHour }).click();
+  await page.locator(".fc-dayGridMonth-button").click();
+  for (let i = 0; i < 24; i++) {
+    if ((await page.locator(".fc-event").filter({ hasText: titleOnHour }).count()) > 0) break;
+    await page.locator(".fc-next-button").click();
+  }
+  for (let i = 0; i < 24; i++) {
+    if ((await page.locator(".fc-event").filter({ hasText: titleOnHour }).count()) > 0) break;
+    await page.locator(".fc-prev-button").click();
+  }
+  await page.locator(".fc-event").filter({ hasText: titleOnHour }).first().click();
   const hint = page.getByTestId("series-occ-hint");
   await expect(hint).toBeVisible();
   await expect(hint).toHaveText("Повторяется каждый день до 25.10.2026");

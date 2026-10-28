@@ -207,7 +207,10 @@ test("e2e_upcoming_moves_to_past_live", async ({ page, request }) => {
   });
 
   await page.goto("/upcoming");
-  await expect(page.getByTestId("bucket-today").getByText(title)).toBeVisible();
+  // Hero takes the nearest today item; it may not repeat in «Позже сегодня».
+  await expect(
+    page.getByTestId("upcoming-hero").getByText(title).or(page.getByTestId("bucket-today").getByText(title)),
+  ).toBeVisible();
 
   await expect
     .poll(
@@ -217,4 +220,5 @@ test("e2e_upcoming_moves_to_past_live", async ({ page, request }) => {
     .toBeGreaterThan(0);
 
   await expect(page.getByTestId("bucket-today").getByText(title)).toHaveCount(0);
+  await expect(page.getByTestId("upcoming-hero").getByText(title)).toHaveCount(0);
 });
