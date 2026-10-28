@@ -19,6 +19,7 @@ type Props = {
   userLogin: string;
   onLogout: () => void;
   logoutBusy: boolean;
+  bellShake?: boolean;
 };
 
 export function AppSidebar({
@@ -29,6 +30,7 @@ export function AppSidebar({
   userLogin,
   onLogout,
   logoutBusy,
+  bellShake = false,
 }: Props) {
   const navigate = useNavigate();
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
@@ -106,7 +108,7 @@ export function AppSidebar({
             aria-label="Уведомления"
             onClick={onToggleInbox}
           >
-            <span className="bell-icon">
+            <span className={`bell-icon${bellShake ? " shake" : ""}`}>
               <Bell aria-hidden="true" />
             </span>
             Уведомления

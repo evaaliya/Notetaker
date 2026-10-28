@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, RealtimeEvent, User } from "./api";
@@ -9,6 +9,8 @@ import { ToastItem, ToastStack } from "./components/ToastStack";
 import { browserTimeZone } from "./components/TimezonePicker";
 import { QuickAddProvider, useQuickAdd } from "./hooks/useQuickAdd";
 import { useRealtime } from "./hooks/useRealtime";
+import { loadUiPrefs } from "./lib/uiPrefs";
+import { playNotifyChime, unlockNotifyAudio } from "./lib/notifySound";
 import { CalendarPage } from "./pages/CalendarPage";
 import { ListPage } from "./pages/ListPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -104,6 +106,17 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [busy, setBusy] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const [bellShake, setBellShake] = useState(false);
+
+  useEffect(() => {
+    const unlock = () => unlockNotifyAudio();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
 
   const unseen = useQuery({
     queryKey: ["notifications", "unseen"],
@@ -117,6 +130,15 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       if (prev.some((t) => t.id === id)) return prev;
       return [...prev, { id, title: ev.title ?? "Напоминание", body: ev.body ?? "" }];
     });
+    const prefs = loadUiPrefs();
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefs.bellAnim && !reduceMotion) {
+      setBellShake(true);
+      window.setTimeout(() => setBellShake(false), 800);
+    }
+    if (prefs.sound) playNotifyChime();
   }, []);
 
   const onNotificationSeen = useCallback((id: string) => {
@@ -157,6 +179,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         userLogin={user.login}
         onLogout={logout}
         logoutBusy={busy}
+        bellShake={bellShake}
       />
       <main className="app-main">
         <Routes>

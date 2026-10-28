@@ -342,6 +342,10 @@ button.link {
   height: 20px;
 }
 
+.bell-icon {
+  display: inline-flex;
+}
+
 .notif-badge {
   margin-left: auto;
   min-width: 24px;

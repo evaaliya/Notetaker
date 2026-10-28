@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { Switch } from "../components/Switch";
@@ -97,6 +98,9 @@ export function SettingsPage() {
         <button type="submit" className="btn-accent" disabled={save.isPending}>
           Сохранить
         </button>
+        <p className="muted small">
+          <Link to="/tags">Управлять метками</Link>
+        </p>
       </form>
     </section>
   );
