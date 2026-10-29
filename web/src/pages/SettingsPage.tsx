@@ -99,7 +99,7 @@ export function SettingsPage() {
           Сохранить
         </button>
         <p className="muted small">
-          <Link to="/tags">Управлять метками</Link>
+          <Link to="/tags">Управлять тегами</Link>
         </p>
       </form>
     </section>

@@ -73,7 +73,7 @@ export function AppSidebar({
         </NavLink>
       </nav>
 
-      <div className="lab side-lab">Метки</div>
+      <div className="lab side-lab">Теги</div>
       <div className="side-tags">
         {(tags.data ?? []).map((t) => (
           <button
@@ -87,7 +87,7 @@ export function AppSidebar({
         ))}
         {(tags.data ?? []).length === 0 && (
           <p className="muted small" style={{ padding: "0 14px" }}>
-            Пока нет меток
+            Пока нет тегов
           </p>
         )}
       </div>
@@ -96,7 +96,7 @@ export function AppSidebar({
         className="side-nav-link accent-link"
         onClick={() => navigate("/tags")}
       >
-        Управлять метками
+        Управлять тегами
       </button>
 
       <div className="side-footer">

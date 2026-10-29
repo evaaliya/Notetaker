@@ -41,7 +41,7 @@ export function TagsPage() {
     <section className="tags-page">
       <div className="page-head">
         <div>
-          <h1>Метки</h1>
+          <h1>Теги</h1>
           <div className="mut">Цвет и имя · уникальны без учёта регистра</div>
         </div>
       </div>
@@ -62,7 +62,7 @@ export function TagsPage() {
         </div>
 
         <form className="card form-grid tag-create" onSubmit={onCreate}>
-          <h3>Новая метка</h3>
+          <h3>Новый тег</h3>
           <label>
             Имя
             <input value={name} onChange={(e) => setName(e.target.value)} required />
@@ -82,7 +82,7 @@ export function TagsPage() {
               />
             ))}
           </div>
-          <TagPill name={name || "Метка"} color={color} />
+          <TagPill name={name || "Тег"} color={color} />
           {error && <p className="error">{error}</p>}
           <button type="submit" className="btn-accent" disabled={create.isPending}>
             Добавить
@@ -114,7 +114,7 @@ function TagRow({
     <li className="tag-row card">
       <span className="tag-square" style={{ background: tag.color }} aria-hidden="true" />
       {renaming ? (
-        <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Имя метки" />
+        <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Имя тега" />
       ) : (
         <TagPill name={tag.name} color={tag.color} />
       )}

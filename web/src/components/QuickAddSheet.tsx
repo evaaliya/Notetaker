@@ -81,7 +81,7 @@ export function QuickAddSheet({ user, open, onClose }: Props) {
           timeZone={user.timezone}
         />
         <fieldset className="tag-pick">
-          <legend>Метки</legend>
+          <legend>Теги</legend>
           <div className="filter-pills">
             {(tags.data ?? []).map((t) => {
               const on = tagIds.includes(t.id);

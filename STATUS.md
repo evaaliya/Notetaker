@@ -13,7 +13,7 @@
 | M4 Realtime | готов | T2/T3/T13/T14/T15/T16 + UI reminders/timezone e2e; `make test` → 31 passed; Playwright → 9 passed (D-023–D-027) |
 | M5 Повторы | готов | T9–T12 (`test_series_reminder_each_occurrence`, `test_split_series_keeps_past`, `test_override_single_occurrence`, `test_monthly_clamp` + DST); `make test` → 40 passed; `make e2e` → 9 passed; UI-смоки (см. ниже) |
 | M6 Нагрузка и verify | готов | A1–A3 (stale sending, Date, e2e hooks); T17 `perf_list_10k` / `perf_search_10k` / `e2e_scroll_10k`; `make seed`; `make verify` → T1–T21 все закрыто; отчёт `reports/verify-20261024-175604.md` |
-| M7 Новый интерфейс | готов | токены/шрифты/сайдбар; TagPill/`tagColors`/`NoteIllustration`/`pickIllustration`; календарь (slotEventOverlap, метки, trash-zone+Отменить); экраны Upcoming/List/Tags/Trash/Settings; mobile ≤640; bell+WebAudio; `make test` 46; `make e2e` 23; скрины `docs/design/screens/` |
+| M7 Новый интерфейс | готов | токены/шрифты/сайдбар; TagPill/`tagColors`/`NoteIllustration`/`pickIllustration`; календарь (slotEventOverlap, теги, trash-zone+Отменить); экраны Upcoming/List/Tags/Trash/Settings; mobile ≤640; bell+WebAudio; `make test` 46; `make e2e` 23; скрины `docs/design/screens/` |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -144,7 +144,7 @@
 
 ## Не делали и почему
 - LISTEN `reminders_changed` для немедленного тика — достаточно секундного poll; NOTIFY при rebuild пишем, подписчик воркера — по желанию позже.
-- Счётчики заметок у меток в сайдбаре — в API нет `note_count` (D-039); схему не расширяли.
+- Счётчики заметок у тегов в сайдбаре — в API нет `note_count` (D-039); схему не расширяли.
 - «Удалить навсегда» в корзине — нет endpoint (только автоpurge 30д); см. TODO(spec-gap) в TrashPage.
 - Генерация картинок моделью / Web Push — вне M7 (`docs/FRONTEND.md` §12).
 - См. «Известные ограничения» ниже (из спеки).
@@ -168,7 +168,7 @@
 - `make e2e` → 23 passed (прежние 14 + `tagColors_*` / `pickIllustration_*` + `e2e_tags_visible_everywhere` / `e2e_week_many_notes_in_slot` / `e2e_drag_to_trash` / `e2e_mobile_quick_add` + screenshots).
 - Скрины: `docs/design/screens/*-{1280,390}.png` (+ `mobile-sheet-390.png`).
 
-**Вручную в браузере (localhost:5173):** см. отчёт этапа в чате (метка в календаре/списке/«Ближайшем», drag в корзину и «Отменить»).
+**Вручную в браузере (localhost:5173):** см. отчёт этапа в чате (тег в календаре/списке/«Ближайшем», drag в корзину и «Отменить»).
 
 ## Следующий заход
 - Web Push / Service Worker.

@@ -144,7 +144,7 @@ export function ListPage({ user }: { user: User }) {
             className={!draft.tagId ? "pill on" : "pill"}
             onClick={() => setDraft({ ...draft, tagId: "" })}
           >
-            Все метки
+            Все теги
           </button>
           {tagList.map((t) => (
             <button
