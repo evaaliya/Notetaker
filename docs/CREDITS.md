@@ -16,7 +16,7 @@
 | react-router-dom | маршруты UI |
 | TanStack Query | кэш; инвалидация по WS |
 | TanStack Virtual (`@tanstack/react-virtual`) | виртуализация списка заметок (T17 / e2e_scroll_10k) |
-| FullCalendar 6 (`@fullcalendar/react`, daygrid, timegrid, interaction) | календарь месяц/неделя/день + DnD |
+| FullCalendar 6 (`@fullcalendar/react`, daygrid, timegrid, interaction, luxon3) + luxon | календарь месяц/неделя/день + DnD; именованные IANA-пояса сетки (M7.fix) |
 | `@fontsource/inter`, `@fontsource/manrope` | локальные шрифты UI (без CDN; M7 / M7.fix) |
 | `lucide-react` | линейные иконки навигации и иллюстраций заметок (M7) |
 | pytest, pytest-asyncio, testcontainers | тесты на реальном Postgres |

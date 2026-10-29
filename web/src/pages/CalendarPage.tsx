@@ -11,6 +11,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import luxonPlugin from "@fullcalendar/luxon3";
 import type {
   DatesSetArg,
   EventClickArg,
@@ -368,7 +369,7 @@ export function CalendarPage({ user }: { user: User }) {
         <div className="calendar-main card calendar-main-relative" ref={calendarWrapRef}>
           {cal.isLoading && <p className="muted">Загрузка…</p>}
           <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
             initialView="timeGridWeek"
             headerToolbar={{
               left: "prev,next today",
