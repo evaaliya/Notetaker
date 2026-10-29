@@ -820,6 +820,35 @@ button.link {
   margin: 0.25rem 0 0;
 }
 
+.toast-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: none;
+}
+
+.side-notif-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.alarm-live {
+  font: 600 11px/1.2 var(--font-sans);
+  color: var(--sidebar-link);
+  letter-spacing: 0.02em;
+}
+
+.notif-popover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
 .banner {
   margin: 0;
   padding: 0.65rem 0.75rem;

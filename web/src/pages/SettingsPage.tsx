@@ -75,12 +75,23 @@ export function SettingsPage() {
         <div className="settings-row">
           <div>
             <strong>Звук уведомления</strong>
-            <div className="muted small">Короткий сигнал при reminder (localStorage)</div>
+            <div className="muted small">Мелодия при reminder (localStorage)</div>
           </div>
           <Switch
             label="Звук уведомления"
             checked={prefs.sound}
             onChange={(sound) => setPrefs((p) => ({ ...p, sound }))}
+          />
+        </div>
+        <div className="settings-row">
+          <div>
+            <strong>Повторять, пока не выключу</strong>
+            <div className="muted small">Иначе один мелодичный сигнал</div>
+          </div>
+          <Switch
+            label="Повторять, пока не выключу"
+            checked={prefs.soundRepeat}
+            onChange={(soundRepeat) => setPrefs((p) => ({ ...p, soundRepeat }))}
           />
         </div>
         <div className="settings-row">

@@ -7,9 +7,17 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onMarkSeen: (id: string) => void;
+  soundPlaying?: boolean;
+  onMuteSound?: () => void;
 };
 
-export function NotificationsPopover({ open, onClose, onMarkSeen }: Props) {
+export function NotificationsPopover({
+  open,
+  onClose,
+  onMarkSeen,
+  soundPlaying = false,
+  onMuteSound,
+}: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const unseen = useQuery({
     queryKey: ["notifications", "unseen"],
@@ -57,15 +65,27 @@ export function NotificationsPopover({ open, onClose, onMarkSeen }: Props) {
     >
       <div className="notif-popover-head">
         <h4>Уведомления</h4>
-        <button
-          type="button"
-          className="secondary"
-          data-testid="notif-mark-all"
-          onClick={() => void markAll()}
-          disabled={items.length === 0}
-        >
-          Прочитано
-        </button>
+        <div className="notif-popover-actions">
+          {soundPlaying && onMuteSound ? (
+            <button
+              type="button"
+              className="secondary"
+              data-testid="mute-alarm-inbox"
+              onClick={onMuteSound}
+            >
+              Выключить звук
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="secondary"
+            data-testid="notif-mark-all"
+            onClick={() => void markAll()}
+            disabled={items.length === 0}
+          >
+            Прочитано
+          </button>
+        </div>
       </div>
       {items.length === 0 && <p className="muted small" style={{ padding: "12px 18px" }}>Пусто</p>}
       <ul className="notif-popover-list">

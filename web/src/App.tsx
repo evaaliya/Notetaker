@@ -11,8 +11,8 @@ import { ToastItem, ToastStack } from "./components/ToastStack";
 import { browserTimeZone } from "./components/TimezonePicker";
 import { QuickAddProvider, useQuickAdd } from "./hooks/useQuickAdd";
 import { useRealtime } from "./hooks/useRealtime";
+import { getAlarmLoop, unlockNotifyAudio } from "./lib/alarmLoop";
 import { loadUiPrefs } from "./lib/uiPrefs";
-import { playNotifyChime, unlockNotifyAudio } from "./lib/notifySound";
 import { CalendarPage } from "./pages/CalendarPage";
 import { ListPage } from "./pages/ListPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -112,48 +112,98 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [bellShake, setBellShake] = useState(false);
+  const [soundPlaying, setSoundPlaying] = useState(false);
+  const [audioBlockedHint, setAudioBlockedHint] = useState(false);
+  const [alarmWanted, setAlarmWanted] = useState(false);
+
+  const tryStartAlarm = useCallback(() => {
+    const prefs = loadUiPrefs();
+    if (!prefs.sound) return;
+    const result = getAlarmLoop().start({ repeat: prefs.soundRepeat });
+    if (result.blocked) {
+      setAudioBlockedHint(true);
+      setAlarmWanted(true);
+    } else {
+      setAudioBlockedHint(false);
+      if (result.audible) setAlarmWanted(true);
+    }
+  }, []);
+
+  const muteAlarm = useCallback(() => {
+    setAlarmWanted(false);
+    setAudioBlockedHint(false);
+    getAlarmLoop().stop();
+  }, []);
 
   useEffect(() => {
-    const unlock = () => unlockNotifyAudio();
-    window.addEventListener("pointerdown", unlock, { once: true });
-    window.addEventListener("keydown", unlock, { once: true });
+    return getAlarmLoop().subscribe(setSoundPlaying);
+  }, []);
+
+  useEffect(() => {
+    const unlock = () => {
+      void getAlarmLoop().unlock().then((ok) => {
+        unlockNotifyAudio();
+        if (ok) {
+          setAudioBlockedHint(false);
+          if (alarmWanted && loadUiPrefs().sound) {
+            getAlarmLoop().start({ repeat: loadUiPrefs().soundRepeat });
+          }
+        }
+      });
+    };
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
     return () => {
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
     };
-  }, []);
+  }, [alarmWanted]);
 
   const unseen = useQuery({
     queryKey: ["notifications", "unseen"],
     queryFn: () => api.listNotifications(true),
   });
 
-  const onNotificationNew = useCallback((ev: RealtimeEvent) => {
-    const id = ev.ids?.[0];
-    if (!id) return;
-    setToasts((prev) => {
-      if (prev.some((t) => t.id === id)) return prev;
-      return [...prev, { id, title: ev.title ?? "Напоминание", body: ev.body ?? "" }];
-    });
-    const prefs = loadUiPrefs();
-    const reduceMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefs.bellAnim && !reduceMotion) {
-      setBellShake(true);
-      window.setTimeout(() => setBellShake(false), 800);
-    }
-    if (prefs.sound) playNotifyChime();
+  const onNotificationNew = useCallback(
+    (ev: RealtimeEvent) => {
+      const id = ev.ids?.[0];
+      if (!id) return;
+      setToasts((prev) => {
+        if (prev.some((t) => t.id === id)) return prev;
+        return [...prev, { id, title: ev.title ?? "Напоминание", body: ev.body ?? "" }];
+      });
+      const prefs = loadUiPrefs();
+      const reduceMotion =
+        typeof window !== "undefined" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (prefs.bellAnim && !reduceMotion) {
+        setBellShake(true);
+        window.setTimeout(() => setBellShake(false), 800);
+      }
+      if (prefs.sound) tryStartAlarm();
+    },
+    [tryStartAlarm],
+  );
+
+  const stopAlarmForRead = useCallback(() => {
+    setAlarmWanted(false);
+    setAudioBlockedHint(false);
+    getAlarmLoop().stop();
   }, []);
 
-  const onNotificationSeen = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  const onNotificationSeen = useCallback(
+    (id: string) => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+      stopAlarmForRead();
+    },
+    [stopAlarmForRead],
+  );
 
   useRealtime(true, { onNotificationNew, onNotificationSeen });
 
   async function dismissToast(id: string) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
+    stopAlarmForRead();
     try {
       await api.markNotificationSeen(id);
     } catch {
@@ -186,6 +236,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         onLogout={logout}
         logoutBusy={busy}
         bellShake={bellShake}
+        soundPlaying={soundPlaying}
       />
       <main className="app-main">
         <Routes>
@@ -202,6 +253,8 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           open={inboxOpen}
           onClose={() => setInboxOpen(false)}
           onMarkSeen={dismissToast}
+          soundPlaying={soundPlaying || alarmWanted}
+          onMuteSound={muteAlarm}
         />
       </main>
       <MobileNav />
@@ -215,7 +268,13 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         Новая заметка
       </button>
       <QuickAddSheet user={user} open={quickAdd.open} onClose={quickAdd.hide} />
-      <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <ToastStack
+        toasts={toasts}
+        onDismiss={dismissToast}
+        onMuteSound={muteAlarm}
+        showMute={soundPlaying || alarmWanted}
+        audioBlockedHint={audioBlockedHint}
+      />
     </div>
   );
 }

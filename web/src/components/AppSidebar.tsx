@@ -20,6 +20,7 @@ type Props = {
   onLogout: () => void;
   logoutBusy: boolean;
   bellShake?: boolean;
+  soundPlaying?: boolean;
 };
 
 export function AppSidebar({
@@ -30,6 +31,7 @@ export function AppSidebar({
   onLogout,
   logoutBusy,
   bellShake = false,
+  soundPlaying = false,
 }: Props) {
   const navigate = useNavigate();
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
@@ -108,7 +110,14 @@ export function AppSidebar({
           <span className={`bell-icon${bellShake ? " shake" : ""}`}>
             <Bell aria-hidden="true" />
           </span>
-          Уведомления
+          <span className="side-notif-label">
+            Уведомления
+            {soundPlaying ? (
+              <span className="alarm-live" data-testid="alarm-playing">
+                Звучит сигнал
+              </span>
+            ) : null}
+          </span>
           {unseenCount > 0 && <span className="notif-badge">{unseenCount}</span>}
         </button>
         <div className="side-user" data-testid="side-user">

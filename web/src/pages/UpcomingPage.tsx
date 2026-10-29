@@ -6,6 +6,7 @@ import { NoteSidePanel } from "../components/NoteSidePanel";
 import { TagPill } from "../components/TagPill";
 import { formatInZone } from "../format";
 import { useNow } from "../hooks/useNow";
+import { getAlarmLoop } from "../lib/alarmLoop";
 
 /** Move occurrences whose start has passed into past without reload (T16). */
 export function liveBuckets(data: Upcoming, now: Date): Upcoming {
@@ -107,6 +108,7 @@ export function UpcomingPage({ user }: { user: User }) {
   const done = useMutation({
     mutationFn: (n: Note) => api.deactivateNote(n.id),
     onSuccess: () => {
+      getAlarmLoop().stop();
       qc.invalidateQueries({ queryKey: ["upcoming"] });
       qc.invalidateQueries({ queryKey: ["notes"] });
       qc.invalidateQueries({ queryKey: ["calendar"] });
