@@ -6,8 +6,8 @@ export type TagColorPair = {
 };
 
 const NEUTRAL: TagColorPair = {
-  fill: "#EEE8DF",
-  ink: "#5B5348",
+  fill: "#E8EEF0",
+  ink: "#5B6773",
 };
 
 export function tagColors(hex: string | null | undefined): TagColorPair {

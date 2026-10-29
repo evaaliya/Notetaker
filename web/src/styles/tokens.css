@@ -1,19 +1,22 @@
 :root {
-  --paper: #f4efe6;
-  --sidebar: #ede6d8;
-  --surface: #fffdf9;
-  --line: #e4dccd;
-  --line-strong: #d9cfbd;
-  --ink: #2b2620;
-  --muted: #6e655a;
-  --accent: #b4532f;
-  --accent-soft: #fbefe6;
+  --paper: #f2f5f4;
+  --sidebar: #16202b;
+  --sidebar-text: #c9d3dd;
+  --sidebar-muted: #9fb0bf;
+  --sidebar-link: #7fd6d0;
+  --surface: #ffffff;
+  --line: #dce3e2;
+  --line-strong: #c8d2d1;
+  --ink: #17212b;
+  --muted: #5b6773;
+  --accent: #0e7c7b;
+  --accent-soft: #e8f5f3;
   --danger: #b4402f;
   --danger-soft: #fbefea;
   --radius-sm: 12px;
   --radius-md: 18px;
   --radius-lg: 22px;
   --font-sans: "Inter", system-ui, sans-serif;
-  --font-serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --font-display: "Manrope", "Inter", system-ui, sans-serif;
   --sidebar-width: 248px;
 }

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, RealtimeEvent, User } from "./api";
 import { AppSidebar } from "./components/AppSidebar";
 import { MobileNav } from "./components/MobileNav";
+import { NotificationsPopover } from "./components/NotificationsPopover";
 import { QuickAddSheet } from "./components/QuickAddSheet";
 import { ToastItem, ToastStack } from "./components/ToastStack";
 import { browserTimeZone } from "./components/TimezonePicker";
@@ -169,14 +170,15 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const unseenCount = unseen.data?.length ?? 0;
   const quickAdd = useQuickAdd();
 
+  const userEmail = user.email?.trim() || user.login;
+
   return (
     <div className="app-frame">
       <AppSidebar
         unseenCount={unseenCount}
         inboxOpen={inboxOpen}
         onToggleInbox={() => setInboxOpen((v) => !v)}
-        onMarkSeen={dismissToast}
-        userLogin={user.login}
+        userEmail={userEmail}
         onLogout={logout}
         logoutBusy={busy}
         bellShake={bellShake}
@@ -192,6 +194,11 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/calendar" replace />} />
         </Routes>
+        <NotificationsPopover
+          open={inboxOpen}
+          onClose={() => setInboxOpen(false)}
+          onMarkSeen={dismissToast}
+        />
       </main>
       <MobileNav />
       <button
