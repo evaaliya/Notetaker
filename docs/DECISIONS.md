@@ -317,3 +317,9 @@
 **Альтернативы:** только `local`/UTC; moment-timezone; вручную сдвигать `start` событий в «фейковые» Date.
 **Причина:** без timezone-плагина FullCalendar игнорирует именованный IANA-пояс (fallback local/UTC). Подпись «11:41» в Asia/Bishkek при сетке UTC оказывалась в ряду 05:00 — расхождение на скрине живой проверки.
 **Последствия:** зависимость luxon в web; DnD и `datesSet` тоже в поясе пользователя.
+
+### D-050 · 2026-10-29 17:24 +06 · M7 · Alarm-loop вместо одноразового chime
+**Решение:** `alarmLoop` — мягкий восходящий перелив из 3 sine-нот (~3 с) через Web Audio; повтор каждые ~4 с (pref `soundRepeat`, default on); лидер вкладки через `localStorage` owner + `BroadcastChannel` stop/claim; стоп кнопкой «Выключить звук», при mark-seen («Прочитано»/закрытие toast) и «Готово» на Ближайшем; индикатор «Звучит сигнал»; при blocked Autoplay — подсказка в toast, а не тихий skip. Юнит `alarmLoop_starts_repeats_and_stops` (fake AudioContext/таймеры); e2e `e2e_alarm_stops_on_dismiss`.
+**Альтернативы:** mp3-файл; звук во всех вкладках; только BroadcastChannel без storage; vitest отдельно от Playwright.
+**Причина:** обновлённый FRONTEND §8 (мелодичный alarm, одна вкладка, явный mute, prefs в localStorage).
+**Последствия:** до жеста пользователя звук не стартует (показывается подсказка); при краше лидер-вкладки owner в localStorage может кратко блокировать других до stop/нового claim.
