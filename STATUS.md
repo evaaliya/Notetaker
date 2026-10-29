@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-28 18:01 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-10-29 15:28 +06.
 
 ## Этапы
 
@@ -14,6 +14,7 @@
 | M5 Повторы | готов | T9–T12 (`test_series_reminder_each_occurrence`, `test_split_series_keeps_past`, `test_override_single_occurrence`, `test_monthly_clamp` + DST); `make test` → 40 passed; `make e2e` → 9 passed; UI-смоки (см. ниже) |
 | M6 Нагрузка и verify | готов | A1–A3 (stale sending, Date, e2e hooks); T17 `perf_list_10k` / `perf_search_10k` / `e2e_scroll_10k`; `make seed`; `make verify` → T1–T21 все закрыто; отчёт `reports/verify-20261024-175604.md` |
 | M7 Новый интерфейс | готов | токены/шрифты/сайдбар; TagPill/`tagColors`/`NoteIllustration`/`pickIllustration`; календарь (slotEventOverlap, теги, trash-zone+Отменить); экраны Upcoming/List/Tags/Trash/Settings; mobile ≤640; bell+WebAudio; `make test` 46; `make e2e` 23; скрины `docs/design/screens/` |
+| M7.fix Правки после живой проверки | готов | термин «тег»; тёмная панель/бирюза/Manrope; сайдбар pin+popover; luxon timeZone (D-049); e2e slot/sidebar/popover; `make test` 46; `make e2e` 26; скрины обновлены |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -169,6 +170,13 @@
 - Скрины: `docs/design/screens/*-{1280,390}.png` (+ `mobile-sheet-390.png`).
 
 **Вручную в браузере (localhost:5173):** см. отчёт этапа в чате (тег в календаре/списке/«Ближайшем», drag в корзину и «Отменить»).
+
+### Смоки M7.fix (2026-10-29)
+**Автоматически:**
+- `make test` → 46 passed.
+- `make e2e` → 26 passed (+ `e2e_calendar_slot_matches_label_timezone`, `e2e_sidebar_fits_viewport`, `e2e_notifications_popover`).
+- Заметка `starts_at=2026-10-29T05:41:00Z` при `Asia/Bishkek`: подпись **11:41**, позиция в полосе слота **11:00–12:00** (не 05:00) — D-049 / luxon.
+- Скрины обновлены: `docs/design/screens/*-{1280,390}.png`.
 
 ## Следующий заход
 - Web Push / Service Worker.
