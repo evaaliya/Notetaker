@@ -8,6 +8,7 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react";
+import logoNt from "../assets/logo-nt.jpg";
 import { api } from "../api";
 import { TagPill } from "./TagPill";
 
@@ -39,7 +40,7 @@ export function AppSidebar({
   return (
     <aside className="app-sidebar" aria-label="Навигация" data-testid="app-sidebar">
       <div className="brand">
-        <span className="brand-mark" aria-hidden="true" />
+        <img className="brand-mark" src={logoNt} alt="" width={32} height={32} />
         <span className="brand-name">Notetaker</span>
       </div>
 

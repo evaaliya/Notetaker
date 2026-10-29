@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import logoNt from "./assets/logo-nt.jpg";
 import { api, RealtimeEvent, User } from "./api";
 import { AppSidebar } from "./components/AppSidebar";
 import { MobileNav } from "./components/MobileNav";
@@ -74,7 +75,10 @@ function AuthScreen({ onDone }: { onDone: (user: User) => void }) {
 
   return (
     <main className="page auth">
-      <h1>Notetaker</h1>
+      <div className="auth-brand">
+        <img className="brand-mark" src={logoNt} alt="" width={32} height={32} />
+        <h1>Notetaker</h1>
+      </div>
       <p className="muted">Заметки, календарь, ближайшее.</p>
       <form onSubmit={submit} className="card">
         <label>

@@ -59,7 +59,15 @@ h2 {
   text-align: center;
 }
 
+.auth-brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+}
+
 .page.auth h1 {
+  margin: 0;
   font-family: var(--font-display);
   font-weight: 800;
 }
@@ -167,11 +175,12 @@ button.link {
 }
 
 .brand-mark {
-  width: 26px;
-  height: 26px;
-  border-radius: 50% 50% 50% 8px;
-  background: #5ec8c0;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  object-fit: cover;
   flex: none;
+  display: block;
 }
 
 .brand-name {
