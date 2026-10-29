@@ -11,7 +11,7 @@ import { ToastItem, ToastStack } from "./components/ToastStack";
 import { browserTimeZone } from "./components/TimezonePicker";
 import { QuickAddProvider, useQuickAdd } from "./hooks/useQuickAdd";
 import { useRealtime } from "./hooks/useRealtime";
-import { getAlarmLoop, unlockNotifyAudio } from "./lib/alarmLoop";
+import { getAlarmLoop } from "./lib/alarmLoop";
 import { loadUiPrefs } from "./lib/uiPrefs";
 import { CalendarPage } from "./pages/CalendarPage";
 import { ListPage } from "./pages/ListPage";
@@ -140,9 +140,10 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   }, []);
 
   useEffect(() => {
-    const unlock = () => {
+    const unlock = (e: Event) => {
+      // Don't treat Escape as an unlock gesture — popover relies on it to close.
+      if (e instanceof KeyboardEvent && e.key === "Escape") return;
       void getAlarmLoop().unlock().then((ok) => {
-        unlockNotifyAudio();
         if (ok) {
           setAudioBlockedHint(false);
           if (alarmWanted && loadUiPrefs().sound) {

@@ -19,6 +19,8 @@ export function NotificationsPopover({
   onMuteSound,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const unseen = useQuery({
     queryKey: ["notifications", "unseen"],
     queryFn: () => api.listNotifications(true),
@@ -28,7 +30,7 @@ export function NotificationsPopover({
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     }
     function onPointer(e: PointerEvent) {
       const el = panelRef.current;
@@ -37,7 +39,7 @@ export function NotificationsPopover({
       if (el.contains(target)) return;
       const bell = (target as HTMLElement).closest?.('[data-testid="notif-bell"]');
       if (bell) return;
-      onClose();
+      onCloseRef.current();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", onPointer);
@@ -45,7 +47,7 @@ export function NotificationsPopover({
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", onPointer);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
