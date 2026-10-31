@@ -388,4 +388,6 @@ attachments(
 
 **Realtime:** `attachment.added` / `attachment.deleted` через `pg_notify` в той же транзакции; клиент инвалидирует Query.
 
-**Тесты:** `test_attachment_upload_ok`, `test_attachment_too_large_413`, `test_attachment_bad_type_415`, `test_attachment_foreign_404`, `test_trash_purge_deletes_attachment_files`; e2e `e2e_attachment_image_thumbnail`.
+**Автосохранение (клиент, как Apple Notes; D-057):** на `/notes/new` запись в БД не создаётся, пока нет содержимого. Первый символ в названии/тексте или файл в очереди → `POST /notes`; далее debounce **600 мс** → `PATCH`. Файлы до появления `note_id` — очередь на клиенте + **IndexedDB** (`notetaker-drafts`), после create — upload и очистка черновика. Пустое открытие «Новой» без ввода — без строки в БД.
+
+**Тесты:** `test_attachment_upload_ok`, `test_attachment_too_large_413`, `test_attachment_bad_type_415`, `test_attachment_foreign_404`, `test_trash_purge_deletes_attachment_files`; e2e `e2e_attachment_image_thumbnail`, `e2e_autosave_*`.

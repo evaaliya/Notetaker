@@ -101,9 +101,9 @@ test("e2e_edit_in_tab_a_visible_in_tab_b", async ({ browser }) => {
 
   try {
     const title = `Sync ${Date.now()}`;
-    const starts = new Date();
-    starts.setUTCMinutes(0, 0, 0);
-    starts.setUTCHours(starts.getUTCHours() + 3);
+    // Mid-week (yesterday): FC week range end is exclusive and often "now"-aligned,
+    // so starts_at = now+2h can fall outside the visible window.
+    const starts = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const note = await apiCreateNote(a.request, {
       title,
       body: "v1",
@@ -127,13 +127,16 @@ test("e2e_edit_in_tab_a_visible_in_tab_b", async ({ browser }) => {
 
     await a.goto("/upcoming");
     await b.goto("/upcoming");
-    await expect(b.getByText(`${title} edited`)).toBeVisible();
+    // Title appears in hero and in a section card — take the first match.
+    await expect(b.getByText(`${title} edited`).first()).toBeVisible();
 
     await a.goto("/calendar");
     await b.goto("/calendar");
-    await expect(b.locator(".fc-event").filter({ hasText: `${title} edited` })).toBeVisible({
+    // Match by unique prefix — FC may clip the suffix in the event chip.
+    await expect(b.locator(".fc-event").filter({ hasText: title }).first()).toBeVisible({
       timeout: 20_000,
     });
+    await expect(b.getByText(`${title} edited`).first()).toBeVisible();
   } finally {
     await ctxA.close();
     await ctxB.close();

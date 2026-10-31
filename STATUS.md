@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-31 20:48 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-10-31 22:10 +06.
 
 ## Этапы
 
@@ -16,7 +16,7 @@
 | M7 Новый интерфейс | готов | токены/шрифты/сайдбар; TagPill/`tagColors`/`NoteIllustration`/`pickIllustration`; календарь (slotEventOverlap, теги, trash-zone+Отменить); экраны Upcoming/List/Tags/Trash/Settings; mobile ≤640; bell+WebAudio; `make test` 46; `make e2e` 23; скрины `docs/design/screens/` |
 | M7.fix Правки после живой проверки | готов | термин «тег»; тёмная панель/бирюза/Manrope; сайдбар pin+popover; luxon timeZone (D-049); e2e slot/sidebar/popover; `make test` 46; `make e2e` 26; скрины обновлены |
 | M8.2 Каркас списка и страница заметки | готов | тулбар select тегов; строки grid; `/notes/new|:id`; сайдбар 64px; e2e layout; `make test` 46; Playwright 34; скрины 1440/1024 |
-| M9 Вложения | готов | `test_attachment_*` + purge файлов; `make test` → 52 passed; `make e2e` → 35 passed (`e2e_attachment_image_thumbnail`); D-056 |
+| M9 Вложения | готов | `test_attachment_*` + purge файлов; autosave+IndexedDB (D-057); `make test` → 52; e2e вкл. `e2e_attachment_*` / `e2e_autosave_*` |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -32,6 +32,7 @@
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
 - Тесты: `make test` → 52 passed на реальном Postgres (testcontainers); Playwright e2e → 35 passed (вкл. M9 вложения).
 - **Вложения (M9):** `attachments` + том `uploads`; POST/GET/DELETE `/api/notes/{id}/attachments`; sniff типа; 10 МБ / 10 файлов; 413/415/404; soft-delete сохраняет файлы, purge 30д удаляет с диска; WS `attachment.added`/`deleted`; UI скрепка/DnD/превью; `NoteOut.has_attachments`.
+- **Autosave страницы заметки (D-057):** пустой `/notes/new` без записи в БД; create при первом тексте/файле; PATCH debounce 600 мс; очередь файлов + черновик в IndexedDB `notetaker-drafts`; статус «Сохранено» вместо кнопки «Сохранить».
 - Напоминания (singles): материализация при create/patch (`fire_at = starts_at − offset`, без `fire_at <= now`); rebuild pending при смене времени/offsets; `sent` не трогаем (D-020).
 - Воркер `tick(now)`: claim `FOR UPDATE SKIP LOCKED` (лимит 100); inactive/deleted → `skipped`; effective occurrence `< now` → `missed` (D-007); иначе `notifications` + `email_outbox` + `sent` + `pg_notify` на канал `u_<user_id>` (`notification.new`, D-023).
 - Outbox: SMTP (`smtplib`) вне транзакции; фиксированный `Message-ID = <{outbox_id}@notetaker.local>` (D-021); заголовок `Date` из Clock/UTC (D-033); claim → `sending` + `sending_at` (D-031); протухший `sending` > `OUTBOX_SENDING_TIMEOUT_MINUTES` (дефолт 2) → `pending` + attempts (D-032).
@@ -197,14 +198,14 @@
 ### Смоки M9 (2026-10-31)
 **Автоматически:**
 - `make test` → **52 passed** (`test_attachment_upload_ok`, `test_attachment_too_large_413`, `test_attachment_bad_type_415`, `test_attachment_foreign_404`, `test_trash_purge_deletes_attachment_files`, `test_attachment_txt_and_docx_ok` + регрессии).
-- `make e2e` → **35 passed** (вкл. `e2e_attachment_image_thumbnail`).
-- `git log --oneline` (хвост): `c9fa08f` UI · `91f0323` API · `66c5161` spec/D-056.
+- `make e2e` → **39 passed** (вкл. `e2e_attachment_image_thumbnail`, `e2e_autosave_*`; D-057).
+- Autosave: пустой `/notes/new` без POST; первый символ/файл → create; PATCH debounce 600 мс; черновик+файлы в IndexedDB `notetaker-drafts`.
 
 ## Расширения сверх брифа
 
 | Этап | Что | Статус |
 |---|---|---|
-| M9 | Вложения в заметках (`spec.md` §15) | готов |
+| M9 | Вложения в заметках (`spec.md` §15) + autosave/IndexedDB (D-057) | готов |
 
 ## Следующий заход
 - Web Push / Service Worker.

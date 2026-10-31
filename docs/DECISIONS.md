@@ -359,3 +359,9 @@
 **Альтернативы:** S3/MinIO; путь `{note_id}/{name}`; python-magic; хранить blob в Postgres.
 **Причина:** спека M9 / §15; том переживает рестарт контейнера; UUID-путь без path traversal по имени пользователя.
 **Последствия:** api и worker обязаны шарить volume; тесты пишут во временный `UPLOADS_DIR`.
+
+### D-057 · 2026-10-31 21:44 +06 · M9 · Autosave как Apple Notes + IndexedDB для черновика
+**Решение:** на странице `/notes/new` не создавать заметку, пока нет содержимого (title/body непустые или есть файлы в очереди). Первый контент → `POST /notes` (mutex на один create); дальше debounce **600 мс** → `PATCH` с `version`. Кнопка «Сохранить» убрана; статус «Сохранение…»/«Сохранено», «Закрыть». Очередь файлов до `note_id` — в памяти + **IndexedDB** БД `notetaker-drafts` store `drafts` (ключ `new`: поля формы + blobs файлов); после успешного create — upload очереди, `clearDraft('new')`, `replace` на `/notes/{id}`. Flush при `visibilitychange=hidden` и предупреждение `beforeunload`, если dirty. Боковая панель календаря без изменений (явное Сохранить). API/схема не менялись.
+**Альтернативы:** create пустой заметки при открытии «Новой»; только sessionStorage (файлы не переживут); idb-keyval/Dexie; data-router `useBlocker` (потребует смены `BrowserRouter`).
+**Причина:** запрос UX как Apple Notes; IndexedDB сохраняет текст и файлы при reload до create; пустые записи в БД не плодим.
+**Последствия:** e2e без клика «Сохранить» на странице заметки; `NoteSidePanel`/`QuickAdd` по-прежнему ручные; при недоступном IndexedDB autosave на сервер всё равно работает, переживание reload слабее. `persistIdb` не вызывает `clearDraft` при пустых полях формы (иначе unmount затирал бы черновик до hydrate). Очистка IDB — после create и по «Закрыть» без содержимого.

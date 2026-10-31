@@ -19,6 +19,7 @@
 | FullCalendar 6 (`@fullcalendar/react`, daygrid, timegrid, interaction, luxon3) + luxon | календарь месяц/неделя/день + DnD; именованные IANA-пояса сетки (M7.fix) |
 | `@fontsource/inter`, `@fontsource/manrope` | локальные шрифты UI (без CDN; M7 / M7.fix) |
 | `lucide-react` | линейные иконки навигации и иллюстраций заметок (M7) |
+| IndexedDB (браузерный API) | черновик `/notes/new` + очередь файлов до create (M9 autosave, D-057); без npm-обёртки |
 | pytest, pytest-asyncio, testcontainers | тесты на реальном Postgres |
 | Playwright (`@playwright/test` 1.49) | e2e: T2, T3, T13, T14, T16, T17 scroll, UI reminders/timezone |
 | PostgreSQL 16 | БД (`citext`, `pg_trgm`, `SKIP LOCKED`, `LISTEN/NOTIFY`) |

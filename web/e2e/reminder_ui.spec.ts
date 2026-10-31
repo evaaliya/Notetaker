@@ -77,8 +77,9 @@ test("e2e_reminder_from_ui_toast_and_mail", async ({ browser }) => {
     await a.getByTestId("note-title").fill(title);
     await a.getByTestId("note-starts").fill(localDatetimeLocal(starts));
     await a.getByTestId("reminder-offset-10").check();
-    await a.getByTestId("note-form").getByRole("button", { name: "Сохранить" }).click();
-    await expect(a).toHaveURL(/\/notes\/[^/]+$/);
+    // Autosave (D-057): create after debounce — no Save button.
+    await expect(a).toHaveURL(/\/notes\/[^/]+$/, { timeout: 10_000 });
+    await expect(a.getByTestId("note-save-status")).toContainText(/Сохран/, { timeout: 10_000 });
     await a.goto("/list");
     await expect(a.getByText(title)).toBeVisible();
 
@@ -86,7 +87,7 @@ test("e2e_reminder_from_ui_toast_and_mail", async ({ browser }) => {
     await a.getByText(title).click();
     await expect(a).toHaveURL(/\/notes\//);
     await expect(a.getByTestId("reminder-offset-10")).toBeChecked();
-    await a.getByRole("button", { name: "Отмена" }).click();
+    await a.getByRole("button", { name: "Закрыть" }).click();
     await expect(a).toHaveURL(/\/list/);
 
     const list = await a.request.get("/api/notes");
