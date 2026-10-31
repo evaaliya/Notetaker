@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import logoNt from "./assets/logo-nt.jpg";
 import { api, RealtimeEvent, User } from "./api";
@@ -12,9 +12,14 @@ import { browserTimeZone } from "./components/TimezonePicker";
 import { QuickAddProvider, useQuickAdd } from "./hooks/useQuickAdd";
 import { useRealtime } from "./hooks/useRealtime";
 import { getAlarmLoop } from "./lib/alarmLoop";
+import {
+  loadSidebarCollapsed,
+  saveSidebarCollapsed,
+} from "./lib/sidebarPrefs";
 import { loadUiPrefs } from "./lib/uiPrefs";
 import { CalendarPage } from "./pages/CalendarPage";
 import { ListPage } from "./pages/ListPage";
+import { NoteEditorPage } from "./pages/NoteEditorPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TagsPage } from "./pages/TagsPage";
 import { TrashPage } from "./pages/TrashPage";
@@ -108,6 +113,8 @@ function AuthScreen({ onDone }: { onDone: (user: User) => void }) {
 }
 
 function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
+  const location = useLocation();
+  const isNoteRoute = location.pathname.startsWith("/notes/");
   const [busy, setBusy] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -115,6 +122,16 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [soundPlaying, setSoundPlaying] = useState(false);
   const [audioBlockedHint, setAudioBlockedHint] = useState(false);
   const [alarmWanted, setAlarmWanted] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => loadSidebarCollapsed());
+
+  const effectiveCollapsed = sidebarCollapsed || isNoteRoute;
+
+  function toggleSidebar() {
+    // Flip against what the user sees (forced-collapse on /notes/* still updates prefs).
+    const next = !effectiveCollapsed;
+    setSidebarCollapsed(next);
+    saveSidebarCollapsed(next);
+  }
 
   const tryStartAlarm = useCallback(() => {
     const prefs = loadUiPrefs();
@@ -227,9 +244,19 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
 
   const userEmail = user.email?.trim() || user.login;
 
+  const frameClass = [
+    "app-frame",
+    effectiveCollapsed ? "sidebar-collapsed" : "",
+    isNoteRoute ? "note-mode" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="app-frame">
+    <div className={frameClass}>
       <AppSidebar
+        collapsed={effectiveCollapsed}
+        onToggleCollapsed={toggleSidebar}
         unseenCount={unseenCount}
         inboxOpen={inboxOpen}
         onToggleInbox={() => setInboxOpen((v) => !v)}
@@ -239,12 +266,14 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         bellShake={bellShake}
         soundPlaying={soundPlaying}
       />
-      <main className="app-main">
+      <main className={`app-main${isNoteRoute ? " note-main" : ""}`}>
         <Routes>
           <Route path="/" element={<Navigate to="/calendar" replace />} />
           <Route path="/calendar" element={<CalendarPage user={user} />} />
           <Route path="/upcoming" element={<UpcomingPage user={user} />} />
           <Route path="/list" element={<ListPage user={user} />} />
+          <Route path="/notes/new" element={<NoteEditorPage user={user} />} />
+          <Route path="/notes/:id" element={<NoteEditorPage user={user} />} />
           <Route path="/tags" element={<TagsPage />} />
           <Route path="/trash" element={<TrashPage user={user} />} />
           <Route path="/settings" element={<SettingsPage />} />
@@ -258,16 +287,18 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           onMuteSound={muteAlarm}
         />
       </main>
-      <MobileNav />
-      <button
-        type="button"
-        className="mobile-fab"
-        data-testid="mobile-new-note"
-        aria-label="Новая заметка"
-        onClick={() => quickAdd.show()}
-      >
-        Новая заметка
-      </button>
+      {!isNoteRoute && <MobileNav />}
+      {!isNoteRoute && (
+        <button
+          type="button"
+          className="mobile-fab"
+          data-testid="mobile-new-note"
+          aria-label="Новая заметка"
+          onClick={() => quickAdd.show()}
+        >
+          Новая заметка
+        </button>
+      )}
       <QuickAddSheet user={user} open={quickAdd.open} onClose={quickAdd.hide} />
       <ToastStack
         toasts={toasts}
