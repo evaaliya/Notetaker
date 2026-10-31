@@ -166,12 +166,18 @@ async def add_member(
     access = await get_note_access(db, user.id, note_id, allow_deleted=False, require_owner=True)
     login = body.login.strip()
     if not login:
-        raise AppError("validation_error", "login required")
+        raise AppError("validation_error", "Укажите логин пользователя")
     target = (
-        await db.execute(select(User).where(User.login == login))
+        await db.execute(
+            select(User).where((User.login == login) | (User.email == login))
+        )
     ).scalar_one_or_none()
     if target is None:
-        raise AppError("not_found", "user not found", status_code=404)
+        raise AppError(
+            "not_found",
+            "Пользователь с таким логином не найден",
+            status_code=404,
+        )
     if target.id == access.note.user_id:
         raise AppError("validation_error", "cannot share with the owner")
     existing = (
