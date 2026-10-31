@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useInfiniteQuery,
   useMutation,
@@ -7,13 +7,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { api, Note, Recurrence, Tag, User } from "../api";
+import { api, Tag, User } from "../api";
 import { NoteIllustration } from "../components/NoteIllustration";
-import { RecurrenceField } from "../components/RecurrenceField";
-import { ReminderOffsetsField } from "../components/ReminderOffsetsField";
 import { Switch } from "../components/Switch";
 import { TagPill } from "../components/TagPill";
-import { formatInZone, localInputToUtcIso, utcIsoToLocalInput } from "../format";
+import { formatInZone } from "../format";
 import { useQuickAdd } from "../hooks/useQuickAdd";
 
 type Filters = {
@@ -26,6 +24,7 @@ type Filters = {
 
 export function ListPage({ user }: { user: User }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const quickAdd = useQuickAdd();
   const [searchParams] = useSearchParams();
   const tagFromUrl = searchParams.get("tag") ?? "";
@@ -45,8 +44,6 @@ export function ListPage({ user }: { user: User }) {
     setFilters(next);
     setDraft(next);
   }, [tagFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [editing, setEditing] = useState<Note | null>(null);
-  const [creating, setCreating] = useState(false);
 
   const listQuery = useInfiniteQuery({
     queryKey: ["notes", filters],
@@ -73,8 +70,12 @@ export function ListPage({ user }: { user: User }) {
   const virtualizer = useVirtualizer({
     count: notes.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 88,
+    estimateSize: () => 96,
     overscan: 8,
+    measureElement:
+      typeof window !== "undefined" && navigator.userAgent.indexOf("Firefox") === -1
+        ? (el) => el.getBoundingClientRect().height
+        : undefined,
   });
 
   function applyFilters(e: FormEvent) {
@@ -91,12 +92,20 @@ export function ListPage({ user }: { user: User }) {
   });
 
   const toggle = useMutation({
-    mutationFn: (n: Note) =>
+    mutationFn: (n: { id: string; status: string }) =>
       n.status === "active" ? api.deactivateNote(n.id) : api.activateNote(n.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notes"] }),
   });
 
   const tagList = tags.data ?? [];
+
+  function openCreate() {
+    if (window.matchMedia("(max-width: 640px)").matches) {
+      quickAdd.show();
+      return;
+    }
+    navigate("/notes/new");
+  }
 
   return (
     <section className="list-page">
@@ -106,10 +115,28 @@ export function ListPage({ user }: { user: User }) {
           <div className="mut">Поиск и фильтры на сервере</div>
         </div>
         <div className="page-head-actions">
+          <button
+            type="button"
+            className="btn-accent"
+            data-testid="new-note"
+            onClick={openCreate}
+          >
+            Новая заметка
+          </button>
+        </div>
+      </div>
+
+      <form
+        className="list-toolbar-bar card"
+        data-testid="list-toolbar"
+        onSubmit={applyFilters}
+      >
+        <div className="list-toolbar-search">
           <input
             className="search-input"
             placeholder="Поиск"
             aria-label="Поиск"
+            data-testid="list-search"
             value={draft.q}
             onChange={(e) => setDraft({ ...draft, q: e.target.value })}
             onKeyDown={(e) => {
@@ -119,86 +146,53 @@ export function ListPage({ user }: { user: User }) {
               }
             }}
           />
-          <button
-            type="button"
-            className="btn-accent"
-            data-testid="new-note"
-            onClick={() => {
-              if (window.matchMedia("(max-width: 640px)").matches) {
-                quickAdd.show();
-                return;
-              }
-              setCreating(true);
-              setEditing(null);
+        </div>
+        <div className="list-toolbar-filters" data-testid="list-toolbar-filters">
+          <select
+            aria-label="Теги"
+            data-testid="list-tag-filter"
+            value={draft.tagId}
+            onChange={(e) => setDraft({ ...draft, tagId: e.target.value })}
+          >
+            <option value="">Все теги</option>
+            {tagList.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Статус"
+            data-testid="list-status-filter"
+            value={draft.status}
+            onChange={(e) => setDraft({ ...draft, status: e.target.value })}
+          >
+            <option value="">Все статусы</option>
+            <option value="active">active</option>
+            <option value="inactive">inactive</option>
+          </select>
+          <select
+            aria-label="Сортировка"
+            data-testid="list-sort-filter"
+            value={`${draft.sort}:${draft.dir}`}
+            onChange={(e) => {
+              const [sort, dir] = e.target.value.split(":") as [
+                Filters["sort"],
+                Filters["dir"],
+              ];
+              setDraft({ ...draft, sort, dir });
             }}
           >
-            Новая заметка
+            <option value="starts_at:asc">дата ↑</option>
+            <option value="starts_at:desc">дата ↓</option>
+            <option value="updated_at:desc">изменены ↓</option>
+            <option value="updated_at:asc">изменены ↑</option>
+          </select>
+          <button type="submit" className="btn-accent" data-testid="list-apply">
+            Применить
           </button>
         </div>
-      </div>
-
-      <form className="filters card" onSubmit={applyFilters}>
-        <div className="filter-pills">
-          <button
-            type="button"
-            className={!draft.tagId ? "pill on" : "pill"}
-            onClick={() => setDraft({ ...draft, tagId: "" })}
-          >
-            Все теги
-          </button>
-          {tagList.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={draft.tagId === t.id ? "pill on" : "pill"}
-              onClick={() => setDraft({ ...draft, tagId: t.id })}
-            >
-              <TagPill name={t.name} color={t.color} />
-            </button>
-          ))}
-        </div>
-        <select
-          value={draft.status}
-          onChange={(e) => setDraft({ ...draft, status: e.target.value })}
-        >
-          <option value="">Все статусы</option>
-          <option value="active">active</option>
-          <option value="inactive">inactive</option>
-        </select>
-        <select
-          value={`${draft.sort}:${draft.dir}`}
-          onChange={(e) => {
-            const [sort, dir] = e.target.value.split(":") as [
-              Filters["sort"],
-              Filters["dir"],
-            ];
-            setDraft({ ...draft, sort, dir });
-          }}
-        >
-          <option value="starts_at:asc">дата ↑</option>
-          <option value="starts_at:desc">дата ↓</option>
-          <option value="updated_at:desc">изменены ↓</option>
-          <option value="updated_at:asc">изменены ↑</option>
-        </select>
-        <button type="submit">Применить</button>
       </form>
-
-      {(creating || editing) && (
-        <NoteForm
-          user={user}
-          tags={tags.data ?? []}
-          note={editing}
-          onClose={() => {
-            setCreating(false);
-            setEditing(null);
-          }}
-          onSaved={() => {
-            setCreating(false);
-            setEditing(null);
-            qc.invalidateQueries({ queryKey: ["notes"] });
-          }}
-        />
-      )}
 
       <div
         ref={parentRef}
@@ -225,7 +219,7 @@ export function ListPage({ user }: { user: User }) {
           {virtualizer.getVirtualItems().map((row) => {
             const n = notes[row.index];
             const noteTags = n.tag_ids
-              .map((id) => tagList.find((t) => t.id === id))
+              .map((tid) => tagList.find((t) => t.id === tid))
               .filter(Boolean) as Tag[];
             const first = noteTags[0];
             const offsets =
@@ -235,13 +229,15 @@ export function ListPage({ user }: { user: User }) {
             return (
               <div
                 key={n.id}
+                ref={virtualizer.measureElement}
+                data-index={row.index}
                 className="note-row virtual-row list-row"
+                data-testid="list-note-row"
                 style={{
                   position: "absolute",
                   top: 0,
                   left: 0,
                   width: "100%",
-                  height: `${row.size}px`,
                   transform: `translateY(${row.start}px)`,
                 }}
               >
@@ -255,19 +251,19 @@ export function ListPage({ user }: { user: User }) {
                 <button
                   type="button"
                   className="note-main linkish"
-                  onClick={() => {
-                    setEditing(n);
-                    setCreating(false);
-                  }}
+                  data-testid="list-note-main"
+                  onClick={() => navigate(`/notes/${n.id}`)}
                 >
-                  <strong>{n.title || "Без названия"}</strong>
+                  <strong className="list-note-title" data-testid="list-note-title">
+                    {n.title || "Без названия"}
+                  </strong>
                   {n.body ? (
                     <span className="muted small list-body-preview">
                       {n.body.split("\n")[0]}
                     </span>
                   ) : null}
                   <span
-                    className="muted small"
+                    className="muted small list-note-meta"
                     data-testid="note-starts-display"
                     data-note-id={n.id}
                   >
@@ -300,152 +296,5 @@ export function ListPage({ user }: { user: User }) {
         {listQuery.isFetchingNextPage && <p className="muted small">Ещё…</p>}
       </div>
     </section>
-  );
-}
-
-function NoteForm({
-  user,
-  tags,
-  note,
-  onClose,
-  onSaved,
-}: {
-  user: User;
-  tags: Tag[];
-  note: Note | null;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [title, setTitle] = useState(note?.title ?? "");
-  const [body, setBody] = useState(note?.body ?? "");
-  const [startsLocal, setStartsLocal] = useState(
-    note
-      ? utcIsoToLocalInput(note.starts_at, user.timezone)
-      : utcIsoToLocalInput(new Date().toISOString(), user.timezone),
-  );
-  const [tagIds, setTagIds] = useState<string[]>(note?.tag_ids ?? []);
-  const [reminderOffsets, setReminderOffsets] = useState<number[]>(
-    note?.reminder_offsets ?? [],
-  );
-  const [recurrence, setRecurrence] = useState<Recurrence | null>(() =>
-    note?.rec_freq
-      ? {
-          freq: note.rec_freq as Recurrence["freq"],
-          until: note.rec_until,
-          tz: note.rec_tz || user.timezone,
-        }
-      : null,
-  );
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const starts_at = localInputToUtcIso(startsLocal, user.timezone);
-      if (note) {
-        await api.patchNote(note.id, {
-          version: note.version,
-          title,
-          body,
-          starts_at,
-          tag_ids: tagIds,
-          reminder_offsets: reminderOffsets,
-          recurrence: recurrence,
-        });
-      } else {
-        await api.createNote({
-          title,
-          body,
-          starts_at,
-          tag_ids: tagIds,
-          reminder_offsets: reminderOffsets,
-          ...(recurrence ? { recurrence } : {}),
-        });
-      }
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function toggleTag(id: string) {
-    setTagIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
-
-  return (
-    <form className="card form-grid" onSubmit={submit} data-testid="note-form">
-      <h3>{note ? "Редактировать" : "Новая заметка"}</h3>
-      <label>
-        Заголовок
-        <input
-          data-testid="note-title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-      </label>
-      <label>
-        Текст
-        <textarea
-          data-testid="note-body"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={4}
-        />
-      </label>
-      <label>
-        Время
-        <span className="muted small" data-testid="note-tz-hint">
-          {" "}
-          (ввод в поясе {user.timezone})
-        </span>
-        <input
-          type="datetime-local"
-          data-testid="note-starts"
-          value={startsLocal}
-          onChange={(e) => setStartsLocal(e.target.value)}
-          required
-        />
-      </label>
-      <ReminderOffsetsField
-        value={reminderOffsets}
-        onChange={setReminderOffsets}
-        startsLocal={startsLocal}
-        timeZone={user.timezone}
-      />
-      <RecurrenceField
-        value={recurrence}
-        onChange={setRecurrence}
-        timeZone={user.timezone}
-        lockedTz={note?.rec_tz}
-      />
-      <fieldset className="tag-pick">
-        <legend>Теги</legend>
-        {tags.map((t) => (
-          <label key={t.id} className="inline">
-            <input
-              type="checkbox"
-              checked={tagIds.includes(t.id)}
-              onChange={() => toggleTag(t.id)}
-            />
-            <span className="tag-swatch tiny" style={{ background: t.color }} />
-            {t.name}
-          </label>
-        ))}
-      </fieldset>
-      {error && <p className="error">{error}</p>}
-      <div className="row-actions">
-        <button type="submit" disabled={busy}>
-          Сохранить
-        </button>
-        <button type="button" className="secondary" onClick={onClose}>
-          Отмена
-        </button>
-      </div>
-    </form>
   );
 }
