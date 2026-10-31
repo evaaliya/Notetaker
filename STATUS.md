@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-29 15:28 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-10-31 20:11 +06.
 
 ## Этапы
 
@@ -15,6 +15,7 @@
 | M6 Нагрузка и verify | готов | A1–A3 (stale sending, Date, e2e hooks); T17 `perf_list_10k` / `perf_search_10k` / `e2e_scroll_10k`; `make seed`; `make verify` → T1–T21 все закрыто; отчёт `reports/verify-20261024-175604.md` |
 | M7 Новый интерфейс | готов | токены/шрифты/сайдбар; TagPill/`tagColors`/`NoteIllustration`/`pickIllustration`; календарь (slotEventOverlap, теги, trash-zone+Отменить); экраны Upcoming/List/Tags/Trash/Settings; mobile ≤640; bell+WebAudio; `make test` 46; `make e2e` 23; скрины `docs/design/screens/` |
 | M7.fix Правки после живой проверки | готов | термин «тег»; тёмная панель/бирюза/Manrope; сайдбар pin+popover; luxon timeZone (D-049); e2e slot/sidebar/popover; `make test` 46; `make e2e` 26; скрины обновлены |
+| M8.2 Каркас списка и страница заметки | готов | тулбар select тегов; строки grid; `/notes/new|:id`; сайдбар 64px; e2e layout; `make test` 46; Playwright 34; скрины 1440/1024 |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -28,7 +29,7 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 46 passed на реальном Postgres (testcontainers); `make e2e` → 14 passed (вкл. `e2e_scroll_10k`).
+- Тесты: `make test` → 46 passed на реальном Postgres (testcontainers); Playwright e2e → 34 passed (вкл. M8.2 layout).
 - Напоминания (singles): материализация при create/patch (`fire_at = starts_at − offset`, без `fire_at <= now`); rebuild pending при смене времени/offsets; `sent` не трогаем (D-020).
 - Воркер `tick(now)`: claim `FOR UPDATE SKIP LOCKED` (лимит 100); inactive/deleted → `skipped`; effective occurrence `< now` → `missed` (D-007); иначе `notifications` + `email_outbox` + `sent` + `pg_notify` на канал `u_<user_id>` (`notification.new`, D-023).
 - Outbox: SMTP (`smtplib`) вне транзакции; фиксированный `Message-ID = <{outbox_id}@notetaker.local>` (D-021); заголовок `Date` из Clock/UTC (D-033); claim → `sending` + `sending_at` (D-031); протухший `sending` > `OUTBOX_SENDING_TIMEOUT_MINUTES` (дефолт 2) → `pending` + attempts (D-032).
@@ -178,7 +179,21 @@
 - Заметка `starts_at=2026-10-29T05:41:00Z` при `Asia/Bishkek`: подпись **11:41**, позиция в полосе слота **11:00–12:00** (не 05:00) — D-049 / luxon.
 - Скрины обновлены: `docs/design/screens/*-{1280,390}.png`.
 
+### Смоки M8.2 (2026-10-31)
+**Автоматически:**
+- `make test` → 46 passed.
+- Playwright → 34 passed (`e2e_list_rows_aligned`, `e2e_toolbar_one_row`, `e2e_create_is_page`, `e2e_reminders_in_one_row`, `e2e_sidebar_collapse` + прежние).
+- Скрины: `docs/design/screens/list-{1440,1024}.png`, `note-new-{1440,1024}.png` (+ обновлены 1280/390).
+
+**Работает (M8.2):**
+- Список: тулбар в одну строку (≥1200px) — поиск, select «Все теги», статус, сортировка, «Применить»; строки CSS grid `48px|1fr|auto`.
+- Создание/правка заметки — страницы `/notes/new` и `/notes/:id` (не dialog); поле «Текст» ≥12 строк; напоминания в один ряд; слот вложений без реализации.
+- На странице заметки: сайдбар 64px + колонка списка 320px + редактор (текст max 760px).
+- Сайдбар сворачивается (default 64px, `localStorage`, 150 мс / reduced-motion); «Выйти» в меню аватара при свёртке.
+- Боковая панель календаря без изменений по поведению маршрутов.
+
 ## Следующий заход
+- M9: вложения в слоте на странице заметки.
 - Web Push / Service Worker.
 - Интервал повтора и сложные правила («каждый второй вторник»).
 - ICS-экспорт/импорт и подписка на календарь.

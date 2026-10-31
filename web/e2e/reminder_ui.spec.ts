@@ -69,6 +69,7 @@ test("e2e_reminder_from_ui_toast_and_mail", async ({ browser }) => {
   try {
     await a.goto("/list");
     await a.getByTestId("new-note").click();
+    await expect(a).toHaveURL(/\/notes\/new/);
     await expect(a.getByTestId("note-form")).toBeVisible();
     await expect(a.getByTestId("reminder-offsets")).toBeVisible();
 
@@ -77,12 +78,16 @@ test("e2e_reminder_from_ui_toast_and_mail", async ({ browser }) => {
     await a.getByTestId("note-starts").fill(localDatetimeLocal(starts));
     await a.getByTestId("reminder-offset-10").check();
     await a.getByTestId("note-form").getByRole("button", { name: "Сохранить" }).click();
+    await expect(a).toHaveURL(/\/notes\/[^/]+$/);
+    await a.goto("/list");
     await expect(a.getByText(title)).toBeVisible();
 
-    // Confirm offsets persisted (side panel / edit form).
+    // Confirm offsets persisted on note page.
     await a.getByText(title).click();
+    await expect(a).toHaveURL(/\/notes\//);
     await expect(a.getByTestId("reminder-offset-10")).toBeChecked();
     await a.getByRole("button", { name: "Отмена" }).click();
+    await expect(a).toHaveURL(/\/list/);
 
     const list = await a.request.get("/api/notes");
     expect(list.ok()).toBeTruthy();

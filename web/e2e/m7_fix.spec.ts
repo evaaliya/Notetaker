@@ -66,8 +66,17 @@ test("e2e_sidebar_fits_viewport", async ({ page }) => {
   await page.goto("/calendar");
   const sidebar = page.getByTestId("app-sidebar");
   await expect(sidebar).toBeVisible();
+  // Expand for footer/email layout check (default is collapsed 64px).
+  if ((await sidebar.getAttribute("data-collapsed")) === "1") {
+    await page.getByTestId("sidebar-toggle").click();
+  }
+  await expect(sidebar).toHaveAttribute("data-collapsed", "0");
 
-  const noHScroll = await sidebar.evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+  // Allow 2px subpixel/scrollbar slack after expand animation.
+  await expect
+    .poll(async () => (await sidebar.boundingBox())?.width ?? 0, { timeout: 2000 })
+    .toBeGreaterThan(200);
+  const noHScroll = await sidebar.evaluate((el) => el.scrollWidth <= el.clientWidth + 2);
   expect(noHScroll).toBe(true);
 
   const user = page.getByTestId("side-user");
@@ -104,6 +113,9 @@ test("e2e_notifications_popover", async ({ page }) => {
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/upcoming");
+  const sidebar = page.getByTestId("app-sidebar");
+  const sideW =
+    (await sidebar.getAttribute("data-collapsed")) === "1" ? 64 : 248;
   await page.getByTestId("notif-bell").click();
   const inbox = page.getByTestId("notif-inbox");
   await expect(inbox).toBeVisible();
@@ -115,8 +127,8 @@ test("e2e_notifications_popover", async ({ page }) => {
   const markBox = await markAll.boundingBox();
   expect(inboxBox).toBeTruthy();
   expect(markBox).toBeTruthy();
-  // Popover sits in main (to the right of 248px sidebar), not clipped.
-  expect(inboxBox!.x).toBeGreaterThanOrEqual(248);
+  // Popover sits in main (to the right of sidebar), not clipped.
+  expect(inboxBox!.x).toBeGreaterThanOrEqual(sideW);
   expect(markBox!.x + markBox!.width).toBeLessThanOrEqual(inboxBox!.x + inboxBox!.width + 1);
   expect(markBox!.y).toBeGreaterThanOrEqual(inboxBox!.y - 1);
 
