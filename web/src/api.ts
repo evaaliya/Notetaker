@@ -28,6 +28,16 @@ export type Note = {
   rec_until: string | null;
   rec_tz: string | null;
   has_attachments?: boolean;
+  owner_login?: string | null;
+  role?: "owner" | "editor" | null;
+  updated_by_login?: string | null;
+};
+
+export type NoteMember = {
+  user_id: string;
+  login: string;
+  role: "editor";
+  created_at: string;
 };
 
 export type Attachment = {
@@ -76,7 +86,7 @@ export type Notification = {
   body: string;
   created_at: string;
   seen_at: string | null;
-  reminder_id: string;
+  reminder_id: string | null;
 };
 
 export type RealtimeEvent = {
@@ -221,6 +231,18 @@ export const api = {
   trash: () => request<Note[]>("/api/notes/trash"),
   restoreNote: (id: string) =>
     request<Note>(`/api/notes/${id}/restore`, { method: "POST" }),
+
+  listMembers: (noteId: string) =>
+    request<NoteMember[]>(`/api/notes/${noteId}/members`),
+  addMember: (noteId: string, login: string) =>
+    request<NoteMember>(`/api/notes/${noteId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ login }),
+    }),
+  removeMember: (noteId: string, userId: string) =>
+    request<void>(`/api/notes/${noteId}/members/${userId}`, { method: "DELETE" }),
+  leaveNote: (noteId: string) =>
+    request<void>(`/api/notes/${noteId}/members/me/leave`, { method: "POST" }),
 
   listAttachments: (noteId: string) =>
     request<Attachment[]>(`/api/notes/${noteId}/attachments`),

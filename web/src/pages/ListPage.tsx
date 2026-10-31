@@ -259,6 +259,11 @@ export function ListPage({ user }: { user: User }) {
                     {n.title || "Без названия"}
                     {n.has_attachments ? <AttachmentClipIcon /> : null}
                   </strong>
+                  {n.role === "editor" && n.owner_login ? (
+                    <span className="muted small" data-testid="shared-note-badge">
+                      Общая · владелец: {n.owner_login}
+                    </span>
+                  ) : null}
                   {n.body ? (
                     <span className="muted small list-body-preview">
                       {n.body.split("\n")[0]}
@@ -282,14 +287,18 @@ export function ListPage({ user }: { user: User }) {
                   )}
                 </button>
                 <div className="note-actions">
-                  <Switch
-                    label={n.status === "active" ? "Активна" : "Неактивна"}
-                    checked={n.status === "active"}
-                    onChange={() => toggle.mutate(n)}
-                  />
-                  <button type="button" className="link" onClick={() => remove.mutate(n.id)}>
-                    В корзину
-                  </button>
+                  {n.role !== "editor" ? (
+                    <>
+                      <Switch
+                        label={n.status === "active" ? "Активна" : "Неактивна"}
+                        checked={n.status === "active"}
+                        onChange={() => toggle.mutate(n)}
+                      />
+                      <button type="button" className="link" onClick={() => remove.mutate(n.id)}>
+                        В корзину
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               </div>
             );

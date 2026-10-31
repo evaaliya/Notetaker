@@ -7,7 +7,8 @@ import { ConflictDialog } from "../components/ConflictDialog";
 import { NotesRail } from "../components/NotesRail";
 import { RecurrenceField } from "../components/RecurrenceField";
 import { ReminderOffsetsField } from "../components/ReminderOffsetsField";
-import { localInputToUtcIso, utcIsoToLocalInput } from "../format";
+import { SharePanel } from "../components/SharePanel";
+import { formatInZone, localInputToUtcIso, utcIsoToLocalInput } from "../format";
 import {
   NEW_DRAFT_KEY,
   PendingFile,
@@ -702,6 +703,10 @@ function NoteEditorForm({
             onRemovePending={removePending}
           />
 
+          {(note ?? noteRef.current) && (
+            <SharePanel note={(noteRef.current ?? note)!} />
+          )}
+
           {error && <p className="error">{error}</p>}
         </div>
       </form>
@@ -711,6 +716,7 @@ function NoteEditorForm({
           server={conflictNote}
           timeZone={user.timezone}
           formatStarts={(iso) => utcIsoToLocalInput(iso, user.timezone)}
+          formatUpdatedAt={(iso) => formatInZone(iso, user.timezone)}
           onMine={() => void saveMine(conflictNote)}
           onTheirs={() => acceptServer(conflictNote)}
           onClose={() => setConflictNote(null)}

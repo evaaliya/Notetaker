@@ -6,6 +6,7 @@ type Props = {
   server: Note;
   timeZone: string;
   formatStarts: (iso: string) => string;
+  formatUpdatedAt?: (iso: string) => string;
   onMine: () => void;
   onTheirs: () => void;
   onClose: () => void;
@@ -15,10 +16,19 @@ export function ConflictDialog({
   draft,
   server,
   formatStarts,
+  formatUpdatedAt,
   onMine,
   onTheirs,
   onClose,
 }: Props) {
+  const who =
+    server.updated_by_login != null
+      ? `Изменил: ${server.updated_by_login}, ${
+          formatUpdatedAt
+            ? formatUpdatedAt(server.updated_at)
+            : formatStarts(server.updated_at)
+        }`
+      : null;
   return createPortal(
     <div className="modal-backdrop" data-testid="conflict-dialog" role="dialog" aria-modal="true">
       <div className="modal card">
@@ -26,6 +36,11 @@ export function ConflictDialog({
         <p className="muted small">
           Заметка изменена на другом устройстве. Черновик не сброшен — выберите действие.
         </p>
+        {who && (
+          <p className="muted small" data-testid="conflict-changed-by">
+            {who}
+          </p>
+        )}
         <div className="conflict-compare">
           <div>
             <h4>Моя версия</h4>

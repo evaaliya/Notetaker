@@ -290,6 +290,11 @@ export function CalendarPage({ user }: { user: User }) {
             {arg.event.title}
             {occ.note.has_attachments ? <AttachmentClipIcon /> : null}
           </b>
+          {occ.note.role === "editor" && occ.note.owner_login ? (
+            <span className="cal-event-shared" data-testid="shared-note-badge">
+              Общая · владелец: {occ.note.owner_login}
+            </span>
+          ) : null}
           <span className="cal-event-time">{hm}</span>
           {pills.length > 0 && (
             <div className="cal-event-tags">

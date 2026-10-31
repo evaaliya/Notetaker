@@ -263,6 +263,11 @@ export function UpcomingPage({ user }: { user: User }) {
                         className="week-illu"
                       />
                       <b>{it.note.title || "Без названия"}</b>
+                      {it.note.role === "editor" && it.note.owner_login ? (
+                        <div className="mut" data-testid="shared-note-badge">
+                          Общая · владелец: {it.note.owner_login}
+                        </div>
+                      ) : null}
                       <div className="mut">
                         {formatInZone(it.occurrence_start, user.timezone)}
                       </div>
@@ -360,6 +365,11 @@ function Bucket({
                 />
                 <button type="button" className="note-main linkish" onClick={() => onPick(it)}>
                   <strong>{it.note.title || "Без названия"}</strong>
+                  {it.note.role === "editor" && it.note.owner_login ? (
+                    <span className="muted small" data-testid="shared-note-badge">
+                      Общая · владелец: {it.note.owner_login}
+                    </span>
+                  ) : null}
                   <span className="muted small">
                     {formatInZone(it.occurrence_start, timeZone)}
                     {it.note.rec_freq ? " · повтор" : ""}

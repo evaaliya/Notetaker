@@ -11,6 +11,7 @@ import { AttachmentsPanel } from "./AttachmentsPanel";
 import { ConflictDialog } from "./ConflictDialog";
 import { EditScopeDialog } from "./EditScopeDialog";
 import { ReminderOffsetsField, offsetsEqual } from "./ReminderOffsetsField";
+import { SharePanel } from "./SharePanel";
 
 type Props = {
   user: User;
@@ -283,11 +284,12 @@ export function NoteSidePanel({
           ))}
         </fieldset>
         <AttachmentsPanel noteId={note.id} compact />
+        <SharePanel note={{ ...note, role: note.role ?? "owner" }} />
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={busy} data-testid="note-save">
           Сохранить
         </button>
-        {isSeriesOcc && (
+        {isSeriesOcc && note.role !== "editor" && (
           <button
             type="button"
             className="link"
