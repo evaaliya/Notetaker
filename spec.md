@@ -6,9 +6,9 @@
 
 Клиент-серверный notetaker: заметка = запись + событие во времени. Календарь, теги, повторы, напоминания (email + in-app), корзина, live-синхронизация между вкладками/устройствами.
 
-**Вне объёма:** OAuth, мобильные push, шаринг заметок между пользователями, интервал повтора ≠ 1, правила вроде «каждый второй вторник».
+**Вне объёма:** OAuth, мобильные push, интервал повтора ≠ 1, правила вроде «каждый второй вторник».
 
-Вложения (M9) — расширение сверх исходного брифа; см. §15.
+Вложения (M9) и общие заметки (M10) — расширения сверх исходного брифа; см. §15.
 
 Сквозной принцип: **время — единственный источник правды в БД (UTC `timestamptz`), состояние напоминаний — в БД, а не в памяти процесса.** Из этого следует переживание рестартов, отсутствие дублей и корректность при нескольких экземплярах.
 
@@ -331,6 +331,7 @@ docker compose up --build     # postgres, mailhog, api, worker, web
 | M7.fix | Правки после живой проверки | e2e + скрины |
 | M8.2 | Каркас списка и страница заметки | layout e2e |
 | M9 | Вложения в заметках (§15) | upload/413/415/404/purge + e2e миниатюра |
+| M10 | Общие заметки между пользователями (§15) | share/leave + ACL + realtime + e2e два контекста |
 
 ---
 
@@ -346,7 +347,7 @@ docker compose up --build     # postgres, mailhog, api, worker, web
 
 ## 14. Следующий заход (вне объёма)
 
-Web Push / Service Worker; интервал повтора и сложные правила; ICS-экспорт/импорт и подписка на календарь; журнал событий с курсором для точного догона после обрыва; полнотекстовый поиск со стеммингом; шаринг заметок; rate-limit и подтверждение email.
+Web Push / Service Worker; интервал повтора и сложные правила; ICS-экспорт/импорт и подписка на календарь; журнал событий с курсором для точного догона после обрыва; полнотекстовый поиск со стеммингом; напоминания участникам общих заметок; rate-limit и подтверждение email.
 
 ---
 
@@ -391,3 +392,49 @@ attachments(
 **Автосохранение (клиент, как Apple Notes; D-057):** на `/notes/new` запись в БД не создаётся, пока нет содержимого. Первый символ в названии/тексте или файл в очереди → `POST /notes`; далее debounce **600 мс** → `PATCH`. Файлы до появления `note_id` — очередь на клиенте + **IndexedDB** (`notetaker-drafts`), после create — upload и очистка черновика. Пустое открытие «Новой» без ввода — без строки в БД.
 
 **Тесты:** `test_attachment_upload_ok`, `test_attachment_too_large_413`, `test_attachment_bad_type_415`, `test_attachment_foreign_404`, `test_trash_purge_deletes_attachment_files`; e2e `e2e_attachment_image_thumbnail`, `e2e_autosave_*`.
+
+### M10 · Общие заметки между пользователями
+
+**Схема**
+
+```sql
+note_members(
+  note_id uuid references notes(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  role text not null default 'editor' check (role = 'editor'),
+  created_at timestamptz not null,
+  unique(note_id, user_id),
+  pk(note_id, user_id)
+)
+-- notes.updated_by_user_id uuid null references users(id)  -- кто последний успешно PATCH
+-- notifications.reminder_id nullable (share-уведомления без reminder)
+```
+
+**Права**
+
+| Действие | Владелец (`notes.user_id`) | Участник (`note_members`) | Чужой |
+|---|---|---|---|
+| GET / list / calendar / upcoming | да | да | 404 |
+| PATCH (version) | да | да | 404 |
+| DELETE / share / activate / deactivate / restore | да | нет (404) | 404 |
+| Вложения | да | да | 404 |
+| Покинуть (`POST …/members/me/leave`) | нет | да | 404 |
+
+Напоминания (email + in-app от воркера) в v1 только у владельца (D-058).
+
+**API**
+
+| Метод | Путь | Поведение |
+|---|---|---|
+| GET | `/api/notes/{id}/members` | список участников (владелец) |
+| POST | `/api/notes/{id}/members` | `{login}` — добавить; notify участнику «Вам открыт доступ» |
+| DELETE | `/api/notes/{id}/members/{user_id}` | удалить участника (владелец) |
+| POST | `/api/notes/{id}/members/me/leave` | участник покидает |
+
+`NoteOut`: `owner_login`, `role` (`owner`\|`editor`), `updated_by_login`. Список/календарь/«Ближайшее» включают общие; у участника пометка «Общая · владелец: логин».
+
+**Конфликты:** тот же `version` → **409** + актуальная `note` (с `updated_by_login` / `updated_at`); черновик на клиенте не стирается.
+
+**Realtime:** `pg_notify` на каналы владельца и всех `note_members`; календарь/список/«Ближайшее» инвалидируются без reload.
+
+**Тесты:** `test_share_note_visible_to_member`, `test_member_edit_triggers_409_for_owner`, `test_non_member_gets_404`, `test_member_cannot_delete_or_share`, `test_realtime_event_reaches_member`; e2e `e2e_two_users_shared_note`.
