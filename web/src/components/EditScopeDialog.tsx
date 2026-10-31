@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { EditScope } from "../api";
 
 type Props = {
@@ -8,7 +9,7 @@ type Props = {
 };
 
 export function EditScopeDialog({ onChoose, onClose, allowAll = false }: Props) {
-  return (
+  return createPortal(
     <div className="modal-backdrop" data-testid="edit-scope-dialog" role="dialog">
       <div className="modal card">
         <h3>Область правки</h3>
@@ -34,6 +35,7 @@ export function EditScopeDialog({ onChoose, onClose, allowAll = false }: Props) 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

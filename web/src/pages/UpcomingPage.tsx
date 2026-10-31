@@ -294,6 +294,7 @@ export function UpcomingPage({ user }: { user: User }) {
         </div>
         {selected && (
           <NoteSidePanel
+            key={`${selected.note.id}:${selected.originalStart ?? "single"}`}
             user={user}
             tags={tags}
             note={selected.note}

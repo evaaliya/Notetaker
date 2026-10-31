@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { Note } from "../api";
 
 type Props = {
@@ -18,7 +19,7 @@ export function ConflictDialog({
   onTheirs,
   onClose,
 }: Props) {
-  return (
+  return createPortal(
     <div className="modal-backdrop" data-testid="conflict-dialog" role="dialog" aria-modal="true">
       <div className="modal card">
         <h3>Конфликт версий</h3>
@@ -56,6 +57,7 @@ export function ConflictDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

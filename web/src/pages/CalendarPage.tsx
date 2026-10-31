@@ -428,6 +428,7 @@ export function CalendarPage({ user }: { user: User }) {
         </div>
         {selected && (
           <NoteSidePanel
+            key={`${selected.note.id}:${selected.originalStart ?? "single"}`}
             user={user}
             tags={tagList}
             note={selected.note}

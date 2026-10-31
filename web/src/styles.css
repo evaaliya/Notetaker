@@ -656,6 +656,31 @@ button.link {
   top: 0.5rem;
 }
 
+.side-panel-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.side-panel-close:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+
+.side-panel-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .upcoming-sections {
   display: grid;
   gap: 1rem;

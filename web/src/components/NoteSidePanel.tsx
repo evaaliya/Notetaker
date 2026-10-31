@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import { ApiError, EditScope, api, Note, Tag, User } from "../api";
 import {
   formatSeriesRecurrenceHint,
@@ -68,7 +70,8 @@ export function NoteSidePanel({
   }, [title, body, startsLocal, tagIds, reminderOffsets, baseline, user.timezone]);
 
   useEffect(() => {
-    if (note.id !== baseline.id) {
+    // Same series note.id across occurrences — also reset when effective starts_at changes.
+    if (note.id !== baseline.id || note.starts_at !== baseline.starts_at) {
       const f = formFromNote(note, user.timezone);
       setTitle(f.title);
       setBody(f.body);
@@ -80,6 +83,7 @@ export function NoteSidePanel({
       setRemoteBanner(false);
       setConflictNote(null);
       setError(null);
+      setPendingScope(null);
       return;
     }
     if (note.version === baseline.version) return;
@@ -96,7 +100,13 @@ export function NoteSidePanel({
     } else {
       setRemoteBanner(true);
     }
-  }, [note, baseline.id, baseline.version, dirty, user.timezone]);
+  }, [note, baseline.id, baseline.starts_at, baseline.version, dirty, user.timezone]);
+
+  function tagsDirtyAgainst(base: Note) {
+    return !(
+      tagIds.length === base.tag_ids.length && tagIds.every((id) => base.tag_ids.includes(id))
+    );
+  }
 
   async function saveWithScope(scope: EditScope, v: number) {
     setBusy(true);
@@ -109,23 +119,28 @@ export function NoteSidePanel({
         body,
         starts_at: localInputToUtcIso(startsLocal, user.timezone),
       };
-      if (scope === "all" || scope === "following") {
-        if (!isSeriesOcc || scope === "following") {
-          fields.tag_ids = tagIds;
-          fields.reminder_offsets = reminderOffsets;
-        }
-      }
       if (!isSeriesOcc) {
         fields.tag_ids = tagIds;
         fields.reminder_offsets = reminderOffsets;
+      } else if (scope === "following" || scope === "all") {
+        fields.tag_ids = tagIds;
       }
       const opts =
         scope === "all" || !occurrenceOriginalStart
           ? { scope: "all" as const }
           : { scope, occurrence_start: occurrenceOriginalStart };
-      const updated = await api.patchNote(note.id, fields, opts);
+      let updated = await api.patchNote(note.id, fields, opts);
+      // scope=this cannot carry tag_ids; apply series tags on the master separately.
+      if (isSeriesOcc && scope === "this" && tagsDirtyAgainst(baseline)) {
+        updated = await api.patchNote(
+          note.id,
+          { version: updated.version, tag_ids: tagIds },
+          { scope: "all" },
+        );
+      }
       setVersion(updated.version);
       setBaseline(updated);
+      setTagIds([...(updated.tag_ids ?? [])]);
       setReminderOffsets([...(updated.reminder_offsets ?? [])]);
       setConflictNote(null);
       setRemoteBanner(false);
@@ -192,8 +207,14 @@ export function NoteSidePanel({
       <form className="form-grid" onSubmit={submit}>
         <div className="list-toolbar">
           <h3>{isSeriesOcc ? "Вхождение" : "Заметка"}</h3>
-          <button type="button" className="secondary" onClick={onClose}>
-            Закрыть
+          <button
+            type="button"
+            className="side-panel-close"
+            onClick={onClose}
+            aria-label="Закрыть"
+            data-testid="note-panel-close"
+          >
+            <X size={20} aria-hidden="true" strokeWidth={2} />
           </button>
         </div>
         {isSeriesOcc && (
@@ -235,22 +256,25 @@ export function NoteSidePanel({
             timeZone={user.timezone}
           />
         )}
-        {!isSeriesOcc && (
-          <fieldset className="tag-pick">
-            <legend>Теги</legend>
-            {tags.map((t) => (
-              <label key={t.id} className="inline">
-                <input
-                  type="checkbox"
-                  checked={tagIds.includes(t.id)}
-                  onChange={() => toggleTag(t.id)}
-                />
-                <span className="tag-swatch tiny" style={{ background: t.color }} />
-                {t.name}
-              </label>
-            ))}
-          </fieldset>
-        )}
+        <fieldset className="tag-pick">
+          <legend>Теги</legend>
+          {isSeriesOcc && (
+            <p className="muted small" data-testid="series-tags-hint">
+              Теги общие для серии
+            </p>
+          )}
+          {tags.map((t) => (
+            <label key={t.id} className="inline">
+              <input
+                type="checkbox"
+                checked={tagIds.includes(t.id)}
+                onChange={() => toggleTag(t.id)}
+              />
+              <span className="tag-swatch tiny" style={{ background: t.color }} />
+              {t.name}
+            </label>
+          ))}
+        </fieldset>
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={busy} data-testid="note-save">
           Сохранить
@@ -273,22 +297,24 @@ export function NoteSidePanel({
           onClose={() => setPendingScope(null)}
         />
       )}
-      {pendingScope === "delete" && (
-        <div className="modal-backdrop" data-testid="delete-occ-confirm" role="dialog">
-          <div className="modal card">
-            <h3>Удалить вхождение?</h3>
-            <p className="muted small">Остальные вхождения серии останутся.</p>
-            <div className="form-grid">
-              <button type="button" onClick={() => void deleteOccurrence()}>
-                Удалить только это
-              </button>
-              <button type="button" className="secondary" onClick={() => setPendingScope(null)}>
-                Отмена
-              </button>
+      {pendingScope === "delete" &&
+        createPortal(
+          <div className="modal-backdrop" data-testid="delete-occ-confirm" role="dialog">
+            <div className="modal card">
+              <h3>Удалить вхождение?</h3>
+              <p className="muted small">Остальные вхождения серии останутся.</p>
+              <div className="form-grid">
+                <button type="button" onClick={() => void deleteOccurrence()}>
+                  Удалить только это
+                </button>
+                <button type="button" className="secondary" onClick={() => setPendingScope(null)}>
+                  Отмена
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
       {conflictNote && (
         <ConflictDialog
           draft={{ title, body, startsLocal }}
