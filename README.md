@@ -285,6 +285,33 @@ netstat -ano | findstr ":8000"
 
 Автотест: `e2e_two_users_shared_note` (два browser context).
 
+## Заметки из звонков и видео (M11)
+
+По умолчанию `AI_PROVIDER=stub` — без ключей и сети, детерминированный разбор фраз.
+
+### Как включить OpenRouter
+
+1. В `.env` (не коммитьте ключ):
+
+```bash
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-...
+# опционально:
+# OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+2. Пересоздайте api: `docker compose up -d --force-recreate --no-deps api`.
+
+Stub остаётся для локальных тестов и `make test`.
+
+### Как проверить конспект звонка / видео
+
+1. Сайдбар → **Звонок**: вставьте текст или `.txt`/`.vtt`/`.srt` → «Извлечь черновики» → подтвердите. Метка «создано ИИ». Микрофон для e2e не нужен.
+2. «Начать конспект звонка» — Web Speech API только после согласия; звук на сервер не уходит.
+3. Сайдбар → **Видео**: ссылка YouTube или другой URL с видео → «Заметка к текущей секунде»; клик по таймкоду перематывает. YouTube IFrame / внешние файлы требуют сеть.
+
+Автотесты: `e2e_call_transcript_extract`, `e2e_video_note_at_timestamp`.
+
 ---
 
 ## Документы

@@ -101,9 +101,10 @@ test("e2e_edit_in_tab_a_visible_in_tab_b", async ({ browser }) => {
 
   try {
     const title = `Sync ${Date.now()}`;
-    // Mid-week (yesterday): FC week range end is exclusive and often "now"-aligned,
-    // so starts_at = now+2h can fall outside the visible window.
-    const starts = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Place in the middle of the current local week so month/week views include it
+    // regardless of FC week-start and wall-clock (avoid "yesterday" falling into prev week).
+    const starts = new Date();
+    starts.setHours(12, 0, 0, 0);
     const note = await apiCreateNote(a.request, {
       title,
       body: "v1",
@@ -132,9 +133,20 @@ test("e2e_edit_in_tab_a_visible_in_tab_b", async ({ browser }) => {
 
     await a.goto("/calendar");
     await b.goto("/calendar");
+    await b.locator(".fc-timeGridWeek-button").click();
+    for (let i = 0; i < 8; i++) {
+      if ((await b.locator(".fc-event").filter({ hasText: title }).count()) > 0) break;
+      await b.locator(".fc-prev-button").click();
+      await b.waitForTimeout(80);
+    }
+    for (let i = 0; i < 16; i++) {
+      if ((await b.locator(".fc-event").filter({ hasText: title }).count()) > 0) break;
+      await b.locator(".fc-next-button").click();
+      await b.waitForTimeout(80);
+    }
     // Match by unique prefix — FC may clip the suffix in the event chip.
     await expect(b.locator(".fc-event").filter({ hasText: title }).first()).toBeVisible({
-      timeout: 20_000,
+      timeout: 10_000,
     });
     await expect(b.getByText(`${title} edited`).first()).toBeVisible();
   } finally {

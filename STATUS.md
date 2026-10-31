@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-31 22:55 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 00:13 +06.
 
 ## Этапы
 
@@ -18,6 +18,7 @@
 | M8.2 Каркас списка и страница заметки | готов | тулбар select тегов; строки grid; `/notes/new|:id`; сайдбар 64px; e2e layout; `make test` 46; Playwright 34; скрины 1440/1024 |
 | M9 Вложения | готов | `test_attachment_*` + purge файлов; autosave+IndexedDB (D-057); `make test` → 52; e2e вкл. `e2e_attachment_*` / `e2e_autosave_*` |
 | M10 Общие заметки | готов | `test_share_*` / `test_realtime_event_reaches_member`; `e2e_two_users_shared_note`; `make test` → 57; `make e2e` → 40 |
+| M11 Звонки и видео | готов | stub 5 фраз + `test_extract_api` + parse vtt/srt; `e2e_call_transcript_extract` / `e2e_video_note_at_timestamp`; `make test` → 66; `make e2e` → 42 |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -31,7 +32,8 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 57 passed на реальном Postgres (testcontainers); Playwright e2e → 40 passed (вкл. M10 share).
+- Тесты: `make test` → 66 passed на реальном Postgres (testcontainers); Playwright e2e → 42 passed (вкл. M10 share + M11 capture).
+- **Звонки/видео (M11):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` (импорт/вставка + Web Speech по согласию) и `/capture/video` (YouTube IFrame или `<video>`); черновики только после подтверждения; бейдж «создано ИИ».
 - **Общие заметки (M10):** `note_members`; владелец добавляет/удаляет по логину; участник видит список/календарь/«Ближайшее» с бейджем «Общая · владелец: …», правит (version→409), не удаляет и не делится; «Покинуть»; realtime на всех участников; уведомление «Вам открыт доступ»; чужой → 404.
 - **Вложения (M9):** `attachments` + том `uploads`; POST/GET/DELETE `/api/notes/{id}/attachments`; sniff типа; 10 МБ / 10 файлов; 413/415/404; soft-delete сохраняет файлы, purge 30д удаляет с диска; WS `attachment.added`/`deleted`; UI скрепка/DnD/превью; `NoteOut.has_attachments`.
 - **Autosave страницы заметки (D-057):** пустой `/notes/new` без записи в БД; create при первом тексте/файле; PATCH debounce 600 мс; очередь файлов + черновик в IndexedDB `notetaker-drafts`; статус «Сохранено» вместо кнопки «Сохранить».
@@ -150,6 +152,7 @@
 - (пусто по объёму M0–M7)
 
 ## Не делали и почему
+- **Запись звука на сервере / подключение к звонку Zoom как бот** — вне M11; только явный импорт текста/транскрипта или Web Speech в браузере (звук на сервер не уходит).
 - **Напоминания участникам общих заметок** — в v1 только владелец (D-058); иначе per-user offsets и fan-out email/in-app.
 - LISTEN `reminders_changed` для немедленного тика — достаточно секундного poll; NOTIFY при rebuild пишем, подписчик воркера — по желанию позже.
 - Счётчики заметок у тегов в сайдбаре — в API нет `note_count` (D-039); схему не расширяли.
@@ -169,6 +172,7 @@
 - «Неделя» в `/upcoming` — скользящее окно `[завтра, сегодня+7d)`, не ISO-неделя Пн–Вс (D-018).
 - Purge: `deleted_at < now − 30d` (ровно 30д0ч ещё не удаляется; D-022).
 - E2E_HOOKS — только на время `make e2e` / `make verify` (D-034); в обычном `make up` выключен.
+- **M11 видео:** YouTube IFrame API и произвольные внешние URL грузятся с сети браузера; без сети плеер недоступен (локальный e2e-фикстура `web/public/m11-sample.mp4`).
 
 ### Смоки M7 (2026-10-28)
 **Автоматически:**
@@ -215,6 +219,12 @@
 |---|---|---|
 | M9 | Вложения в заметках (`spec.md` §15) + autosave/IndexedDB (D-057) | готов |
 | M10 | Общие заметки между пользователями (`spec.md` §15) | готов |
+| M11 | Заметки из звонков и обучающих видео (`spec.md` §15); stub/OpenRouter | готов |
+
+### Смоки M11 (2026-11-01)
+**Автоматически:**
+- `make test` → **66 passed** (вкл. `test_stub_phrase_*`, `test_parse_vtt`/`test_parse_srt`, `test_extract_api`, `test_extract_transcript_vtt_upload`).
+- `make e2e` → **42 passed** (вкл. `e2e_call_transcript_extract`, `e2e_video_note_at_timestamp` — без микрофона).
 
 ## Следующий заход
 - Web Push / Service Worker.

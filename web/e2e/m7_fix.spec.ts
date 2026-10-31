@@ -18,7 +18,13 @@ test("e2e_calendar_slot_matches_label_timezone", async ({ page }) => {
 
   await page.goto("/calendar");
   await page.locator(".fc-timeGridWeek-button").click();
-  for (let i = 0; i < 24; i++) {
+  // Event is on a fixed past date — walk both directions from "today".
+  for (let i = 0; i < 30; i++) {
+    if ((await page.locator(".fc-event").filter({ hasText: title }).count()) > 0) break;
+    await page.locator(".fc-prev-button").click();
+    await page.waitForTimeout(80);
+  }
+  for (let i = 0; i < 60; i++) {
     if ((await page.locator(".fc-event").filter({ hasText: title }).count()) > 0) break;
     await page.locator(".fc-next-button").click();
     await page.waitForTimeout(80);

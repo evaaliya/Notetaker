@@ -20,6 +20,9 @@
 | `@fontsource/inter`, `@fontsource/manrope` | локальные шрифты UI (без CDN; M7 / M7.fix) |
 | `lucide-react` | линейные иконки навигации и иллюстраций заметок (M7) |
 | IndexedDB (браузерный API) | черновик `/notes/new` + очередь файлов до create (M9 autosave, D-057); без npm-обёртки |
+| OpenRouter (HTTP API) | опциональный `AI_PROVIDER=openrouter` для extract (M11); ключ только из env |
+| YouTube IFrame API | встраивание роликов на `/capture/video` (M11); грузится с youtube.com |
+| Web Speech API | живой конспект звонка в браузере (M11); без записи на сервер |
 | pytest, pytest-asyncio, testcontainers | тесты на реальном Postgres |
 | Playwright (`@playwright/test` 1.49) | e2e: T2, T3, T13, T14, T16, T17 scroll, UI reminders/timezone |
 | PostgreSQL 16 | БД (`citext`, `pg_trgm`, `SKIP LOCKED`, `LISTEN/NOTIFY`) |
@@ -33,6 +36,7 @@
 | Ассет | Источник |
 |---|---|
 | `web/src/assets/logo-nt.jpg` | логотип — файл автора проекта |
+| `web/public/m11-sample.mp4` | короткий CC0-ролик (MDN interactive-examples flower) для e2e видео без внешней сети |
 
 ## Код, написанный с агентом
 
