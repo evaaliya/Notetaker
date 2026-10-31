@@ -6,7 +6,7 @@
 
 | Библиотека | Зачем |
 |---|---|
-| FastAPI, Uvicorn | HTTP API |
+| FastAPI, Uvicorn, python-multipart | HTTP API (+ multipart uploads M9) |
 | SQLAlchemy 2 (asyncio), asyncpg | async ORM и драйвер Postgres |
 | Alembic, psycopg2-binary | миграции (sync-путь; см. D-008) |
 | pydantic-settings | конфиг из env |

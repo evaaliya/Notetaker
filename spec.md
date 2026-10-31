@@ -6,7 +6,9 @@
 
 Клиент-серверный notetaker: заметка = запись + событие во времени. Календарь, теги, повторы, напоминания (email + in-app), корзина, live-синхронизация между вкладками/устройствами.
 
-**Вне объёма:** OAuth, мобильные push, вложения, шаринг заметок между пользователями, интервал повтора ≠ 1, правила вроде «каждый второй вторник».
+**Вне объёма:** OAuth, мобильные push, шаринг заметок между пользователями, интервал повтора ≠ 1, правила вроде «каждый второй вторник».
+
+Вложения (M9) — расширение сверх исходного брифа; см. §15.
 
 Сквозной принцип: **время — единственный источник правды в БД (UTC `timestamptz`), состояние напоминаний — в БД, а не в памяти процесса.** Из этого следует переживание рестартов, отсутствие дублей и корректность при нескольких экземплярах.
 
@@ -325,6 +327,10 @@ docker compose up --build     # postgres, mailhog, api, worker, web
 | M4 | Realtime (WS, toast, конфликты) | T2, T3, T13, T14, T16 |
 | M5 | Повторы + overrides + split | T9–T12 |
 | M6 | Нагрузка 10k, `make verify`, STATUS.md | T15, T17, отчёт verify |
+| M7 | Новый интерфейс | см. `docs/FRONTEND.md` |
+| M7.fix | Правки после живой проверки | e2e + скрины |
+| M8.2 | Каркас списка и страница заметки | layout e2e |
+| M9 | Вложения в заметках (§15) | upload/413/415/404/purge + e2e миниатюра |
 
 ---
 
@@ -341,3 +347,45 @@ docker compose up --build     # postgres, mailhog, api, worker, web
 ## 14. Следующий заход (вне объёма)
 
 Web Push / Service Worker; интервал повтора и сложные правила; ICS-экспорт/импорт и подписка на календарь; журнал событий с курсором для точного догона после обрыва; полнотекстовый поиск со стеммингом; шаринг заметок; rate-limit и подтверждение email.
+
+---
+
+## 15. Расширения сверх брифа
+
+Функции, которых не было в исходном задании, но добавлены в продукт.
+
+### M9 · Вложения в заметках
+
+**Схема**
+
+```sql
+attachments(
+  id uuid pk,
+  note_id uuid references notes(id) on delete cascade,
+  filename text not null,          -- очищенное отображаемое имя
+  content_type text not null,
+  size int not null,
+  storage_key text not null,       -- относительный путь на диске (UUID), без имени пользователя
+  created_at timestamptz not null
+)
+```
+
+Файлы — в docker-томе `uploads`; на диске имя = `storage_key`, не исходное имя пользователя.
+`NoteOut` включает `has_attachments: bool` (для значка скрепки в списке/календаре).
+
+**API**
+
+| Метод | Путь | Поведение |
+|---|---|---|
+| GET | `/api/notes/{id}/attachments` | список метаданных |
+| POST | `/api/notes/{id}/attachments` | multipart `file`; лимит 10 МБ, до 10 файлов на заметку |
+| GET | `/api/notes/{id}/attachments/{aid}` | тело файла; `Content-Disposition`; `X-Content-Type-Options: nosniff` |
+| DELETE | `/api/notes/{id}/attachments/{aid}` | удалить метаданные и файл |
+
+Разрешённые типы (проверка по содержимому, не только по расширению): `png`, `jpg`/`jpeg`, `webp`, `gif`, `pdf`, `txt`, `docx`. Имя очищается. Чужой файл / чужая заметка → **404** (не 403). Слишком большой → **413**; неверный тип → **415**.
+
+**Корзина:** soft-delete и restore не трогают вложения. Автоочистка через 30 дней удаляет заметку (каскад строк) и файлы с диска.
+
+**Realtime:** `attachment.added` / `attachment.deleted` через `pg_notify` в той же транзакции; клиент инвалидирует Query.
+
+**Тесты:** `test_attachment_upload_ok`, `test_attachment_too_large_413`, `test_attachment_bad_type_415`, `test_attachment_foreign_404`, `test_trash_purge_deletes_attachment_files`; e2e `e2e_attachment_image_thumbnail`.

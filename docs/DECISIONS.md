@@ -353,3 +353,9 @@
 **Альтернативы:** всегда 248px; пилюли тегов; debounce без Apply.
 **Причина:** M8.2 — убрать пустую плашку пилюль, выровнять тулбар/строки, освободить место под редактор.
 **Последствия:** `e2e_sidebar_fits_viewport` / popover-x ориентируются на 64px по умолчанию или явно разворачивают панель.
+
+### D-056 · 2026-10-31 20:41 +06 · M9 · Вложения на диске (том uploads), storage_key = UUID
+**Решение:** таблица `attachments` с `storage_key` (UUID-строка, unique); байты в `UPLOADS_DIR` / docker volume `uploads` у api и worker; отображаемое `filename` очищается, на диск не пишется. Тип — sniff magic-bytes (+ ZIP/docx, UTF-8/txt), без libmagic. Лимиты 10 МБ / 10 файлов. Чужой доступ → 404. Soft-delete заметки оставляет файлы; `purge_trash` возвращает keys, unlink после commit. Realtime: `attachment.added` / `attachment.deleted` + `note_id`. `NoteOut.has_attachments` для скрепки в UI.
+**Альтернативы:** S3/MinIO; путь `{note_id}/{name}`; python-magic; хранить blob в Postgres.
+**Причина:** спека M9 / §15; том переживает рестарт контейнера; UUID-путь без path traversal по имени пользователя.
+**Последствия:** api и worker обязаны шарить volume; тесты пишут во временный `UPLOADS_DIR`.
