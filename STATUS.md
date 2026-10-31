@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-10-31 22:10 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-10-31 22:55 +06.
 
 ## Этапы
 
@@ -17,6 +17,7 @@
 | M7.fix Правки после живой проверки | готов | термин «тег»; тёмная панель/бирюза/Manrope; сайдбар pin+popover; luxon timeZone (D-049); e2e slot/sidebar/popover; `make test` 46; `make e2e` 26; скрины обновлены |
 | M8.2 Каркас списка и страница заметки | готов | тулбар select тегов; строки grid; `/notes/new|:id`; сайдбар 64px; e2e layout; `make test` 46; Playwright 34; скрины 1440/1024 |
 | M9 Вложения | готов | `test_attachment_*` + purge файлов; autosave+IndexedDB (D-057); `make test` → 52; e2e вкл. `e2e_attachment_*` / `e2e_autosave_*` |
+| M10 Общие заметки | готов | `test_share_*` / `test_realtime_event_reaches_member`; `e2e_two_users_shared_note`; `make test` → 57; `make e2e` → 40 |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -30,7 +31,8 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 52 passed на реальном Postgres (testcontainers); Playwright e2e → 35 passed (вкл. M9 вложения).
+- Тесты: `make test` → 57 passed на реальном Postgres (testcontainers); Playwright e2e → 40 passed (вкл. M10 share).
+- **Общие заметки (M10):** `note_members`; владелец добавляет/удаляет по логину; участник видит список/календарь/«Ближайшее» с бейджем «Общая · владелец: …», правит (version→409), не удаляет и не делится; «Покинуть»; realtime на всех участников; уведомление «Вам открыт доступ»; чужой → 404.
 - **Вложения (M9):** `attachments` + том `uploads`; POST/GET/DELETE `/api/notes/{id}/attachments`; sniff типа; 10 МБ / 10 файлов; 413/415/404; soft-delete сохраняет файлы, purge 30д удаляет с диска; WS `attachment.added`/`deleted`; UI скрепка/DnD/превью; `NoteOut.has_attachments`.
 - **Autosave страницы заметки (D-057):** пустой `/notes/new` без записи в БД; create при первом тексте/файле; PATCH debounce 600 мс; очередь файлов + черновик в IndexedDB `notetaker-drafts`; статус «Сохранено» вместо кнопки «Сохранить».
 - Напоминания (singles): материализация при create/patch (`fire_at = starts_at − offset`, без `fire_at <= now`); rebuild pending при смене времени/offsets; `sent` не трогаем (D-020).
@@ -148,6 +150,7 @@
 - (пусто по объёму M0–M7)
 
 ## Не делали и почему
+- **Напоминания участникам общих заметок** — в v1 только владелец (D-058); иначе per-user offsets и fan-out email/in-app.
 - LISTEN `reminders_changed` для немедленного тика — достаточно секундного poll; NOTIFY при rebuild пишем, подписчик воркера — по желанию позже.
 - Счётчики заметок у тегов в сайдбаре — в API нет `note_count` (D-039); схему не расширяли.
 - «Удалить навсегда» в корзине — нет endpoint (только автоpurge 30д); см. TODO(spec-gap) в TrashPage.
@@ -201,11 +204,17 @@
 - `make e2e` → **39 passed** (вкл. `e2e_attachment_image_thumbnail`, `e2e_autosave_*`; D-057).
 - Autosave: пустой `/notes/new` без POST; первый символ/файл → create; PATCH debounce 600 мс; черновик+файлы в IndexedDB `notetaker-drafts`.
 
+### Смоки M10 (2026-10-31)
+**Автоматически:**
+- `make test` → **57 passed** (`test_share_note_visible_to_member`, `test_member_edit_triggers_409_for_owner`, `test_non_member_gets_404`, `test_member_cannot_delete_or_share`, `test_realtime_event_reaches_member` + регрессии).
+- `make e2e` → **40 passed** (вкл. `e2e_two_users_shared_note` — два browser context).
+
 ## Расширения сверх брифа
 
 | Этап | Что | Статус |
 |---|---|---|
 | M9 | Вложения в заметках (`spec.md` §15) + autosave/IndexedDB (D-057) | готов |
+| M10 | Общие заметки между пользователями (`spec.md` §15) | готов |
 
 ## Следующий заход
 - Web Push / Service Worker.
@@ -213,4 +222,4 @@
 - ICS-экспорт/импорт и подписка на календарь.
 - Журнал событий с курсором для точного догона после обрыва WS.
 - Полнотекстовый поиск со стеммингом.
-- Шаринг заметок, rate-limit, подтверждение email.
+- Напоминания участникам общих заметок; rate-limit, подтверждение email.

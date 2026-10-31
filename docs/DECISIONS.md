@@ -365,3 +365,15 @@
 **Альтернативы:** create пустой заметки при открытии «Новой»; только sessionStorage (файлы не переживут); idb-keyval/Dexie; data-router `useBlocker` (потребует смены `BrowserRouter`).
 **Причина:** запрос UX как Apple Notes; IndexedDB сохраняет текст и файлы при reload до create; пустые записи в БД не плодим.
 **Последствия:** e2e без клика «Сохранить» на странице заметки; `NoteSidePanel`/`QuickAdd` по-прежнему ручные; при недоступном IndexedDB autosave на сервер всё равно работает, переживание reload слабее. `persistIdb` не вызывает `clearDraft` при пустых полях формы (иначе unmount затирал бы черновик до hydrate). Очистка IDB — после create и по «Закрыть» без содержимого.
+
+### D-058 · 2026-10-31 22:52 +06 · M10 · Напоминания общих заметок только у владельца
+**Решение:** в v1 email и in-app `notification.new` от воркера по-прежнему только на `notes.user_id`. Участники (`note_members`) видят/правят заметку, но не получают reminder-уведомления и письма. Материализация `reminders` не дублируется на участников.
+**Альтернативы:** fan-out reminders/notifications на всех members; отдельный preference «напоминать мне тоже».
+**Причина:** явный объём M10; иначе нужна схема per-user offsets и уникальность `notifications`/`email_outbox` по (user, reminder).
+**Последствия:** STATUS «Не делали»; следующий заход — напоминания участникам.
+
+### D-059 · 2026-10-31 22:52 +06 · M10 · ACL через note_members + updated_by + notify audience
+**Решение:** таблица `note_members(note_id, user_id, role='editor', unique(note_id,user_id))`; доступ = владелец ∨ member; чужой → **404**. Owner-only: delete/share/activate/deactivate/restore/trash. PATCH с тем же `version` → 409; `notes.updated_by_user_id` + `NoteOut.updated_by_login` для диалога конфликта. `pg_notify` на каналы владельца и всех members; при share — `notifications` с `reminder_id NULL` + toast «Вам открыт доступ» (partial unique на reminder_id). Теги при PATCH валидируются от имени владельца заметки.
+**Альтернативы:** 403 вместо 404; роли viewer/admin; отдельная таблица share_invites.
+**Причина:** спека M10 / инвариант «чужая → 404»; realtime как у вкладок, но между пользователями.
+**Последствия:** списки/календарь/upcoming фильтруют `accessible_notes_clause`; e2e двумя browser context (cookie не шарится).
