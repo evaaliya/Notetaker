@@ -703,8 +703,8 @@ function NoteEditorForm({
             onRemovePending={removePending}
           />
 
-          {(note ?? noteRef.current) && (
-            <SharePanel note={(noteRef.current ?? note)!} />
+          {(note || noteRef.current) && (
+            <SharePanel note={(note || noteRef.current)!} />
           )}
 
           {error && <p className="error">{error}</p>}

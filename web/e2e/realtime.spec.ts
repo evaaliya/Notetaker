@@ -169,8 +169,8 @@ test("e2e_conflict_dialog", async ({ browser }) => {
     await waitForWsReady(a);
     await waitForWsReady(b);
 
-    await a.getByText(title).click();
-    await b.getByText(title).click();
+    await a.getByRole("button", { name: new RegExp(title) }).first().click();
+    await b.getByRole("button", { name: new RegExp(title) }).first().click();
 
     await a.locator(".side-panel input").first().fill(`${title} A`);
     await b.locator(".side-panel textarea").fill("draft B keep me");

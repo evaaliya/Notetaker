@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, Note } from "../api";
@@ -11,6 +11,7 @@ export function SharePanel({ note }: Props) {
   const [login, setLogin] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // Nested <form> inside note editor is invalid HTML and breaks submit — use div + button.
   const isOwner = note.role === "owner" || note.role == null;
   const isEditor = note.role === "editor";
 
@@ -26,6 +27,7 @@ export function SharePanel({ note }: Props) {
       setLogin("");
       setError(null);
       qc.invalidateQueries({ queryKey: ["members", note.id] });
+      qc.invalidateQueries({ queryKey: ["notes"] });
     },
     onError: (err: Error) => setError(err.message),
   });
@@ -44,6 +46,16 @@ export function SharePanel({ note }: Props) {
       navigate("/list");
     },
   });
+
+  function submitShare() {
+    const value = login.trim();
+    if (!value) {
+      setError("Укажите логин пользователя");
+      return;
+    }
+    setError(null);
+    add.mutate(value);
+  }
 
   if (isEditor) {
     return (
@@ -66,31 +78,39 @@ export function SharePanel({ note }: Props) {
 
   if (!isOwner) return null;
 
-  function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    const value = login.trim();
-    if (!value) return;
-    add.mutate(value);
-  }
-
   return (
     <div className="share-panel" data-testid="share-panel">
       <h3>Поделиться</h3>
-      <form className="share-form" onSubmit={onSubmit}>
+      <div className="share-form">
         <label>
           Логин участника
           <input
             data-testid="share-login"
             value={login}
             onChange={(e) => setLogin(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submitShare();
+              }
+            }}
             autoComplete="off"
           />
         </label>
-        <button type="submit" data-testid="share-add" disabled={add.isPending}>
+        <button
+          type="button"
+          data-testid="share-add"
+          disabled={add.isPending}
+          onClick={() => submitShare()}
+        >
           Добавить
         </button>
-      </form>
-      {error && <p className="error">{error}</p>}
+      </div>
+      {error && (
+        <p className="error" data-testid="share-error">
+          {error}
+        </p>
+      )}
       <ul className="share-members" data-testid="share-members">
         {(members.data ?? []).map((m) => (
           <li key={m.user_id}>
