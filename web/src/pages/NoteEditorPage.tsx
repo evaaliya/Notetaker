@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api, Note, Recurrence, Tag, User } from "../api";
+import { AttachmentsPanel } from "../components/AttachmentsPanel";
 import { ConflictDialog } from "../components/ConflictDialog";
 import { NotesRail } from "../components/NotesRail";
 import { RecurrenceField } from "../components/RecurrenceField";
@@ -286,15 +287,7 @@ function NoteEditorForm({
             ))}
           </fieldset>
 
-          {/* Slot for attachments (M9) — layout only. */}
-          <section
-            className="note-attachments-slot"
-            data-testid="note-attachments-slot"
-            aria-label="Вложения"
-          >
-            <div className="lab">Вложения</div>
-            <p className="muted small">Файлы появятся позже</p>
-          </section>
+          <AttachmentsPanel noteId={note?.id ?? null} />
 
           {error && <p className="error">{error}</p>}
         </div>

@@ -27,6 +27,16 @@ export type Note = {
   rec_freq: string | null;
   rec_until: string | null;
   rec_tz: string | null;
+  has_attachments?: boolean;
+};
+
+export type Attachment = {
+  id: string;
+  note_id: string;
+  filename: string;
+  content_type: string;
+  size: number;
+  created_at: string;
 };
 
 export type NoteList = {
@@ -75,6 +85,7 @@ export type RealtimeEvent = {
   version?: number;
   title?: string;
   body?: string;
+  note_id?: string;
 };
 
 export type NoteListParams = {
@@ -210,6 +221,51 @@ export const api = {
   trash: () => request<Note[]>("/api/notes/trash"),
   restoreNote: (id: string) =>
     request<Note>(`/api/notes/${id}/restore`, { method: "POST" }),
+
+  listAttachments: (noteId: string) =>
+    request<Attachment[]>(`/api/notes/${noteId}/attachments`),
+  uploadAttachment: async (
+    noteId: string,
+    file: File,
+    onProgress?: (pct: number) => void,
+  ): Promise<Attachment> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `/api/notes/${noteId}/attachments`);
+      xhr.withCredentials = true;
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable && onProgress) {
+          onProgress(Math.round((ev.loaded / ev.total) * 100));
+        }
+      };
+      xhr.onload = () => {
+        let message = xhr.statusText;
+        let code: string | undefined;
+        try {
+          const body = JSON.parse(xhr.responseText) as ErrorBody & Attachment;
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(body as Attachment);
+            return;
+          }
+          message = body.error?.message || message;
+          code = body.error?.code;
+        } catch {
+          /* ignore */
+        }
+        reject(new ApiError(xhr.status, message, code));
+      };
+      xhr.onerror = () => reject(new ApiError(0, "Сеть недоступна"));
+      const fd = new FormData();
+      fd.append("file", file);
+      xhr.send(fd);
+    });
+  },
+  attachmentUrl: (noteId: string, attachmentId: string) =>
+    `/api/notes/${noteId}/attachments/${attachmentId}`,
+  deleteAttachment: (noteId: string, attachmentId: string) =>
+    request<void>(`/api/notes/${noteId}/attachments/${attachmentId}`, {
+      method: "DELETE",
+    }),
 
   calendar: (from: string, to: string) =>
     request<CalendarList>(

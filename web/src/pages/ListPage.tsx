@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api, Tag, User } from "../api";
+import { AttachmentClipIcon } from "../components/AttachmentsPanel";
 import { NoteIllustration } from "../components/NoteIllustration";
 import { Switch } from "../components/Switch";
 import { TagPill } from "../components/TagPill";
@@ -256,6 +257,7 @@ export function ListPage({ user }: { user: User }) {
                 >
                   <strong className="list-note-title" data-testid="list-note-title">
                     {n.title || "Без названия"}
+                    {n.has_attachments ? <AttachmentClipIcon /> : null}
                   </strong>
                   {n.body ? (
                     <span className="muted small list-body-preview">

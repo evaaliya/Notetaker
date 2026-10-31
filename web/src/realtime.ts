@@ -14,6 +14,18 @@ export function invalidateForEvent(qc: QueryClient, ev: RealtimeEvent): void {
         qc.invalidateQueries({ queryKey: ["note", id] });
       }
       break;
+    case "attachment.added":
+    case "attachment.deleted": {
+      if (ev.note_id) {
+        qc.invalidateQueries({ queryKey: ["attachments", ev.note_id] });
+        qc.invalidateQueries({ queryKey: ["note", ev.note_id] });
+      }
+      qc.invalidateQueries({ queryKey: ["notes"] });
+      qc.invalidateQueries({ queryKey: ["calendar"] });
+      qc.invalidateQueries({ queryKey: ["upcoming"] });
+      qc.invalidateQueries({ queryKey: ["trash"] });
+      break;
+    }
     case "tag.changed":
       qc.invalidateQueries({ queryKey: ["tags"] });
       qc.invalidateQueries({ queryKey: ["notes"] });

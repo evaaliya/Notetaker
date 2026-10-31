@@ -22,6 +22,7 @@ import type { EventDragStartArg, EventDragStopArg } from "@fullcalendar/interact
 import { Trash2 } from "lucide-react";
 import { api, EditScope, Note, Occurrence, Tag, User } from "../api";
 import { EditScopeDialog } from "../components/EditScopeDialog";
+import { AttachmentClipIcon } from "../components/AttachmentsPanel";
 import { NoteIllustration } from "../components/NoteIllustration";
 import { NoteSidePanel } from "../components/NoteSidePanel";
 import { TagPill } from "../components/TagPill";
@@ -285,7 +286,10 @@ export function CalendarPage({ user }: { user: User }) {
           size={34}
         />
         <div className="cal-event-body">
-          <b>{arg.event.title}</b>
+          <b>
+            {arg.event.title}
+            {occ.note.has_attachments ? <AttachmentClipIcon /> : null}
+          </b>
           <span className="cal-event-time">{hm}</span>
           {pills.length > 0 && (
             <div className="cal-event-tags">
