@@ -174,7 +174,10 @@ export function VideoNotesPage({ user }: { user: User }) {
     try {
       const result = await api.extractYoutube(parsed.url, user.timezone);
       setTranscript(result.transcript ?? null);
-      const rows = draftsFromExtract(result.summary, result.drafts);
+      // Video: one lecture → one note by default; task/decision splinters stay unchecked (D-069).
+      const rows = draftsFromExtract(result.summary, result.drafts, {
+        selectKinds: ["summary"],
+      });
       if (!rows.length) {
         setError("Субтитры получены, но черновиков не вышло. Попробуйте другой ролик.");
         return;

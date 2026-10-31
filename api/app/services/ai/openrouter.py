@@ -39,7 +39,9 @@ Formatting rules for every body field:
 - Prefer clarity over completeness; compress aggressively.
 - Do not wrap the whole note in one run-on sentence.
 
-drafts[]: separate actionable items only (kind=task) and explicit decisions (kind=decision). Do not copy the full summary into each draft. Empty drafts is fine for a pure lecture with no tasks.
+drafts[] — rare extras, not a second copy of the note:
+- Lectures / talks / educational videos: drafts MUST be []. Put recommendations into summary "## Выводы". Never invent separate task notes from the speaker's advice.
+- Meetings / calls only: kind=task for concrete assigned actions; kind=decision for explicit "we decided…". Do not duplicate the summary into drafts.
 
 Timezone: interpret relative phrases (завтра, в пятницу, через N часов) in the user's timezone.
 starts_at must be timezone-aware ISO-8601, or null if unknown.

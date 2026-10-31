@@ -30,6 +30,7 @@ export function ExtractDraftsModal({
         <h2>Подтвердите черновики</h2>
         <p className="muted">
           Ничего не создаётся, пока вы не подтвердите. У заметок будет метка «создано ИИ».
+          Конспект — основная заметка; задачи/решения создаются отдельно, только если отмечены.
         </p>
         {transcript ? (
           <details className="transcript-preview" data-testid="extract-transcript">
@@ -55,7 +56,7 @@ export function ExtractDraftsModal({
                 <span>
                   <strong>{d.title}</strong>
                   <span className="ai-badge">создано ИИ</span>
-                  <span className="muted small"> · {d.kind}</span>
+                  <span className="muted small"> · {kindLabel(d.kind)}</span>
                   <div className="muted small">{d.body.slice(0, 160)}</div>
                 </span>
               </label>
@@ -81,16 +82,38 @@ export function ExtractDraftsModal({
   );
 }
 
+function kindLabel(kind: ExtractDraft["kind"] | string): string {
+  if (kind === "summary") return "конспект";
+  if (kind === "decision") return "решение";
+  if (kind === "task") return "задача";
+  return String(kind);
+}
+
+/** @param selectKinds — if set, only these kinds are checked by default (video: summary only). */
 export function draftsFromExtract(
   summary: ExtractDraft | null | undefined,
   drafts: ExtractDraft[],
+  opts?: { selectKinds?: Array<ExtractDraft["kind"]> },
 ): PendingDraft[] {
+  const allow = opts?.selectKinds ? new Set(opts.selectKinds) : null;
+  const selectedFor = (kind: ExtractDraft["kind"]) => (allow ? allow.has(kind) : true);
   const rows: PendingDraft[] = [];
   if (summary) {
-    rows.push({ ...summary, selected: true, key: `summary-${summary.title}` });
+    rows.push({
+      ...summary,
+      kind: "summary",
+      selected: selectedFor("summary"),
+      key: `summary-${summary.title}`,
+    });
   }
   drafts.forEach((d, i) => {
-    rows.push({ ...d, selected: true, key: `d-${i}-${d.title}` });
+    const kind = d.kind || "task";
+    rows.push({
+      ...d,
+      kind,
+      selected: selectedFor(kind),
+      key: `d-${i}-${d.title}`,
+    });
   });
   return rows;
 }
