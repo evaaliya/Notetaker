@@ -18,12 +18,14 @@ import {
 } from "./lib/sidebarPrefs";
 import { loadUiPrefs } from "./lib/uiPrefs";
 import { CalendarPage } from "./pages/CalendarPage";
+import { CallCapturePage } from "./pages/CallCapturePage";
 import { ListPage } from "./pages/ListPage";
 import { NoteEditorPage } from "./pages/NoteEditorPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TagsPage } from "./pages/TagsPage";
 import { TrashPage } from "./pages/TrashPage";
 import { UpcomingPage } from "./pages/UpcomingPage";
+import { VideoNotesPage } from "./pages/VideoNotesPage";
 
 export function App() {
   const qc = useQueryClient();
@@ -272,6 +274,8 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           <Route path="/calendar" element={<CalendarPage user={user} />} />
           <Route path="/upcoming" element={<UpcomingPage user={user} />} />
           <Route path="/list" element={<ListPage user={user} />} />
+          <Route path="/capture/call" element={<CallCapturePage user={user} />} />
+          <Route path="/capture/video" element={<VideoNotesPage user={user} />} />
           <Route path="/notes/new" element={<NoteEditorPage user={user} />} />
           <Route path="/notes/:id" element={<NoteEditorPage user={user} />} />
           <Route path="/tags" element={<TagsPage />} />

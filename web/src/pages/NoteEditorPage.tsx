@@ -598,7 +598,14 @@ function NoteEditorForm({
         data-testid="note-form"
       >
         <header className="note-editor-bar">
-          <h1 className="note-editor-heading">{note ? "Заметка" : "Новая заметка"}</h1>
+          <h1 className="note-editor-heading">
+            {note ? "Заметка" : "Новая заметка"}
+            {note?.ai_generated ? (
+              <span className="ai-badge" data-testid="ai-generated-badge">
+                создано ИИ
+              </span>
+            ) : null}
+          </h1>
           <div className="note-editor-actions">
             <span
               className="muted small"

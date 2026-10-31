@@ -31,6 +31,25 @@ export type Note = {
   owner_login?: string | null;
   role?: "owner" | "editor" | null;
   updated_by_login?: string | null;
+  source?: "manual" | "call" | "video";
+  source_url?: string | null;
+  source_ts?: number | null;
+  ai_generated?: boolean;
+};
+
+export type ExtractDraft = {
+  title: string;
+  body: string;
+  starts_at: string | null;
+  reminder_offsets: number[];
+  tag_names: string[];
+  kind: "summary" | "task" | "decision";
+};
+
+export type ExtractResult = {
+  summary: ExtractDraft | null;
+  drafts: ExtractDraft[];
+  provider: string;
 };
 
 export type NoteMember = {
@@ -309,4 +328,31 @@ export const api = {
     }),
   e2eTickReminders: () =>
     request<{ claimed: number }>("/api/e2e/tick_reminders", { method: "POST" }),
+
+  extract: (text: string, timezone?: string) =>
+    request<ExtractResult>("/api/extract", {
+      method: "POST",
+      body: JSON.stringify({ text, ...(timezone ? { timezone } : {}) }),
+    }),
+  extractTranscriptFile: async (file: File, timezone?: string): Promise<ExtractResult> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (timezone) fd.append("timezone", timezone);
+    const res = await fetch("/api/extract/transcript", {
+      method: "POST",
+      credentials: "include",
+      body: fd,
+    });
+    if (!res.ok) {
+      let message = res.statusText;
+      try {
+        const body = (await res.json()) as ErrorBody;
+        message = body.error?.message || message;
+      } catch {
+        /* ignore */
+      }
+      throw new ApiError(res.status, message);
+    }
+    return (await res.json()) as ExtractResult;
+  },
 };

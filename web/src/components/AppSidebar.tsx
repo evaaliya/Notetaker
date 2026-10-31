@@ -8,9 +8,11 @@ import {
   List,
   PanelLeft,
   PanelLeftClose,
+  Phone,
   Settings2,
   Tags,
   Trash2,
+  Video,
 } from "lucide-react";
 import logoNt from "../assets/logo-nt.jpg";
 import { api } from "../api";
@@ -126,6 +128,26 @@ export function AppSidebar({
         >
           <List aria-hidden="true" />
           {!collapsed && <span>Список</span>}
+        </NavLink>
+        <NavLink
+          to="/capture/call"
+          className={({ isActive }) => navClass(isActive)}
+          aria-label="Звонок"
+          title="Звонок"
+          data-testid="nav-call"
+        >
+          <Phone aria-hidden="true" />
+          {!collapsed && <span>Звонок</span>}
+        </NavLink>
+        <NavLink
+          to="/capture/video"
+          className={({ isActive }) => navClass(isActive)}
+          aria-label="Видео"
+          title="Видео"
+          data-testid="nav-video"
+        >
+          <Video aria-hidden="true" />
+          {!collapsed && <span>Видео</span>}
         </NavLink>
         <NavLink
           to="/trash"
