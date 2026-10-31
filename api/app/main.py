@@ -8,7 +8,7 @@ from app.config import get_settings
 from app.errors import AppError, app_error_handler
 from app.migrate import run_migrations
 from app.realtime_hub import RealtimeHub
-from app.routers import attachments, auth, calendar, e2e_hooks, health, me, notes, notifications, tags, ws
+from app.routers import attachments, auth, calendar, e2e_hooks, extract, health, me, notes, notifications, tags, ws
 
 
 @asynccontextmanager
@@ -45,6 +45,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(me.router, prefix="/api")
 app.include_router(tags.router, prefix="/api")
 app.include_router(notes.router, prefix="/api")
+app.include_router(extract.router, prefix="/api")
 app.include_router(attachments.router, prefix="/api")
 app.include_router(calendar.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")

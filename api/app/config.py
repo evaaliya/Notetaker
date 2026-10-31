@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     uploads_dir: str = "/uploads"
     upload_max_bytes: int = 10 * 1024 * 1024
     upload_max_per_note: int = 10
+    # M11: stub (default, no network) | openrouter
+    ai_provider: str = "stub"
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "openai/gpt-4o-mini"
 
 
 @lru_cache
