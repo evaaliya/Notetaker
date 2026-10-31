@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 01:55 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 02:08 +06.
 
 ## Этапы
 
@@ -33,7 +33,7 @@
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
 - Тесты: `make test` → 66 passed на реальном Postgres (testcontainers); Playwright e2e → 42 passed (вкл. M10 share + M11 capture).
-- **Звонки/видео (M11):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`, `/youtube`); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` и `/capture/video`; **субтитры YouTube** → extract → подтверждение; бейдж «создано ИИ». Конспект (D-068): главная мысль + заметки markdown-lite. Видео (D-069): по умолчанию создаётся только конспект, не отдельные «задачи» из советов спикера.
+- **Звонки/видео (M11):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`, `/youtube`); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` и `/capture/video`; **субтитры YouTube** → extract → подтверждение; бейдж «создано ИИ». Конспект (D-068): главная мысль + заметки markdown-lite. Видео (D-069): по умолчанию только конспект. Пока ждём ответ — `AiThinkingPanel` (D-070).
 - **Общие заметки (M10):** `note_members`; владелец добавляет/удаляет по логину; участник видит список/календарь/«Ближайшее» с бейджем «Общая · владелец: …», правит (version→409), не удаляет и не делится; «Покинуть»; realtime на всех участников; уведомление «Вам открыт доступ»; чужой → 404.
 - **Вложения (M9):** `attachments` + том `uploads`; POST/GET/DELETE `/api/notes/{id}/attachments`; sniff типа; 10 МБ / 10 файлов; 413/415/404; soft-delete сохраняет файлы, purge 30д удаляет с диска; WS `attachment.added`/`deleted`; UI скрепка/DnD/превью; `NoteOut.has_attachments`.
 - **Autosave страницы заметки (D-057):** пустой `/notes/new` без записи в БД; create при первом тексте/файле; PATCH debounce 600 мс; очередь файлов + черновик в IndexedDB `notetaker-drafts`; статус «Сохранено» вместо кнопки «Сохранить».

@@ -2,6 +2,10 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, Note, User } from "../api";
 import {
+  AiThinkingPanel,
+  VIDEO_EXTRACT_STEPS,
+} from "../components/AiThinkingPanel";
+import {
   draftsFromExtract,
   ExtractDraftsModal,
   PendingDraft,
@@ -56,6 +60,7 @@ export function VideoNotesPage({ user }: { user: User }) {
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [pending, setPending] = useState<PendingDraft[]>([]);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -169,7 +174,7 @@ export function VideoNotesPage({ user }: { user: User }) {
       return;
     }
     if (!source) setSource(parsed);
-    setBusy(true);
+    setAiBusy(true);
     setError(null);
     try {
       const result = await api.extractYoutube(parsed.url, user.timezone);
@@ -187,7 +192,7 @@ export function VideoNotesPage({ user }: { user: User }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось взять субтитры");
     } finally {
-      setBusy(false);
+      setAiBusy(false);
     }
   }
 
@@ -264,12 +269,18 @@ export function VideoNotesPage({ user }: { user: User }) {
             type="button"
             className="btn-accent"
             data-testid="video-extract-captions"
-            disabled={busy}
+            disabled={busy || aiBusy}
             onClick={() => void extractCaptions()}
           >
-            Разобрать субтитры
+            {aiBusy ? "Думаю…" : "Разобрать субтитры"}
           </button>
         </div>
+        <AiThinkingPanel
+          active={aiBusy}
+          steps={VIDEO_EXTRACT_STEPS}
+          title="Разбор субтитров"
+          testId="video-ai-thinking"
+        />
         {error && <p className="error">{error}</p>}
       </section>
 

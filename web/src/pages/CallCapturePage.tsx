@@ -2,6 +2,10 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ExtractDraft, ExtractResult, User } from "../api";
+import {
+  AiThinkingPanel,
+  CALL_EXTRACT_STEPS,
+} from "../components/AiThinkingPanel";
 
 type SpeechRec = {
   start: () => void;
@@ -37,6 +41,7 @@ export function CallCapturePage({ user }: { user: User }) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -70,28 +75,28 @@ export function CallCapturePage({ user }: { user: User }) {
   async function runExtract(e?: FormEvent) {
     e?.preventDefault();
     setError(null);
-    setBusy(true);
+    setAiBusy(true);
     try {
       const result = await api.extract(text, user.timezone);
       applyExtract(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка extract");
     } finally {
-      setBusy(false);
+      setAiBusy(false);
     }
   }
 
   async function onFile(file: File | null) {
     if (!file) return;
     setError(null);
-    setBusy(true);
+    setAiBusy(true);
     try {
       const result = await api.extractTranscriptFile(file, user.timezone);
       applyExtract(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка файла");
     } finally {
-      setBusy(false);
+      setAiBusy(false);
     }
   }
 
@@ -231,12 +236,18 @@ export function CallCapturePage({ user }: { user: User }) {
             type="button"
             className="btn-accent"
             data-testid="call-extract"
-            disabled={busy || !text.trim()}
+            disabled={busy || aiBusy || !text.trim()}
             onClick={() => void runExtract()}
           >
-            Извлечь черновики
+            {aiBusy ? "Думаю…" : "Извлечь черновики"}
           </button>
         </div>
+        <AiThinkingPanel
+          active={aiBusy}
+          steps={CALL_EXTRACT_STEPS}
+          title="Разбор транскрипта"
+          testId="call-ai-thinking"
+        />
         {error && <p className="error">{error}</p>}
       </section>
 

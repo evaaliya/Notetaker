@@ -13,6 +13,10 @@ test("e2e_call_transcript_extract", async ({ page }) => {
   await page.getByTestId("call-transcript-text").fill(transcript);
   await page.getByTestId("call-extract").click();
 
+  // Thinking panel may flash on fast stub; modal is the durable outcome.
+  await expect(
+    page.getByTestId("call-ai-thinking").or(page.getByTestId("call-drafts-modal")),
+  ).toBeVisible();
   await expect(page.getByTestId("call-drafts-modal")).toBeVisible();
   await expect(page.getByTestId("call-draft-list")).toContainText("создано ИИ");
   await page.getByTestId("call-confirm-drafts").click();
