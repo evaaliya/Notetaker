@@ -6,6 +6,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -65,6 +66,10 @@ class Note(Base):
             "rec_freq IS NULL OR rec_freq IN ('daily', 'weekly', 'monthly')",
             name="ck_notes_rec_freq",
         ),
+        CheckConstraint(
+            "source IN ('manual', 'call', 'video')",
+            name="ck_notes_source",
+        ),
         Index(
             "ix_notes_user_starts_at",
             "user_id",
@@ -107,6 +112,10 @@ class Note(Base):
     updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    source: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'manual'"))
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_ts: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ai_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
 
 class NoteMember(Base):

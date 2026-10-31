@@ -78,6 +78,10 @@ async def note_to_out(
         owner_login=owner_login,
         role=role,  # type: ignore[arg-type]
         updated_by_login=updated_by_login,
+        source=note.source or "manual",  # type: ignore[arg-type]
+        source_url=note.source_url,
+        source_ts=note.source_ts,
+        ai_generated=bool(note.ai_generated),
     )
 
 

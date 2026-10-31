@@ -33,6 +33,10 @@ class NoteCreate(BaseModel):
     reminder_offsets: list[int] = Field(default_factory=list)
     status: Literal["active", "inactive"] = "active"
     recurrence: RecurrenceIn | None = None
+    source: Literal["manual", "call", "video"] = "manual"
+    source_url: str | None = None
+    source_ts: float | None = None
+    ai_generated: bool = False
 
     @field_validator("starts_at")
     @classmethod
@@ -57,6 +61,10 @@ class NotePatch(BaseModel):
     tag_ids: list[UUID] | None = None
     reminder_offsets: list[int] | None = None
     recurrence: RecurrenceIn | None = None
+    source: Literal["manual", "call", "video"] | None = None
+    source_url: str | None = None
+    source_ts: float | None = None
+    ai_generated: bool | None = None
 
     @field_validator("starts_at")
     @classmethod
@@ -101,6 +109,10 @@ class NoteOut(BaseModel):
     owner_login: str | None = None
     role: Literal["owner", "editor"] | None = None
     updated_by_login: str | None = None
+    source: Literal["manual", "call", "video"] = "manual"
+    source_url: str | None = None
+    source_ts: float | None = None
+    ai_generated: bool = False
 
     model_config = {"from_attributes": True}
 

@@ -97,6 +97,10 @@ async def create_note(
         created_at=now,
         updated_at=now,
         updated_by_user_id=user.id,
+        source=body.source,
+        source_url=body.source_url,
+        source_ts=body.source_ts,
+        ai_generated=body.ai_generated,
     )
     if body.recurrence is not None:
         note.rec_freq = body.recurrence.freq
@@ -361,6 +365,14 @@ async def patch_note(
         values["starts_at"] = data["starts_at"]
     if "reminder_offsets" in data:
         values["reminder_offsets"] = data["reminder_offsets"]
+    if "source" in data:
+        values["source"] = data["source"]
+    if "source_url" in data:
+        values["source_url"] = data["source_url"]
+    if "source_ts" in data:
+        values["source_ts"] = data["source_ts"]
+    if "ai_generated" in data:
+        values["ai_generated"] = data["ai_generated"]
     if "recurrence" in data:
         rec = data["recurrence"]
         if rec is None:
