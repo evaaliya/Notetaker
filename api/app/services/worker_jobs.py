@@ -20,7 +20,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import Settings, get_settings
-from app.models import EmailOutbox, Note, Notification, OccurrenceOverride, Reminder, User
+from app.models import Attachment, EmailOutbox, Note, Notification, OccurrenceOverride, Reminder, User
 from app.services.occurrences import effective_start
 from app.services.realtime import notify_user
 
@@ -259,7 +259,20 @@ def _smtp_send_sync(payload: OutboxPayload, settings: Settings, now: datetime) -
         smtp.send_message(msg)
 
 
-async def purge_trash(session: AsyncSession, now: datetime, *, retention_days: int = 30) -> int:
+async def purge_trash(
+    session: AsyncSession, now: datetime, *, retention_days: int = 30
+) -> tuple[int, list[str]]:
+    """Delete notes past retention. Returns (count, storage_keys to unlink after commit)."""
     cutoff = now - timedelta(days=retention_days)
-    result = await session.execute(delete(Note).where(Note.deleted_at.is_not(None), Note.deleted_at < cutoff))
-    return result.rowcount or 0
+    ids_result = await session.execute(
+        select(Note.id).where(Note.deleted_at.is_not(None), Note.deleted_at < cutoff)
+    )
+    note_ids = list(ids_result.scalars().all())
+    if not note_ids:
+        return 0, []
+    keys_result = await session.execute(
+        select(Attachment.storage_key).where(Attachment.note_id.in_(note_ids))
+    )
+    storage_keys = list(keys_result.scalars().all())
+    result = await session.execute(delete(Note).where(Note.id.in_(note_ids)))
+    return result.rowcount or 0, storage_keys

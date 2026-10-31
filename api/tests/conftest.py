@@ -1,6 +1,8 @@
 import os
+import tempfile
 from collections.abc import AsyncGenerator, Generator
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -17,13 +19,24 @@ from app.realtime_hub import RealtimeHub
 
 
 @pytest.fixture(scope="session")
-def postgres_url() -> Generator[str, None, None]:
+def uploads_dir() -> Generator[Path, None, None]:
+    with tempfile.TemporaryDirectory(prefix="notetaker-uploads-") as tmp:
+        path = Path(tmp)
+        os.environ["UPLOADS_DIR"] = str(path)
+        get_settings.cache_clear()
+        yield path
+        get_settings.cache_clear()
+
+
+@pytest.fixture(scope="session")
+def postgres_url(uploads_dir: Path) -> Generator[str, None, None]:
     with PostgresContainer("postgres:16") as pg:
         url = pg.get_connection_url().replace("psycopg2", "asyncpg")
         # testcontainers may return postgresql+psycopg2://...
         if url.startswith("postgresql://"):
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         os.environ["DATABASE_URL"] = url
+        os.environ["UPLOADS_DIR"] = str(uploads_dir)
         get_settings.cache_clear()
         run_migrations()
         yield url

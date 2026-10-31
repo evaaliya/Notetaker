@@ -27,8 +27,11 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-notetaker}:${POSTGRES_PASSWORD:-notetaker}@postgres:5432/${POSTGRES_DB:-notetaker}
       E2E_HOOKS: ${E2E_HOOKS:-false}
+      UPLOADS_DIR: /uploads
     ports:
       - "8000:8000"
+    volumes:
+      - uploads:/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,6 +44,9 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-notetaker}:${POSTGRES_PASSWORD:-notetaker}@postgres:5432/${POSTGRES_DB:-notetaker}
+      UPLOADS_DIR: /uploads
+    volumes:
+      - uploads:/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,3 +64,4 @@ services:
 
 volumes:
   pgdata:
+  uploads:

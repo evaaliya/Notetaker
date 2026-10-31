@@ -13,7 +13,7 @@ from app.errors import AppError
 from app.models import Note, User
 from app.schemas.notes import NoteCreate, NoteListOut, NoteOut, NotePatch
 from app.services.note_list import list_notes
-from app.services.notes import note_to_out, replace_note_tags
+from app.services.notes import note_to_out, notes_to_out, replace_note_tags
 from app.services.realtime import notify_user
 from app.services.reminders import (
     materialize_series_note,
@@ -69,7 +69,7 @@ async def get_notes(
         cursor=cursor,
         limit=limit,
     )
-    items = [await note_to_out(db, n) for n in rows]
+    items = await notes_to_out(db, rows)
     return NoteListOut(items=items, next_cursor=next_cursor)
 
 
@@ -127,7 +127,7 @@ async def list_trash(
         .order_by(Note.deleted_at.desc(), Note.id.desc())
     )
     notes = list(result.scalars().all())
-    return [await note_to_out(db, n) for n in notes]
+    return await notes_to_out(db, notes)
 
 
 @router.get("/{note_id}", response_model=NoteOut)

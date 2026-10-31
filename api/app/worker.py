@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.migrate import run_migrations
 from app.models import WorkerHeartbeat
 from app.services.reminders import extend_all_series_horizons
+from app.services.attachments import unlink_storage
 from app.services.worker_jobs import (
     process_due_reminders,
     process_outbox,
@@ -76,14 +77,19 @@ async def tick(
 
     do_hourly = force_hourly or _last_hourly_at is None or (now - _last_hourly_at) >= timedelta(hours=1)
     if do_hourly:
+        purge_keys: list[str] = []
         async with db_module.SessionLocal() as session:
             async with session.begin():
-                purged = await purge_trash(session, now, retention_days=settings.trash_retention_days)
+                purged, purge_keys = await purge_trash(
+                    session, now, retention_days=settings.trash_retention_days
+                )
                 if purged:
                     logger.info("purged %s trash note(s)", purged)
                 extended = await extend_all_series_horizons(session, now)
                 if extended:
                     logger.info("extended series reminders: %s row(s)", extended)
+        for key in purge_keys:
+            unlink_storage(settings, key)
         _last_hourly_at = now
 
 

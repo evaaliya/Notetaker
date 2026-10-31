@@ -389,7 +389,7 @@ async def test_trash_purge_30d(client: AsyncClient, clock: FrozenClock):
 
     async with db_module.SessionLocal() as session:
         async with session.begin():
-            n = await purge_trash(session, now, retention_days=30)
+            n, _keys = await purge_trash(session, now, retention_days=30)
             assert n == 1
 
     async with db_module.SessionLocal() as session:

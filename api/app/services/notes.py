@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.errors import AppError
 from app.models import Note, NoteTag, Tag
 from app.schemas.notes import NoteOut
+from app.services.attachments import note_ids_with_attachments
 
 
 async def load_tag_ids(db: AsyncSession, note_id: uuid.UUID) -> list[uuid.UUID]:
@@ -15,8 +16,16 @@ async def load_tag_ids(db: AsyncSession, note_id: uuid.UUID) -> list[uuid.UUID]:
     return list(result.scalars().all())
 
 
-async def note_to_out(db: AsyncSession, note: Note) -> NoteOut:
+async def note_to_out(
+    db: AsyncSession,
+    note: Note,
+    *,
+    has_attachments: bool | None = None,
+) -> NoteOut:
     tag_ids = await load_tag_ids(db, note.id)
+    if has_attachments is None:
+        flagged = await note_ids_with_attachments(db, [note.id])
+        has_attachments = note.id in flagged
     return NoteOut(
         id=note.id,
         title=note.title,
@@ -32,7 +41,13 @@ async def note_to_out(db: AsyncSession, note: Note) -> NoteOut:
         rec_freq=note.rec_freq,
         rec_until=note.rec_until,
         rec_tz=note.rec_tz,
+        has_attachments=has_attachments,
     )
+
+
+async def notes_to_out(db: AsyncSession, notes: list[Note]) -> list[NoteOut]:
+    flagged = await note_ids_with_attachments(db, [n.id for n in notes])
+    return [await note_to_out(db, n, has_attachments=n.id in flagged) for n in notes]
 
 
 async def replace_note_tags(

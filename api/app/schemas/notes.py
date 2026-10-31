@@ -97,6 +97,7 @@ class NoteOut(BaseModel):
     rec_freq: str | None
     rec_until: date | None
     rec_tz: str | None
+    has_attachments: bool = False
 
     model_config = {"from_attributes": True}
 

@@ -1,4 +1,5 @@
 from app.models.domain import (
+    Attachment,
     EmailOutbox,
     Note,
     NoteTag,
@@ -17,6 +18,7 @@ __all__ = [
     "Tag",
     "Note",
     "NoteTag",
+    "Attachment",
     "OccurrenceOverride",
     "Reminder",
     "Notification",

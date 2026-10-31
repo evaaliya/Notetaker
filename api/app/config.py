@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     trash_retention_days: int = 30
     outbox_sending_timeout_minutes: int = 2
     e2e_hooks: bool = False
+    uploads_dir: str = "/uploads"
+    upload_max_bytes: int = 10 * 1024 * 1024
+    upload_max_per_note: int = 10
 
 
 @lru_cache
