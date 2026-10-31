@@ -101,7 +101,7 @@ async def process_due_reminders(session: AsyncSession, now: datetime, *, batch_s
                 created_at=now,
                 seen_at=None,
             )
-            .on_conflict_do_nothing(index_elements=["reminder_id"])
+            .on_conflict_do_nothing(index_elements=["reminder_id"], index_where=text("reminder_id IS NOT NULL"))
         )
 
         to_addr = (user.email if user else None) or ""

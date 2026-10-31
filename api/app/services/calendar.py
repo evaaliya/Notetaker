@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.errors import AppError
 from app.models import Note
 from app.schemas.calendar import OccurrenceOut
+from app.services.access import accessible_notes_clause
 from app.services.notes import note_to_out
 from app.services.occurrences import expand_note_in_range, load_overrides, series_may_intersect
 
@@ -53,7 +54,7 @@ async def _notes_for_window(
     status: str | None = None,
 ) -> list[Note]:
     """Load candidate notes that may produce occurrences in the window."""
-    stmt = select(Note).where(Note.user_id == user_id, Note.deleted_at.is_(None))
+    stmt = select(Note).where(accessible_notes_clause(user_id), Note.deleted_at.is_(None))
     if status is not None:
         stmt = stmt.where(Note.status == status)
     result = await db.execute(stmt)
@@ -77,7 +78,7 @@ async def expand_window(
     ov_map = await load_overrides(db, [n.id for n in notes])
     items: list[OccurrenceOut] = []
     for note in notes:
-        base = await note_to_out(db, note)
+        base = await note_to_out(db, note, viewer_id=user_id)
         items.extend(
             await expand_note_in_range(
                 db,

@@ -98,6 +98,9 @@ class NoteOut(BaseModel):
     rec_until: date | None
     rec_tz: str | None
     has_attachments: bool = False
+    owner_login: str | None = None
+    role: Literal["owner", "editor"] | None = None
+    updated_by_login: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -108,3 +111,18 @@ class NoteOut(BaseModel):
     @field_serializer("deleted_at")
     def serialize_deleted(self, value: datetime | None) -> str | None:
         return None if value is None else _iso_z(value)
+
+
+class MemberOut(BaseModel):
+    user_id: UUID
+    login: str
+    role: Literal["editor"] = "editor"
+    created_at: datetime
+
+    @field_serializer("created_at")
+    def serialize_created(self, value: datetime) -> str:
+        return _iso_z(value)
+
+
+class ShareIn(BaseModel):
+    login: str

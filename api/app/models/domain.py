@@ -104,6 +104,29 @@ class Note(Base):
     rec_freq: Mapped[str | None] = mapped_column(Text, nullable=True)
     rec_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     rec_tz: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class NoteMember(Base):
+    """Shared-note participant (M10). Owner is notes.user_id, not a row here."""
+
+    __tablename__ = "note_members"
+    __table_args__ = (
+        CheckConstraint("role = 'editor'", name="ck_note_members_role"),
+        UniqueConstraint("note_id", "user_id", name="uq_note_members_note_user"),
+        Index("ix_note_members_user_id", "user_id"),
+    )
+
+    note_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("notes.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'editor'"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class NoteTag(Base):
@@ -174,13 +197,23 @@ class Reminder(Base):
 
 class Notification(Base):
     __tablename__ = "notifications"
+    __table_args__ = (
+        Index(
+            "uq_notifications_reminder_id",
+            "reminder_id",
+            unique=True,
+            postgresql_where=text("reminder_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    reminder_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("reminders.id", ondelete="CASCADE"), unique=True, nullable=False
+    reminder_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("reminders.id", ondelete="CASCADE"),
+        nullable=True,
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)

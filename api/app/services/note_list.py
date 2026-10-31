@@ -14,6 +14,7 @@ from sqlalchemy.sql import ColumnElement
 
 from app.errors import AppError
 from app.models import Note, NoteTag
+from app.services.access import accessible_notes_clause
 
 SortField = Literal["starts_at", "updated_at"]
 SortDir = Literal["asc", "desc"]
@@ -86,7 +87,7 @@ async def list_notes(
     sort_col = Note.starts_at if sort == "starts_at" else Note.updated_at
     descending = dir == "desc"
 
-    stmt = select(Note).where(Note.user_id == user_id, Note.deleted_at.is_(None))
+    stmt = select(Note).where(accessible_notes_clause(user_id), Note.deleted_at.is_(None))
 
     if status is not None:
         if status not in ("active", "inactive"):

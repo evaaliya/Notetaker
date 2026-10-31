@@ -17,17 +17,16 @@ from app.db import get_session
 from app.errors import AppError
 from app.models import Attachment, User
 from app.schemas.attachments import AttachmentOut
+from app.services.access import get_note_access, notify_note_audience
 from app.services.attachments import (
     ALLOWED_CONTENT_TYPES,
     absolute_path,
     count_attachments,
-    get_owned_note,
     sanitize_filename,
     sniff_content_type,
     unlink_storage,
     uploads_root,
 )
-from app.services.realtime import notify_user
 
 router = APIRouter(tags=["attachments"])
 
@@ -53,9 +52,7 @@ async def list_attachments(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ) -> list[AttachmentOut]:
-    note = await get_owned_note(db, user.id, note_id)
-    if note is None:
-        raise AppError("not_found", "Заметка не найдена", status_code=404)
+    await get_note_access(db, user.id, note_id, allow_deleted=True)
     result = await db.execute(
         select(Attachment)
         .where(Attachment.note_id == note_id)
@@ -73,9 +70,8 @@ async def upload_attachment(
     settings: Settings = Depends(get_settings),
     file: UploadFile = File(...),
 ) -> AttachmentOut:
-    note = await get_owned_note(db, user.id, note_id, allow_trashed=False)
-    if note is None:
-        raise AppError("not_found", "Заметка не найдена", status_code=404)
+    access = await get_note_access(db, user.id, note_id, allow_deleted=False)
+    note = access.note
 
     n = await count_attachments(db, note_id)
     if n >= settings.upload_max_per_note:
@@ -121,9 +117,9 @@ async def upload_attachment(
         created_at=now,
     )
     db.add(row)
-    await notify_user(
+    await notify_note_audience(
         db,
-        user.id,
+        note,
         "attachment.added",
         ids=[att_id],
         extra={"note_id": str(note_id)},
@@ -141,9 +137,7 @@ async def download_attachment(
     db: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> Response:
-    note = await get_owned_note(db, user.id, note_id)
-    if note is None:
-        raise AppError("not_found", "Файл не найден", status_code=404)
+    await get_note_access(db, user.id, note_id, allow_deleted=True)
     row = await db.get(Attachment, attachment_id)
     if row is None or row.note_id != note_id:
         raise AppError("not_found", "Файл не найден", status_code=404)
@@ -177,18 +171,16 @@ async def delete_attachment(
     db: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> Response:
-    note = await get_owned_note(db, user.id, note_id, allow_trashed=False)
-    if note is None:
-        raise AppError("not_found", "Файл не найден", status_code=404)
+    access = await get_note_access(db, user.id, note_id, allow_deleted=False)
     row = await db.get(Attachment, attachment_id)
     if row is None or row.note_id != note_id:
         raise AppError("not_found", "Файл не найден", status_code=404)
 
     storage_key = row.storage_key
     await db.delete(row)
-    await notify_user(
+    await notify_note_audience(
         db,
-        user.id,
+        access.note,
         "attachment.deleted",
         ids=[attachment_id],
         extra={"note_id": str(note_id)},

@@ -12,4 +12,4 @@ class NotificationOut(BaseModel):
     body: str
     created_at: datetime
     seen_at: datetime | None
-    reminder_id: uuid.UUID
+    reminder_id: uuid.UUID | None = None
