@@ -173,34 +173,75 @@ def _infer_starts_at(text: str, local_now: datetime) -> datetime | None:
 def _build_summary(text: str, starts: datetime | None, drafts: list[DraftNote]) -> DraftNote:
     participants = _extract_participants(text)
     decisions = [d.body for d in drafts if d.kind == "decision"]
-    lines = ["Конспект звонка"]
+    tasks = [d.body for d in drafts if d.kind == "task"]
+    # Structured stub layout (mirrors OpenRouter prompt): thesis + bullets, not a wall of text.
+    thesis = _first_sentence(text) or "Краткий конспект по транскрипту."
+    note_bullets: list[str] = []
     if participants:
-        lines.append(f"Участники: {', '.join(participants)}")
+        note_bullets.append(f"Участники: {', '.join(participants)}")
     if starts is not None:
-        lines.append(f"Время: {starts.isoformat()}")
-    if decisions:
-        lines.append("Решения:")
-        for d in decisions:
-            lines.append(f"— {d}")
-    else:
-        # First ~400 chars as body context.
-        snippet = re.sub(r"\s+", " ", text).strip()[:400]
-        if snippet:
-            lines.append(snippet)
+        note_bullets.append(f"Время: {starts.isoformat()}")
+    for d in decisions:
+        note_bullets.append(d)
+    if not note_bullets:
+        for chunk in _snippet_bullets(text, limit=5):
+            note_bullets.append(chunk)
 
-    title = "Конспект звонка"
+    sections = [
+        "## Главная мысль",
+        thesis,
+        "",
+        "## Заметки",
+        *[f"- {b}" for b in note_bullets],
+    ]
+    if tasks or decisions:
+        sections.extend(["", "## Выводы"])
+        for d in decisions:
+            sections.append(f"- Решение: {d}")
+        for t in tasks:
+            sections.append(f"- Задача: {t}")
+
+    title = "Конспект"
     first = text.strip().split("\n")[0].strip()
     if first and len(first) < 80 and not first.lower().startswith("webvtt"):
         title = f"Конспект: {_short_title(first)}"
 
     return DraftNote(
         title=title,
-        body="\n".join(lines),
+        body="\n".join(sections).strip(),
         starts_at=starts,
         reminder_offsets=[],
-        tag_names=["звонок"],
+        tag_names=["звонок"] if participants or decisions else ["конспект"],
         kind="summary",
     )
+
+
+def _first_sentence(text: str) -> str:
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    if not cleaned:
+        return ""
+    m = re.search(r"^(.+?[.!?…])(?:\s|$)", cleaned)
+    if m and len(m.group(1)) <= 220:
+        return m.group(1).strip()
+    return cleaned[:180].rstrip() + ("…" if len(cleaned) > 180 else "")
+
+
+def _snippet_bullets(text: str, *, limit: int = 5) -> list[str]:
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    if not cleaned:
+        return []
+    parts = re.split(r"(?<=[.!?…])\s+", cleaned)
+    out: list[str] = []
+    for p in parts:
+        p = p.strip()
+        if len(p) < 12:
+            continue
+        out.append(p[:160] + ("…" if len(p) > 160 else ""))
+        if len(out) >= limit:
+            break
+    if not out and cleaned:
+        out.append(cleaned[:200] + ("…" if len(cleaned) > 200 else ""))
+    return out
 
 
 def _extract_participants(text: str) -> list[str]:

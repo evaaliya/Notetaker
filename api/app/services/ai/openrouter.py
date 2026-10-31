@@ -18,11 +18,32 @@ import httpx
 from app.errors import AppError
 from app.services.ai.base import DraftNote, ExtractResult
 
-_SYSTEM = """You extract meeting notes as JSON only.
-Use the user's timezone for relative phrases (завтра, в пятницу, через N часов).
-starts_at must be timezone-aware ISO-8601.
-If there is no meeting summary, set summary.title and summary.body to empty strings.
-If nothing useful, return empty summary fields and drafts=[].
+_SYSTEM = """You turn a transcript (meeting, lecture, talk, or educational video) into structured notes as JSON only.
+
+Language: write title/body/tag_names in the same language as the source text (Russian source → Russian notes).
+
+summary is the main note the user will keep. summary.body MUST be multi-line Markdown-lite — never a single dense paragraph. Use real newline characters between sections:
+
+## Главная мысль
+1–3 sentences: the core thesis the speaker/author wants the audience to take away (not a list of topics, the message itself).
+
+## Заметки
+- short bullets: key facts, numbers, claims, examples, definitions
+- one idea per bullet; group related points; skip filler, ads, greetings
+
+## Выводы
+- optional: takeaways, caveats, or what to remember
+
+Formatting rules for every body field:
+- Headings with ##, bullets with "- ", blank line between sections.
+- Prefer clarity over completeness; compress aggressively.
+- Do not wrap the whole note in one run-on sentence.
+
+drafts[]: separate actionable items only (kind=task) and explicit decisions (kind=decision). Do not copy the full summary into each draft. Empty drafts is fine for a pure lecture with no tasks.
+
+Timezone: interpret relative phrases (завтра, в пятницу, через N часов) in the user's timezone.
+starts_at must be timezone-aware ISO-8601, or null if unknown.
+If nothing useful, set summary.title and summary.body to empty strings and drafts=[].
 """
 
 # JSON Schema for OpenRouter structured outputs (strict).

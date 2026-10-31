@@ -63,6 +63,9 @@ def test_stub_phrase_decision():
     assert any(d.kind == "decision" for d in r.drafts)
     assert r.summary is not None
     assert "Решени" in r.summary.body or "запускаем" in r.summary.body.lower()
+    assert "## Главная мысль" in r.summary.body
+    assert "## Заметки" in r.summary.body
+    assert "\n" in r.summary.body
 
 
 def test_parse_vtt():
