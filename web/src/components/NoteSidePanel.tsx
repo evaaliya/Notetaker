@@ -233,7 +233,13 @@ export function NoteSidePanel({
         </label>
         <label>
           Текст
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} />
+          <textarea
+            data-testid="note-body"
+            className="note-body-textarea"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={12}
+          />
         </label>
         <label>
           Время

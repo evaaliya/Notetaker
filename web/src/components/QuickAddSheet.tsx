@@ -15,6 +15,7 @@ export function QuickAddSheet({ user, open, onClose }: Props) {
   const qc = useQueryClient();
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
   const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
   const [startsLocal, setStartsLocal] = useState(() =>
     utcIsoToLocalInput(new Date().toISOString(), user.timezone),
   );
@@ -32,7 +33,7 @@ export function QuickAddSheet({ user, open, onClose }: Props) {
     try {
       await api.createNote({
         title,
-        body: "",
+        body,
         starts_at: localInputToUtcIso(startsLocal, user.timezone),
         tag_ids: tagIds,
         reminder_offsets: reminderOffsets,
@@ -41,6 +42,7 @@ export function QuickAddSheet({ user, open, onClose }: Props) {
       qc.invalidateQueries({ queryKey: ["calendar"] });
       qc.invalidateQueries({ queryKey: ["upcoming"] });
       setTitle("");
+      setBody("");
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");
@@ -62,6 +64,16 @@ export function QuickAddSheet({ user, open, onClose }: Props) {
             onChange={(e) => setTitle(e.target.value)}
             required
             autoFocus
+          />
+        </label>
+        <label>
+          Текст
+          <textarea
+            data-testid="note-body"
+            className="note-body-textarea"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={12}
           />
         </label>
         <label>
