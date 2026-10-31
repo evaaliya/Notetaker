@@ -395,3 +395,33 @@
 **Альтернативы:** только YouTube; серверный прокси видео.
 **Причина:** уточнение «любой источник с видео»; без хранения медиа на сервере.
 **Последствия:** CORS/сеть на стороне браузера; e2e использует локальный `web/public/m11-sample.mp4`.
+
+### D-063 · 2026-11-01 00:21 +06 · M11 · OpenRouter: json_schema + healing, не устаревший json_object
+**Решение:** вызов Chat Completions с `response_format.type=json_schema` (`strict`), `plugins=[{id:response-healing}]`, заголовки `HTTP-Referer` / `X-OpenRouter-Title`. Дефолт модели — **`openrouter/free`** (бесплатный роутер); без `require_parameters`, чтобы free-пул не отваливался.
+**Альтернативы:** `openai/gpt-4o-mini` (платно); конкретная `:free` вроде `google/gemma-4-31b-it:free`; Responses API; SDK.
+**Причина:** запрос «бесплатную»; актуальные docs structured outputs + healing для кривого JSON у free.
+**Последствия:** лимиты/очередь free; качество ниже платных; при 4xx сменить `OPENROUTER_MODEL`.
+
+### D-064 · 2026-11-01 00:45 +06 · M11 · Видео→ИИ через захват звука вкладки, без yt-dlp
+**Решение:** на `/capture/video` — `getDisplayMedia` (вкладка + audio) → MediaRecorder → `POST /api/extract/audio` → OpenRouter STT (`OPENROUTER_STT_MODEL`) или stub → extract → подтверждение. Байты только в RAM, не в `uploads/`.
+**Альтернативы:** yt-dlp скачка; субтитры YouTube; multimodal YouTube URL у Gemini.
+**Причина:** явный выбор пользователя «без скачки»; браузер не отдаёт audio iframe cross-origin.
+**Последствия:** нужен Chrome/Chromium с «звуком вкладки»; STT может тарифицироваться отдельно от free chat; e2e не жмёт реальный display picker.
+
+### D-065 · 2026-11-01 00:59 +06 · M11 · STT вкладки в браузере, не OpenRouter audio
+**Решение:** после MediaRecorder — Whisper tiny (`@huggingface/transformers`) в браузере → `POST /api/extract` текстом. OpenRouter `/audio/transcriptions` оставлен опционально, но по умолчанию не зовём (402: нужен баланс ≥ $0.50).
+**Альтернативы:** пополнить OpenRouter; yt-dlp; только субтитры.
+**Причина:** 402 на audio у OpenRouter; запрос бесплатного пути; Brave уже умеет share tab (Chromium).
+**Последствия:** первая загрузка модели в браузер; Safari часто без tab audio; качество tiny ниже облачного Whisper.
+
+### D-066 · 2026-11-01 01:07 +06 · M11 · ИИ с видео = субтитры YouTube, не audio
+**Решение:** откат tab-capture / browser Whisper / OpenRouter STT. Вместо этого `POST /api/extract/youtube` — текст captionTracks/timedtext → extract. Медиа не скачиваем.
+**Альтернативы:** yt-dlp+Whisper; share tab; Gemini YouTube URL.
+**Причина:** запрос пользователя; OpenRouter audio 402 (≥$0.50); субтитры — бесплатный путь без download.
+**Последствия:** ролики без субтитров нельзя разобрать; нужна сеть до youtube.com с api.
+
+### D-067 · 2026-11-01 01:19 +06 · M11 · Captions через Innertube ANDROID, не watch-page baseUrl
+**Решение:** список дорожек и `baseUrl` берём из `youtubei/v1/player` (client ANDROID 20.10.38 + `INNERTUBE_API_KEY` со страницы watch). HTML unescape. Пустой timedtext с watch-page URL → пробуем следующие дорожки; playability ≠ OK → `video_unavailable` с намёком на регистр id.
+**Альтернативы:** зависимость `youtube-transcript-api`; парсить только ytInitialPlayerResponse.
+**Причина:** captionTracks из watch HTML отдают baseUrl с пустым телом (`text/html` len=0) → «Дорожка субтитров пустая»; Innertube ANDROID отдаёт рабочий XML.
+**Последствия:** нужен POST к youtubei; при смене client YouTube может снова сломать — смотреть D-067.

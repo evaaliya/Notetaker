@@ -21,6 +21,15 @@ test("e2e_call_transcript_extract", async ({ page }) => {
   await expect(page.getByText(/отчёт|Конспект|релиз/i).first()).toBeVisible({ timeout: 10_000 });
 });
 
+test("e2e_video_captions_button_visible", async ({ page }) => {
+  const login = uniqueLogin("m11cap");
+  await registerUi(page, login);
+  await page.getByTestId("nav-video").click();
+  await expect(page.getByTestId("video-extract-captions")).toBeVisible();
+  await page.getByTestId("video-url-input").fill("https://youtu.be/dQw4w9WgXcQ");
+  await expect(page.getByTestId("video-extract-captions")).toBeEnabled();
+});
+
 test("e2e_video_note_at_timestamp", async ({ page }) => {
   const login = uniqueLogin("m11vid");
   await registerUi(page, login);

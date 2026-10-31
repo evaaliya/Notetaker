@@ -26,7 +26,8 @@ class Settings(BaseSettings):
     # M11: stub (default, no network) | openrouter
     ai_provider: str = "stub"
     openrouter_api_key: str | None = None
-    openrouter_model: str = "openai/gpt-4o-mini"
+    # Default: OpenRouter free router (:free). Override via OPENROUTER_MODEL.
+    openrouter_model: str = "openrouter/free"
 
 
 @lru_cache

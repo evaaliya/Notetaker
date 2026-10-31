@@ -1,4 +1,4 @@
-"""M11: extract drafts from text / transcript files (does not persist notes)."""
+"""M11: extract drafts from text / transcript / YouTube captions (does not persist notes)."""
 
 from __future__ import annotations
 
@@ -15,9 +15,10 @@ from app.config import get_settings
 from app.db import get_session
 from app.errors import AppError
 from app.models import User
-from app.schemas.extract import DraftOut, ExtractIn, ExtractOut
+from app.schemas.extract import DraftOut, ExtractIn, ExtractOut, YoutubeExtractIn
 from app.services.ai import DraftNote, get_provider
 from app.services.transcripts import parse_transcript
+from app.services.youtube_captions import fetch_youtube_captions
 
 router = APIRouter(prefix="/extract", tags=["extract"])
 
@@ -37,7 +38,14 @@ def _draft_out(d: DraftNote) -> DraftOut:
     )
 
 
-def _run_extract(text: str, *, user: User, clock: Clock, timezone_name: str | None) -> ExtractOut:
+def _run_extract(
+    text: str,
+    *,
+    user: User,
+    clock: Clock,
+    timezone_name: str | None,
+    transcript: str | None = None,
+) -> ExtractOut:
     tz = timezone_name or user.timezone or "UTC"
     provider_name = (get_settings().ai_provider or "stub").strip().lower()
     try:
@@ -54,6 +62,7 @@ def _run_extract(text: str, *, user: User, clock: Clock, timezone_name: str | No
         summary=_draft_out(result.summary) if result.summary else None,
         drafts=[_draft_out(d) for d in result.drafts],
         provider=provider_name,
+        transcript=transcript,
     )
 
 
@@ -93,3 +102,25 @@ async def extract_transcript(
             raise AppError("validation_error", "Неизвестный IANA timezone") from exc
 
     return _run_extract(raw_text, user=user, clock=clock, timezone_name=timezone_name)
+
+
+@router.post("/youtube", response_model=ExtractOut)
+async def extract_youtube(
+    body: YoutubeExtractIn,
+    user: Annotated[User, Depends(get_current_user)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    _db: Annotated[AsyncSession, Depends(get_session)],
+) -> ExtractOut:
+    """Pull YouTube caption track (no media download) → extract drafts."""
+    text, lang = fetch_youtube_captions(body.url)
+    out = _run_extract(
+        text,
+        user=user,
+        clock=clock,
+        timezone_name=body.timezone,
+        transcript=text,
+    )
+    # Surface which caption track we used via transcript prefix in client details;
+    # keep transcript as caption body only.
+    _ = lang
+    return out

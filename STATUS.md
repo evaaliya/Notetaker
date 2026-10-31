@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 00:13 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 01:19 +06.
 
 ## Этапы
 
@@ -33,7 +33,7 @@
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
 - Тесты: `make test` → 66 passed на реальном Postgres (testcontainers); Playwright e2e → 42 passed (вкл. M10 share + M11 capture).
-- **Звонки/видео (M11):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` (импорт/вставка + Web Speech по согласию) и `/capture/video` (YouTube IFrame или `<video>`); черновики только после подтверждения; бейдж «создано ИИ».
+- **Звонки/видео (M11):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`, `/youtube`); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` и `/capture/video`; **субтитры YouTube** → extract → подтверждение; бейдж «создано ИИ».
 - **Общие заметки (M10):** `note_members`; владелец добавляет/удаляет по логину; участник видит список/календарь/«Ближайшее» с бейджем «Общая · владелец: …», правит (version→409), не удаляет и не делится; «Покинуть»; realtime на всех участников; уведомление «Вам открыт доступ»; чужой → 404.
 - **Вложения (M9):** `attachments` + том `uploads`; POST/GET/DELETE `/api/notes/{id}/attachments`; sniff типа; 10 МБ / 10 файлов; 413/415/404; soft-delete сохраняет файлы, purge 30д удаляет с диска; WS `attachment.added`/`deleted`; UI скрепка/DnD/превью; `NoteOut.has_attachments`.
 - **Autosave страницы заметки (D-057):** пустой `/notes/new` без записи в БД; create при первом тексте/файле; PATCH debounce 600 мс; очередь файлов + черновик в IndexedDB `notetaker-drafts`; статус «Сохранено» вместо кнопки «Сохранить».
@@ -173,6 +173,7 @@
 - Purge: `deleted_at < now − 30d` (ровно 30д0ч ещё не удаляется; D-022).
 - E2E_HOOKS — только на время `make e2e` / `make verify` (D-034); в обычном `make up` выключен.
 - **M11 видео:** YouTube IFrame API и произвольные внешние URL грузятся с сети браузера; без сети плеер недоступен (локальный e2e-фикстура `web/public/m11-sample.mp4`).
+- **M11 субтитры:** без captions у ролика разбор невозможен; не YouTube URL — только ручные таймкоды. Список дорожек — Innertube ANDROID (D-067); id YouTube регистрозависим (`I` ≠ `l`).
 
 ### Смоки M7 (2026-10-28)
 **Автоматически:**
@@ -223,8 +224,8 @@
 
 ### Смоки M11 (2026-11-01)
 **Автоматически:**
-- `make test` → **66 passed** (вкл. `test_stub_phrase_*`, `test_parse_vtt`/`test_parse_srt`, `test_extract_api`, `test_extract_transcript_vtt_upload`).
-- `make e2e` → **42 passed** (вкл. `e2e_call_transcript_extract`, `e2e_video_note_at_timestamp` — без микрофона).
+- Captions path: Innertube ANDROID (D-067); live smoke `Ok6QdZHCcI8` → ru/asr ~9k chars; `test_youtube_captions_xml_to_text`, `test_extract_youtube_uses_captions` (11 passed); UI `e2e_video_captions_button_visible`.
+- Откат: захват вкладки / OpenRouter audio STT / Whisper в браузере (D-064/D-065) — заменено субтитрами (D-066).
 
 ## Следующий заход
 - Web Push / Service Worker.

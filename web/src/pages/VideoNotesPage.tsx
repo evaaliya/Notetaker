@@ -1,6 +1,11 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, Note, User } from "../api";
+import {
+  draftsFromExtract,
+  ExtractDraftsModal,
+  PendingDraft,
+} from "../components/ExtractDraftsModal";
 import { formatTimecode, parseVideoUrl, VideoSource } from "../lib/videoUrl";
 
 type YTPlayer = {
@@ -43,7 +48,7 @@ function loadYouTubeApi(): Promise<void> {
   });
 }
 
-export function VideoNotesPage({ user: _user }: { user: User }) {
+export function VideoNotesPage({ user }: { user: User }) {
   const qc = useQueryClient();
   const [urlInput, setUrlInput] = useState("");
   const [source, setSource] = useState<VideoSource | null>(null);
@@ -51,6 +56,9 @@ export function VideoNotesPage({ user: _user }: { user: User }) {
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<PendingDraft[]>([]);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const ytHostRef = useRef<HTMLDivElement | null>(null);
   const ytPlayerRef = useRef<YTPlayer | null>(null);
@@ -153,13 +161,75 @@ export function VideoNotesPage({ user: _user }: { user: User }) {
     }
   }
 
+  async function extractCaptions() {
+    const url = source?.kind === "youtube" ? source.url : urlInput.trim();
+    const parsed = parseVideoUrl(url);
+    if (!parsed || parsed.kind !== "youtube") {
+      setError("Субтитры доступны только для ссылок YouTube");
+      return;
+    }
+    if (!source) setSource(parsed);
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.extractYoutube(parsed.url, user.timezone);
+      setTranscript(result.transcript ?? null);
+      const rows = draftsFromExtract(result.summary, result.drafts);
+      if (!rows.length) {
+        setError("Субтитры получены, но черновиков не вышло. Попробуйте другой ролик.");
+        return;
+      }
+      setPending(rows);
+      setConfirmOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось взять субтитры");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmSelected() {
+    const chosen = pending.filter((p) => p.selected);
+    if (!chosen.length) {
+      setConfirmOpen(false);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const fallbackStarts = new Date().toISOString();
+      const ts = currentSeconds();
+      for (const d of chosen) {
+        await api.createNote({
+          title: d.title,
+          body: d.body,
+          starts_at: d.starts_at || fallbackStarts,
+          reminder_offsets: d.reminder_offsets || [],
+          source: "video",
+          source_url: source?.url ?? null,
+          source_ts: source ? ts : null,
+          ai_generated: true,
+        });
+      }
+      await qc.invalidateQueries({ queryKey: ["notes"] });
+      setConfirmOpen(false);
+      setPending([]);
+      setTranscript(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось создать");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="page capture-page video-page" data-testid="video-notes-page">
       <div className="page-head">
         <div>
           <h1>Заметки к видео</h1>
           <p className="mut">
-            YouTube или другая ссылка на видео. Внешний плеер требует сеть. Таймкод — по явной кнопке.
+            Плеер + ручные таймкоды. ИИ: субтитры YouTube (если есть) → черновики. Медиа и звук не
+            скачиваем.
           </p>
         </div>
       </div>
@@ -179,6 +249,26 @@ export function VideoNotesPage({ user: _user }: { user: User }) {
           </button>
         </div>
       </form>
+
+      <section className="card capture-card" data-testid="video-captions-extract">
+        <label className="lab">Разобрать субтитры YouTube (ИИ)</label>
+        <p className="muted small">
+          Тянем текстовую дорожку субтитров с YouTube (ручные или авто), без скачивания ролика. Если
+          субтитров нет — разобрать нельзя. Для прямых .mp4 субтитров нет.
+        </p>
+        <div className="capture-actions">
+          <button
+            type="button"
+            className="btn-accent"
+            data-testid="video-extract-captions"
+            disabled={busy}
+            onClick={() => void extractCaptions()}
+          >
+            Разобрать субтитры
+          </button>
+        </div>
+        {error && <p className="error">{error}</p>}
+      </section>
 
       {source && (
         <div className="video-layout">
@@ -220,7 +310,6 @@ export function VideoNotesPage({ user: _user }: { user: User }) {
             >
               Заметка к текущей секунде
             </button>
-            {error && <p className="error">{error}</p>}
             <ul className="video-note-list" data-testid="video-note-list">
               {videoNotes.map((n: Note) => (
                 <li key={n.id}>
@@ -232,13 +321,27 @@ export function VideoNotesPage({ user: _user }: { user: User }) {
                   >
                     {formatTimecode(n.source_ts ?? 0)}
                   </button>
-                  <span>{n.title}</span>
+                  <span>
+                    {n.title}
+                    {n.ai_generated ? <span className="ai-badge">создано ИИ</span> : null}
+                  </span>
                 </li>
               ))}
             </ul>
           </div>
         </div>
       )}
+
+      <ExtractDraftsModal
+        open={confirmOpen}
+        pending={pending}
+        transcript={transcript}
+        busy={busy}
+        onChange={setPending}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() => void confirmSelected()}
+        testId="video-drafts-modal"
+      />
     </div>
   );
 }

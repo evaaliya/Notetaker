@@ -296,21 +296,23 @@ netstat -ano | findstr ":8000"
 ```bash
 AI_PROVIDER=openrouter
 OPENROUTER_API_KEY=sk-or-...
-# опционально:
-# OPENROUTER_MODEL=openai/gpt-4o-mini
+# по умолчанию бесплатный роутер; можно явно:
+OPENROUTER_MODEL=openrouter/free
+# или другая :free, напр. google/gemma-4-31b-it:free
 ```
 
 2. Пересоздайте api: `docker compose up -d --force-recreate --no-deps api`.
 
-Stub остаётся для локальных тестов и `make test`.
+Stub остаётся для локальных тестов и `make test`. Бесплатные модели OpenRouter имеют лимиты и могут быть медленнее платных.
 
 ### Как проверить конспект звонка / видео
 
 1. Сайдбар → **Звонок**: вставьте текст или `.txt`/`.vtt`/`.srt` → «Извлечь черновики» → подтвердите. Метка «создано ИИ». Микрофон для e2e не нужен.
 2. «Начать конспект звонка» — Web Speech API только после согласия; звук на сервер не уходит.
-3. Сайдбар → **Видео**: ссылка YouTube или другой URL с видео → «Заметка к текущей секунде»; клик по таймкоду перематывает. YouTube IFrame / внешние файлы требуют сеть.
+3. Сайдбар → **Видео**: ссылка YouTube или другой URL → плеер и таймкоды.
+4. **ИИ из субтитров YouTube (без скачивания медиа):** Видео → вставьте youtube-ссылку → «Разобрать субтитры» → подтвердите черновики. Если у ролика нет субтитров — разобрать нельзя.
 
-Автотесты: `e2e_call_transcript_extract`, `e2e_video_note_at_timestamp`.
+Автотесты: `e2e_call_transcript_extract`, `e2e_video_note_at_timestamp`, `e2e_video_captions_button_visible`.
 
 ---
 

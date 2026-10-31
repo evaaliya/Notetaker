@@ -481,6 +481,7 @@ note_members(
 
 - Вставка ссылки на видео (YouTube или иной URL с видео) → страница со встроенным плеером (YouTube IFrame API или `<video>`) и панелью заметок.
 - «Заметка к текущей секунде» → заметка с `source='video'`, `source_url`, `source_ts`; клик по таймкоду перематывает плеер.
+- **Субтитры YouTube → ИИ (без скачивания медиа):** `POST /api/extract/youtube` тянет текстовую дорожку captions (ручные или ASR), затем extract → подтверждение. Если субтитров нет — 404.
 - Внешние плееры требуют сеть (фиксируется в STATUS).
 
-**Тесты:** stub на 5 фразах; `test_extract_api`; `test_parse_vtt` / `test_parse_srt`; e2e с подставленным текстом **без** микрофона (`e2e_call_transcript_extract`, `e2e_video_note_at_timestamp`).
+**Тесты:** stub на 5 фразах; `test_extract_api`; `test_parse_vtt` / `test_parse_srt`; `test_youtube_captions_xml_to_text`; `test_extract_youtube_uses_captions`; e2e (`e2e_call_transcript_extract`, `e2e_video_note_at_timestamp`, `e2e_video_captions_button_visible`).

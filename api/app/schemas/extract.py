@@ -38,7 +38,24 @@ class DraftOut(BaseModel):
         return None if value is None else _iso_z(value)
 
 
+class YoutubeExtractIn(BaseModel):
+    url: str = Field(min_length=3)
+    timezone: str | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_tz(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError(f"Unknown IANA timezone: {value}") from exc
+        return value
+
+
 class ExtractOut(BaseModel):
     summary: DraftOut | None
     drafts: list[DraftOut]
     provider: str
+    transcript: str | None = None

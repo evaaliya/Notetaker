@@ -1,4 +1,10 @@
-"""OpenRouter chat completions → structured drafts (M11)."""
+"""OpenRouter chat completions → structured drafts (M11).
+
+Aligned with current OpenRouter docs:
+- POST /api/v1/chat/completions
+- response_format json_schema (strict) + response-healing plugin
+- HTTP-Referer / X-OpenRouter-Title for app attribution
+"""
 
 from __future__ import annotations
 
@@ -12,15 +18,49 @@ import httpx
 from app.errors import AppError
 from app.services.ai.base import DraftNote, ExtractResult
 
-_SYSTEM = """You extract meeting notes as JSON only (no markdown).
-Schema:
-{
-  "summary": {"title": str, "body": str, "starts_at": ISO-8601|null, "reminder_offsets": [int], "tag_names": [str]} | null,
-  "drafts": [{"title": str, "body": str, "starts_at": ISO-8601|null, "reminder_offsets": [int], "tag_names": [str], "kind": "task"|"decision"}]
-}
-Use the user's timezone for relative phrases. starts_at must be timezone-aware ISO-8601.
-If nothing useful, return {"summary": null, "drafts": []}.
+_SYSTEM = """You extract meeting notes as JSON only.
+Use the user's timezone for relative phrases (завтра, в пятницу, через N часов).
+starts_at must be timezone-aware ISO-8601.
+If there is no meeting summary, set summary.title and summary.body to empty strings.
+If nothing useful, return empty summary fields and drafts=[].
 """
+
+# JSON Schema for OpenRouter structured outputs (strict).
+_DRAFT_OBJECT: dict = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "title": {"type": "string"},
+        "body": {"type": "string"},
+        "starts_at": {"type": ["string", "null"]},
+        "reminder_offsets": {"type": "array", "items": {"type": "integer"}},
+        "tag_names": {"type": "array", "items": {"type": "string"}},
+        "kind": {"type": "string", "enum": ["summary", "task", "decision"]},
+    },
+    "required": ["title", "body", "starts_at", "reminder_offsets", "tag_names", "kind"],
+}
+
+_EXTRACT_SCHEMA: dict = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        # Always an object: empty title means «no summary» (strict mode dislikes anyOf/null).
+        "summary": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "title": {"type": "string"},
+                "body": {"type": "string"},
+                "starts_at": {"type": ["string", "null"]},
+                "reminder_offsets": {"type": "array", "items": {"type": "integer"}},
+                "tag_names": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["title", "body", "starts_at", "reminder_offsets", "tag_names"],
+        },
+        "drafts": {"type": "array", "items": _DRAFT_OBJECT},
+    },
+    "required": ["summary", "drafts"],
+}
 
 
 class OpenRouterProvider:
@@ -49,7 +89,17 @@ class OpenRouterProvider:
                 },
             ],
             "temperature": 0,
-            "response_format": {"type": "json_object"},
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "extract_notes",
+                    "strict": True,
+                    "schema": _EXTRACT_SCHEMA,
+                },
+            },
+            # Heal imperfect JSON (important for free/:free endpoints).
+            "plugins": [{"id": "response-healing"}],
+            # Do not require_parameters: free pool often omits structured_outputs flags.
         }
         try:
             with httpx.Client(timeout=60.0) as client:
@@ -58,6 +108,8 @@ class OpenRouterProvider:
                     headers={
                         "Authorization": f"Bearer {self._api_key}",
                         "Content-Type": "application/json",
+                        "HTTP-Referer": "http://localhost:5173",
+                        "X-OpenRouter-Title": "Notetaker",
                     },
                     json=payload,
                 )
@@ -77,6 +129,9 @@ class OpenRouterProvider:
         except (KeyError, IndexError, TypeError) as exc:
             raise AppError("upstream_error", "Неожиданный ответ OpenRouter", status_code=502) from exc
 
+        if not isinstance(content, str) or not content.strip():
+            raise AppError("upstream_error", "Пустой ответ OpenRouter", status_code=502)
+
         return _parse_payload(content, default_tz=timezone)
 
 
@@ -90,7 +145,10 @@ def _parse_payload(content: str, *, default_tz: str) -> ExtractResult:
     except json.JSONDecodeError as exc:
         raise AppError("upstream_error", "OpenRouter вернул не-JSON", status_code=502) from exc
 
-    summary = _draft_from_obj(obj.get("summary"), default_tz=default_tz, kind="summary")
+    summary_raw = obj.get("summary")
+    summary = _draft_from_obj(summary_raw, default_tz=default_tz, kind="summary")
+    if summary is not None and not summary.title.strip() and not summary.body.strip():
+        summary = None
     drafts: list[DraftNote] = []
     for item in obj.get("drafts") or []:
         d = _draft_from_obj(item, default_tz=default_tz, kind=str(item.get("kind") or "task"))

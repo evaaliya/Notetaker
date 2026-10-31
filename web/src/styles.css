@@ -2131,6 +2131,20 @@ button.link {
   cursor: pointer;
   min-height: 44px;
 }
+.transcript-preview {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  background: var(--paper);
+}
+.transcript-preview pre {
+  margin: var(--space-2) 0 0;
+  white-space: pre-wrap;
+  font: 400 13px var(--font-sans);
+  color: var(--ink);
+  max-height: 160px;
+  overflow: auto;
+}
 @media (max-width: 900px) {
   .video-layout {
     grid-template-columns: 1fr;

@@ -50,6 +50,7 @@ export type ExtractResult = {
   summary: ExtractDraft | null;
   drafts: ExtractDraft[];
   provider: string;
+  transcript?: string | null;
 };
 
 export type NoteMember = {
@@ -355,4 +356,9 @@ export const api = {
     }
     return (await res.json()) as ExtractResult;
   },
+  extractYoutube: (url: string, timezone?: string) =>
+    request<ExtractResult>("/api/extract/youtube", {
+      method: "POST",
+      body: JSON.stringify({ url, ...(timezone ? { timezone } : {}) }),
+    }),
 };

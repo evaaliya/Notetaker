@@ -22,6 +22,7 @@
 | IndexedDB (браузерный API) | черновик `/notes/new` + очередь файлов до create (M9 autosave, D-057); без npm-обёртки |
 | OpenRouter (HTTP API) | опциональный `AI_PROVIDER=openrouter` для extract (M11); ключ только из env |
 | YouTube IFrame API | встраивание роликов на `/capture/video` (M11); грузится с youtube.com |
+| YouTube timedtext / captionTracks | текст субтитров без скачивания медиа (M11) |
 | Web Speech API | живой конспект звонка в браузере (M11); без записи на сервер |
 | pytest, pytest-asyncio, testcontainers | тесты на реальном Postgres |
 | Playwright (`@playwright/test` 1.49) | e2e: T2, T3, T13, T14, T16, T17 scroll, UI reminders/timezone |

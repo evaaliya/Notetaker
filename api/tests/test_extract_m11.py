@@ -154,3 +154,46 @@ async def test_extract_transcript_vtt_upload(client: AsyncClient):
     assert res.status_code == 200, res.text
     data = res.json()
     assert data["drafts"] or data["summary"]
+
+
+def test_youtube_captions_xml_to_text():
+    from app.services.youtube_captions import captions_xml_to_text, extract_youtube_id
+
+    assert extract_youtube_id("https://youtu.be/ME2C-X6fDrc") == "ME2C-X6fDrc"
+    assert extract_youtube_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ") == "dQw4w9WgXcQ"
+    xml = """<?xml version="1.0" encoding="utf-8"?>
+<transcript>
+  <text start="0" dur="1">Задача: купить молоко</text>
+  <text start="1" dur="1">Решили: встреча завтра в 15:00</text>
+</transcript>"""
+    text = captions_xml_to_text(xml)
+    assert "молоко" in text
+    assert "15:00" in text
+
+
+@pytest.mark.asyncio
+async def test_extract_youtube_uses_captions(client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
+    app.state.clock = FrozenClock(NOW)
+    login = f"m11yt_{datetime.now(timezone.utc).timestamp():.0f}"
+    await client.post(
+        "/api/auth/register", json={"login": login, "password": "secret", "timezone": TZ}
+    )
+
+    def fake_fetch(url: str, *, timeout: float = 30.0):
+        return (
+            "Участники: Аня. Задача: подготовить конспект завтра в 15:00. Решили: публикуем.",
+            "ru/manual",
+        )
+
+    monkeypatch.setattr(
+        "app.routers.extract.fetch_youtube_captions",
+        fake_fetch,
+    )
+    res = await client.post(
+        "/api/extract/youtube",
+        json={"url": "https://youtu.be/dQw4w9WgXcQ", "timezone": TZ},
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["transcript"]
+    assert body["drafts"] or body["summary"]
