@@ -12,11 +12,9 @@ import {
   PendingDraft,
   SummaryLang,
 } from "../components/ExtractDraftsModal";
-import { formatTimecode, parseVideoUrl, VideoSource } from "../lib/videoUrl";
+import { parseVideoUrl, VideoSource } from "../lib/videoUrl";
 
 type YTPlayer = {
-  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
-  getCurrentTime: () => number;
   destroy: () => void;
 };
 
@@ -123,25 +121,6 @@ export function VideoNotesPage({ user }: { user: User }) {
     setSource(parsed);
   }
 
-  function currentSeconds(): number {
-    if (source?.kind === "youtube" && ytPlayerRef.current) {
-      try {
-        return ytPlayerRef.current.getCurrentTime() || 0;
-      } catch {
-        return 0;
-      }
-    }
-    return videoRef.current?.currentTime ?? 0;
-  }
-
-  function seekTo(ts: number) {
-    if (source?.kind === "youtube" && ytPlayerRef.current) {
-      ytPlayerRef.current.seekTo(ts, true);
-      return;
-    }
-    if (videoRef.current) videoRef.current.currentTime = ts;
-  }
-
   async function extractCaptions() {
     const url = source?.kind === "youtube" ? source.url : urlInput.trim();
     const parsed = parseVideoUrl(url);
@@ -157,12 +136,13 @@ export function VideoNotesPage({ user }: { user: User }) {
       setTranscript(result.transcript ?? null);
       const en = result.summary;
       const ru =
-        result.source_lang === "en" && result.summary_ru?.title && result.summary_ru?.body
+        result.summary_ru?.title?.trim() && result.summary_ru?.body?.trim()
           ? result.summary_ru
           : null;
       setSummaryEn(en);
       setSummaryRu(ru);
-      const initialLang: SummaryLang = en && result.source_lang === "en" ? "en" : "ru";
+      // Bilingual pair → default English original; RU-only transcript → Russian.
+      const initialLang: SummaryLang = en && ru ? "en" : "ru";
       setSummaryLang(initialLang);
       const activeSummary = initialLang === "ru" && ru ? ru : en;
       const rows = draftsFromExtract(activeSummary, result.drafts, {
@@ -191,7 +171,6 @@ export function VideoNotesPage({ user }: { user: User }) {
     setError(null);
     try {
       const fallbackStarts = new Date().toISOString();
-      const ts = source ? currentSeconds() : null;
       for (const d of chosen) {
         await api.createNote({
           title: d.title,
@@ -200,7 +179,7 @@ export function VideoNotesPage({ user }: { user: User }) {
           reminder_offsets: d.reminder_offsets || [],
           source: "video",
           source_url: source?.url ?? null,
-          source_ts: ts,
+          source_ts: null,
           ai_generated: true,
         });
       }
@@ -308,16 +287,6 @@ export function VideoNotesPage({ user }: { user: User }) {
           <ul className="video-note-list" data-testid="video-note-list">
             {videoNotes.map((n: Note) => (
               <li key={n.id}>
-                {n.source_ts != null ? (
-                  <button
-                    type="button"
-                    className="timecode-link"
-                    data-testid="video-timecode"
-                    onClick={() => seekTo(n.source_ts ?? 0)}
-                  >
-                    {formatTimecode(n.source_ts)}
-                  </button>
-                ) : null}
                 <span>
                   {n.title}
                   {n.ai_generated ? <span className="ai-badge">создано ИИ</span> : null}

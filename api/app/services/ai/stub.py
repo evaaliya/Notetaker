@@ -7,6 +7,8 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.services.ai.base import DraftNote, ExtractResult
+from app.services.ai.bilingual import ensure_en_pair, stub_translate
+from app.services.ai.lang import detect_lang
 
 _WEEKDAYS_RU = {
     "понедельник": 0,
@@ -121,30 +123,15 @@ class StubProvider:
                 )
             )
 
-        source_lang = _detect_lang(raw)
+        source_lang = detect_lang(raw)
         summary = _build_summary(raw, starts, drafts, lang=source_lang)
-        summary_ru = None
-        if source_lang == "en" and summary is not None:
-            # Deterministic stand-in translation for tests / offline — not a real MT.
-            summary_ru = DraftNote(
-                title=f"[RU] {summary.title}",
-                body=(
-                    "## Главная мысль\n"
-                    "(stub) Русская версия конспекта для выбора языка.\n\n"
-                    "## Заметки\n"
-                    f"- Оригинал: {summary.title}"
-                ),
-                starts_at=summary.starts_at,
-                reminder_offsets=list(summary.reminder_offsets),
-                tag_names=list(summary.tag_names),
-                kind="summary",
-            )
-        return ExtractResult(
+        result = ExtractResult(
             summary=summary,
             drafts=drafts,
             source_lang=source_lang,
-            summary_ru=summary_ru,
+            summary_ru=None,
         )
+        return ensure_en_pair(result, transcript=raw, translate=stub_translate)
 
 
 def _infer_starts_at(text: str, local_now: datetime) -> datetime | None:
@@ -190,19 +177,6 @@ def _infer_starts_at(text: str, local_now: datetime) -> datetime | None:
         return candidate
 
     return None
-
-
-def _detect_lang(text: str) -> str:
-    letters = re.findall(r"[A-Za-zА-Яа-яЁё]", text or "")
-    if not letters:
-        return "other"
-    cyr = sum(1 for ch in letters if "А" <= ch <= "я" or ch in "Ёё")
-    if cyr / len(letters) >= 0.35:
-        return "ru"
-    latin = sum(1 for ch in letters if ("A" <= ch <= "Z") or ("a" <= ch <= "z"))
-    if latin / len(letters) >= 0.5:
-        return "en"
-    return "other"
 
 
 def _build_summary(

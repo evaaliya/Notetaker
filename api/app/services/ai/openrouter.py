@@ -17,6 +17,8 @@ import httpx
 
 from app.errors import AppError
 from app.services.ai.base import DraftNote, ExtractResult
+from app.services.ai.bilingual import ensure_en_pair
+from app.services.ai.lang import detect_lang
 
 _SYSTEM = """You turn a transcript (meeting, lecture, talk, or educational video) into structured notes as JSON only.
 
@@ -109,6 +111,20 @@ class OpenRouterProvider:
                 "OPENROUTER_API_KEY не задан (AI_PROVIDER=openrouter)",
                 status_code=503,
             )
+        detected = detect_lang(text)
+        lang_hint = ""
+        if detected == "en":
+            lang_hint = (
+                "detected_source_lang=en. "
+                "You MUST set source_lang=en. Write summary in English (Main idea / Notes / Takeaways). "
+                "You MUST fill summary_ru with a full Russian translation (Главная мысль / Заметки / Выводы). "
+                "Do not put Russian into summary.\n"
+            )
+        elif detected == "ru":
+            lang_hint = (
+                "detected_source_lang=ru. Set source_lang=ru. "
+                "Write summary in Russian. Leave summary_ru title and body empty.\n"
+            )
         payload = {
             "model": self._model,
             "messages": [
@@ -118,6 +134,7 @@ class OpenRouterProvider:
                     "content": (
                         f"now_utc={now.astimezone(dt_timezone.utc).isoformat()}\n"
                         f"timezone={timezone}\n"
+                        f"{lang_hint}"
                         f"text:\n{text}"
                     ),
                 },
@@ -135,8 +152,81 @@ class OpenRouterProvider:
             "plugins": [{"id": "response-healing"}],
             # Do not require_parameters: free pool often omits structured_outputs flags.
         }
+        content = self._chat(payload)
+        result = _parse_payload(content, default_tz=timezone)
+        return ensure_en_pair(result, transcript=text, translate=self.translate_summary)
+
+    def translate_summary(self, note: DraftNote, target: str) -> DraftNote:
+        """Translate a summary note to en or ru (second call when the first omit a twin)."""
+        if target not in ("en", "ru"):
+            raise ValueError(f"unsupported target {target}")
+        if target == "ru":
+            instruction = (
+                "Translate this note into Russian. Keep Markdown structure. "
+                "Use headings ## Главная мысль, ## Заметки, ## Выводы. "
+                "Return JSON with title and body only."
+            )
+        else:
+            instruction = (
+                "Translate this note into English. Keep Markdown structure. "
+                "Use headings ## Main idea, ## Notes, ## Takeaways. "
+                "Return JSON with title and body only."
+            )
+        schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "title": {"type": "string"},
+                "body": {"type": "string"},
+            },
+            "required": ["title", "body"],
+        }
+        payload = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": instruction},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {"title": note.title, "body": note.body},
+                        ensure_ascii=False,
+                    ),
+                },
+            ],
+            "temperature": 0,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "translate_summary",
+                    "strict": True,
+                    "schema": schema,
+                },
+            },
+            "plugins": [{"id": "response-healing"}],
+        }
+        content = self._chat(payload)
+        raw = content.strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?\s*", "", raw)
+            raw = re.sub(r"\s*```$", "", raw)
         try:
-            with httpx.Client(timeout=60.0) as client:
+            obj = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise AppError("upstream_error", "OpenRouter translate вернул не-JSON", status_code=502) from exc
+        title = str(obj.get("title") or "").strip() or note.title
+        body = str(obj.get("body") or "").strip() or note.body
+        return DraftNote(
+            title=title,
+            body=body,
+            starts_at=note.starts_at,
+            reminder_offsets=list(note.reminder_offsets),
+            tag_names=list(note.tag_names),
+            kind="summary",
+        )
+
+    def _chat(self, payload: dict) -> str:
+        try:
+            with httpx.Client(timeout=90.0) as client:
                 res = client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
@@ -165,8 +255,7 @@ class OpenRouterProvider:
 
         if not isinstance(content, str) or not content.strip():
             raise AppError("upstream_error", "Пустой ответ OpenRouter", status_code=502)
-
-        return _parse_payload(content, default_tz=timezone)
+        return content
 
 
 def _parse_payload(content: str, *, default_tz: str) -> ExtractResult:
@@ -191,9 +280,7 @@ def _parse_payload(content: str, *, default_tz: str) -> ExtractResult:
     summary_ru = _draft_from_obj(obj.get("summary_ru"), default_tz=default_tz, kind="summary")
     if summary_ru is not None and not summary_ru.title.strip() and not summary_ru.body.strip():
         summary_ru = None
-    # Only keep RU twin when source is English (UI language choice).
-    if source_lang != "en":
-        summary_ru = None
+    # Keep summary_ru for ensure_en_pair (it drops the twin when transcript is not English).
 
     drafts: list[DraftNote] = []
     for item in obj.get("drafts") or []:

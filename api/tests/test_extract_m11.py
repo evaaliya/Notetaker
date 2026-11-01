@@ -81,6 +81,47 @@ def test_stub_english_offers_summary_ru():
     assert "## Главная мысль" in r.summary_ru.body
 
 
+def test_ensure_en_pair_recovers_when_model_forgot_ru():
+    from app.services.ai.base import DraftNote, ExtractResult
+    from app.services.ai.bilingual import ensure_en_pair, stub_translate
+
+    summary = DraftNote(
+        title="Grant on academia",
+        body="## Main idea\nIndustry hire paths differ.\n\n## Notes\n- PhD is optional",
+        kind="summary",
+    )
+    result = ExtractResult(summary=summary, drafts=[], source_lang="other", summary_ru=None)
+    fixed = ensure_en_pair(
+        result,
+        transcript="Grant is a recruiter. Academia versus industry careers after a PhD.",
+        translate=stub_translate,
+    )
+    assert fixed.source_lang == "en"
+    assert fixed.summary_ru is not None
+    assert "[RU]" in fixed.summary_ru.title or "Главная" in fixed.summary_ru.body
+
+
+def test_ensure_en_pair_when_summary_was_russian():
+    from app.services.ai.base import DraftNote, ExtractResult
+    from app.services.ai.bilingual import ensure_en_pair, stub_translate
+
+    summary = DraftNote(
+        title="Интервью с Грантом",
+        body="## Главная мысль\nПереход из академии в индустрию.\n\n## Заметки\n- PhD не обязателен",
+        kind="summary",
+    )
+    result = ExtractResult(summary=summary, drafts=[], source_lang="ru", summary_ru=None)
+    fixed = ensure_en_pair(
+        result,
+        transcript="Grant is a recruiter with thirty years. Academia versus industry after a PhD.",
+        translate=stub_translate,
+    )
+    assert fixed.source_lang == "en"
+    assert fixed.summary is not None
+    assert fixed.summary_ru is not None
+    assert "## Main idea" in fixed.summary.body or "Main idea" in fixed.summary.body
+
+
 def test_parse_vtt():
     raw = """WEBVTT
 
