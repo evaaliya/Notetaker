@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.passwords import hash_password
-from app.models import Note, NoteTag, Tag, User
+from app.models import Note, NoteUserTag, Tag, User
 from app.services.tags import set_tag_name
 
 TAG_SPECS = [
@@ -130,15 +130,21 @@ async def seed_notes_for_user(
                 "rec_tz": rec_tz,
             }
         )
-        # 0–2 tags
+        # 0–2 personal tags (owner)
         n_tags = i % 3
         for t in range(n_tags):
-            link_rows.append({"note_id": note_id, "tag_id": tag_ids[(i + t) % len(tag_ids)]})
+            link_rows.append(
+                {
+                    "note_id": note_id,
+                    "user_id": user_id,
+                    "tag_id": tag_ids[(i + t) % len(tag_ids)],
+                }
+            )
 
         if len(note_rows) >= batch_size:
             await session.execute(insert(Note), note_rows)
             if link_rows:
-                await session.execute(insert(NoteTag), link_rows)
+                await session.execute(insert(NoteUserTag), link_rows)
             inserted += len(note_rows)
             note_rows.clear()
             link_rows.clear()
@@ -146,7 +152,7 @@ async def seed_notes_for_user(
     if note_rows:
         await session.execute(insert(Note), note_rows)
         if link_rows:
-            await session.execute(insert(NoteTag), link_rows)
+            await session.execute(insert(NoteUserTag), link_rows)
         inserted += len(note_rows)
 
     return inserted

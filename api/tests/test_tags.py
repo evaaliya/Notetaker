@@ -61,7 +61,7 @@ async def test_tags_crud_and_multi(client: AsyncClient):
     after = await client.get("/api/tags")
     assert {t["name"] for t in after.json()} == {"Office"}
 
-    # deleting a tag detaches it from notes (FK cascade on note_tags)
+    # deleting a tag detaches it from notes (FK cascade on note_user_tags)
     note_after = await client.get(f"/api/notes/{note.json()['id']}")
     assert note_after.json()["tag_ids"] == [t1["id"]] or set(note_after.json()["tag_ids"]) == {t1["id"]}
 

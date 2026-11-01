@@ -101,6 +101,7 @@ async def create_note(
         source_url=body.source_url,
         source_ts=body.source_ts,
         ai_generated=body.ai_generated,
+        show_in_calendar=body.show_in_calendar,
     )
     if body.recurrence is not None:
         note.rec_freq = body.recurrence.freq
@@ -337,6 +338,7 @@ async def patch_note(
             fields=data,
             now=now,
             user_id=note.user_id,
+            actor_id=user.id,
         )
         new_note.updated_by_user_id = user.id
         note.updated_by_user_id = user.id
@@ -373,6 +375,8 @@ async def patch_note(
         values["source_ts"] = data["source_ts"]
     if "ai_generated" in data:
         values["ai_generated"] = data["ai_generated"]
+    if "show_in_calendar" in data:
+        values["show_in_calendar"] = data["show_in_calendar"]
     if "recurrence" in data:
         rec = data["recurrence"]
         if rec is None:
@@ -412,9 +416,9 @@ async def patch_note(
         )
 
     if "tag_ids" in data:
-        # Tags belong to the note owner.
+        # Personal tags for the acting user (M16); do not touch others' assignments.
         await replace_note_tags(
-            db, user_id=note.user_id, note_id=note_id, tag_ids=data["tag_ids"]
+            db, user_id=user.id, note_id=note_id, tag_ids=data["tag_ids"]
         )
 
     access = await get_note_access(db, user.id, note_id, allow_deleted=False)

@@ -54,7 +54,11 @@ async def _notes_for_window(
     status: str | None = None,
 ) -> list[Note]:
     """Load candidate notes that may produce occurrences in the window."""
-    stmt = select(Note).where(accessible_notes_clause(user_id), Note.deleted_at.is_(None))
+    stmt = select(Note).where(
+        accessible_notes_clause(user_id),
+        Note.deleted_at.is_(None),
+        Note.show_in_calendar.is_(True),
+    )
     if status is not None:
         stmt = stmt.where(Note.status == status)
     result = await db.execute(stmt)

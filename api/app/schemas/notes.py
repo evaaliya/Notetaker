@@ -37,6 +37,7 @@ class NoteCreate(BaseModel):
     source_url: str | None = None
     source_ts: float | None = None
     ai_generated: bool = False
+    show_in_calendar: bool = True
 
     @field_validator("starts_at")
     @classmethod
@@ -65,6 +66,7 @@ class NotePatch(BaseModel):
     source_url: str | None = None
     source_ts: float | None = None
     ai_generated: bool | None = None
+    show_in_calendar: bool | None = None
 
     @field_validator("starts_at")
     @classmethod
@@ -113,6 +115,7 @@ class NoteOut(BaseModel):
     source_url: str | None = None
     source_ts: float | None = None
     ai_generated: bool = False
+    show_in_calendar: bool = True
 
     model_config = {"from_attributes": True}
 

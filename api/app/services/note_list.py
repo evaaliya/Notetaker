@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import ColumnElement
 
 from app.errors import AppError
-from app.models import Note, NoteTag
+from app.models import Note, NoteUserTag
 from app.services.access import accessible_notes_clause
 
 SortField = Literal["starts_at", "updated_at"]
@@ -102,13 +102,14 @@ async def list_notes(
         stmt = stmt.where(period)
 
     if tags:
+        # Personal tags only for the current viewer (M16).
         nt = (
-            select(NoteTag.note_id)
-            .where(NoteTag.tag_id.in_(tags))
-            .group_by(NoteTag.note_id)
+            select(NoteUserTag.note_id)
+            .where(NoteUserTag.user_id == user_id, NoteUserTag.tag_id.in_(tags))
+            .group_by(NoteUserTag.note_id)
         )
         if tag_mode == "all":
-            nt = nt.having(func.count(func.distinct(NoteTag.tag_id)) >= len(tags))
+            nt = nt.having(func.count(func.distinct(NoteUserTag.tag_id)) >= len(tags))
         stmt = stmt.where(Note.id.in_(nt))
 
     if cursor:

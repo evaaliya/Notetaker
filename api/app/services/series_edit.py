@@ -10,8 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import AppError
-from app.models import Note, NoteTag, OccurrenceOverride
-from app.services.notes import replace_note_tags
+from app.models import Note, OccurrenceOverride
+from app.services.notes import copy_note_user_tags, replace_note_tags
 from app.services.occurrences import day_before_in_tz, iso_z
 from app.services.reminders import rebuild_pending_for_occurrence, rebuild_pending_for_series
 
@@ -119,6 +119,7 @@ async def patch_series_following(
     fields: dict[str, Any],
     now: datetime,
     user_id: uuid.UUID,
+    actor_id: uuid.UUID | None = None,
 ) -> Note:
     """Split series at occurrence: old ends day_before; new note from this day onward."""
     if note.rec_freq is None or note.rec_tz is None:
@@ -140,6 +141,10 @@ async def patch_series_following(
         if "reminder_offsets" in fields
         else list(note.reminder_offsets or [])
     )
+    if "show_in_calendar" in fields:
+        new_show = bool(fields["show_in_calendar"])
+    else:
+        new_show = bool(note.show_in_calendar)
 
     if "recurrence" in fields and fields["recurrence"] is not None:
         rec = fields["recurrence"]
@@ -165,15 +170,20 @@ async def patch_series_following(
         rec_freq=new_freq,
         rec_until=new_until,
         rec_tz=new_tz,
+        show_in_calendar=new_show,
     )
     db.add(new_note)
     await db.flush()
 
-    tag_result = await db.execute(select(NoteTag.tag_id).where(NoteTag.note_id == note.id))
-    tag_ids = list(tag_result.scalars().all())
+    await copy_note_user_tags(db, from_note_id=note.id, to_note_id=new_note.id)
     if "tag_ids" in fields:
-        tag_ids = fields["tag_ids"]
-    await replace_note_tags(db, user_id=user_id, note_id=new_note.id, tag_ids=tag_ids)
+        # Personal tags for the actor (member or owner), not the note owner id.
+        await replace_note_tags(
+            db,
+            user_id=actor_id or user_id,
+            note_id=new_note.id,
+            tag_ids=fields["tag_ids"],
+        )
 
     ov_result = await db.execute(
         select(OccurrenceOverride).where(OccurrenceOverride.note_id == note.id)

@@ -1,4 +1,4 @@
-"""Note helpers: tag ownership and serialization payload."""
+"""Note helpers: personal tags (M16) and serialization payload."""
 
 import uuid
 
@@ -6,14 +6,36 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import AppError
-from app.models import Note, NoteMember, NoteTag, Tag, User
+from app.models import Note, NoteMember, NoteUserTag, Tag, User
 from app.schemas.notes import NoteOut
 from app.services.attachments import note_ids_with_attachments
 
 
-async def load_tag_ids(db: AsyncSession, note_id: uuid.UUID) -> list[uuid.UUID]:
-    result = await db.execute(select(NoteTag.tag_id).where(NoteTag.note_id == note_id))
+async def load_tag_ids(
+    db: AsyncSession, note_id: uuid.UUID, viewer_id: uuid.UUID
+) -> list[uuid.UUID]:
+    result = await db.execute(
+        select(NoteUserTag.tag_id).where(
+            NoteUserTag.note_id == note_id, NoteUserTag.user_id == viewer_id
+        )
+    )
     return list(result.scalars().all())
+
+
+async def load_tag_ids_batch(
+    db: AsyncSession, note_ids: list[uuid.UUID], viewer_id: uuid.UUID
+) -> dict[uuid.UUID, list[uuid.UUID]]:
+    if not note_ids:
+        return {}
+    result = await db.execute(
+        select(NoteUserTag.note_id, NoteUserTag.tag_id).where(
+            NoteUserTag.note_id.in_(note_ids), NoteUserTag.user_id == viewer_id
+        )
+    )
+    out: dict[uuid.UUID, list[uuid.UUID]] = {nid: [] for nid in note_ids}
+    for note_id, tag_id in result.all():
+        out[note_id].append(tag_id)
+    return out
 
 
 async def _login_map(db: AsyncSession, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
@@ -33,8 +55,13 @@ async def note_to_out(
     owner_login: str | None = None,
     updated_by_login: str | None = None,
     role: str | None = None,
+    tag_ids: list[uuid.UUID] | None = None,
 ) -> NoteOut:
-    tag_ids = await load_tag_ids(db, note.id)
+    if tag_ids is None:
+        if viewer_id is None:
+            tag_ids = []
+        else:
+            tag_ids = await load_tag_ids(db, note.id, viewer_id)
     if has_attachments is None:
         flagged = await note_ids_with_attachments(db, [note.id])
         has_attachments = note.id in flagged
@@ -82,6 +109,7 @@ async def note_to_out(
         source_url=note.source_url,
         source_ts=note.source_ts,
         ai_generated=bool(note.ai_generated),
+        show_in_calendar=bool(note.show_in_calendar),
     )
 
 
@@ -113,6 +141,10 @@ async def notes_to_out(
             )
             member_note_ids = set(result.scalars().all())
 
+    tags_by_note: dict[uuid.UUID, list[uuid.UUID]] = {}
+    if viewer_id is not None:
+        tags_by_note = await load_tag_ids_batch(db, [n.id for n in notes], viewer_id)
+
     out: list[NoteOut] = []
     for n in notes:
         role = None
@@ -132,6 +164,7 @@ async def notes_to_out(
                     logins.get(n.updated_by_user_id) if n.updated_by_user_id else None
                 ),
                 role=role,
+                tag_ids=tags_by_note.get(n.id, []),
             )
         )
     return out
@@ -144,16 +177,33 @@ async def replace_note_tags(
     note_id: uuid.UUID,
     tag_ids: list[uuid.UUID],
 ) -> None:
-    """``user_id`` must be the note owner (tags belong to the owner)."""
+    """Replace the caller's personal tags on the note. Foreign tag ids → 404."""
     unique_ids = list(dict.fromkeys(tag_ids))
     if unique_ids:
         result = await db.execute(
             select(Tag.id).where(Tag.user_id == user_id, Tag.id.in_(unique_ids))
         )
         found = set(result.scalars().all())
-        missing = [str(t) for t in unique_ids if t not in found]
+        missing = [t for t in unique_ids if t not in found]
         if missing:
-            raise AppError("validation_error", f"unknown tag_ids: {', '.join(missing)}")
-    await db.execute(delete(NoteTag).where(NoteTag.note_id == note_id))
+            raise AppError("not_found", "tag not found", status_code=404)
+    await db.execute(
+        delete(NoteUserTag).where(
+            NoteUserTag.note_id == note_id, NoteUserTag.user_id == user_id
+        )
+    )
     for tag_id in unique_ids:
-        db.add(NoteTag(note_id=note_id, tag_id=tag_id))
+        db.add(NoteUserTag(note_id=note_id, user_id=user_id, tag_id=tag_id))
+
+
+async def copy_note_user_tags(
+    db: AsyncSession, *, from_note_id: uuid.UUID, to_note_id: uuid.UUID
+) -> None:
+    """Copy all personal tag rows when splitting a series (preserve every viewer)."""
+    result = await db.execute(
+        select(NoteUserTag).where(NoteUserTag.note_id == from_note_id)
+    )
+    for row in result.scalars().all():
+        db.add(
+            NoteUserTag(note_id=to_note_id, user_id=row.user_id, tag_id=row.tag_id)
+        )
