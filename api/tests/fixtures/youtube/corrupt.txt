@@ -1,0 +1,2 @@
+<<<not-xml-and-not-json>>>
+broken captions body without tags

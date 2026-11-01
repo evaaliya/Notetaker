@@ -1,0 +1,14 @@
+{
+  "events": [
+    {
+      "tStartMs": 0,
+      "dDurationMs": 2000,
+      "segs": [{"utf8": "Hello from JSON3 captions. "}]
+    },
+    {
+      "tStartMs": 2000,
+      "dDurationMs": 1500,
+      "segs": [{"utf8": "Second line of the track."}]
+    }
+  ]
+}

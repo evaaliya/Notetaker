@@ -473,3 +473,15 @@
 **Альтернативы:** длинный timeout под OpenRouter free; мок fetch в Playwright; менять `.env` вручную перед e2e.
 **Причина:** при `AI_PROVIDER=openrouter` в `.env` `make e2e` бил в сеть → модалка не появлялась за отведённое время; stub детерминирован и совпадает с pytest M11.
 **Последствия:** обычный `make up` по-прежнему читает `.env` (openrouter); e2e не проверяет live LLM.
+
+### D-076 · 2026-11-01 16:16 +06 · M12 · YouTube в тестах — фикстуры и fake fetch, не live
+**Решение:** юнит парсит XML/JSON3 из `api/tests/fixtures/youtube/`; API-тесты подменяют `fetch_youtube_captions` (monkeypatch) и гоняют stub extract на реальном Postgres. Live youtube.com в `make test` не вызываем.
+**Альтернативы:** httpx mock transport на весь Innertube; зависимость `youtube-transcript-api` + VCR; редкий live smoke.
+**Причина:** детерминизм и офлайн CI; контракт ошибок (`no_captions` / `video_unavailable` / `upstream_error`) проверяем явным AppError.
+**Последствия:** регрессии Innertube/HTML YouTube ловятся только ручным smoke, не автотестами M12.
+
+### D-077 · 2026-11-01 16:16 +06 · M12 · E2E YouTube — route-mock extract + выбор языка
+**Решение:** Playwright `page.route` на `POST /api/extract/youtube` отдаёт фиксированный EN+RU или RU-only payload; IFrame API тоже stub’им. Три сценария: сохранить English, сохранить Русский, RU-источник без радио языков; в каждом — ровно одна заметка.
+**Альтернативы:** ходить в реальный api extract (stub) без route; один тест с переключением языка.
+**Причина:** UI выбора языка и confirm независимы от сети/LLM; stub IFrame убирает зависимость от youtube.com в браузере.
+**Последствия:** e2e не проверяет серверный captions path (это pytest + D-076).
