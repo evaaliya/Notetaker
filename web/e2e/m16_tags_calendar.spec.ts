@@ -11,7 +11,7 @@ import {
   InvalidateCoalescer,
   queryKeysForRealtimeEvent,
   WS_INVALIDATE_COALESCE_MS,
-} from "../src/realtime";
+} from "../src/lib/wsInvalidateCoalesce";
 
 test("test_ws_invalidate_coalesce", async () => {
   const flushed: unknown[][] = [];
