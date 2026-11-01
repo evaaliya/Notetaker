@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -19,6 +20,7 @@ import type {
   EventDropArg,
 } from "@fullcalendar/core";
 import type { EventDragStartArg, EventDragStopArg } from "@fullcalendar/interaction";
+import { DateTime } from "luxon";
 import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { api, EditScope, Note, Occurrence, Tag, User } from "../api";
 import { EditScopeDialog } from "../components/EditScopeDialog";
@@ -29,6 +31,19 @@ import { TagPill } from "../components/TagPill";
 import { MOBILE_MAX, useMediaQuery } from "../hooks/useMediaQuery";
 import { tagColors } from "../lib/tagColors";
 import { formatTimeHm, relocateKeepWallTime } from "../format";
+import { recordRender } from "../lib/renderProbe";
+
+/** Timed event end for FC: default 30m, never past local midnight (D-088). */
+function eventEndIso(startIso: string, timeZone: string, durationMin = 30): string {
+  const start = DateTime.fromISO(startIso, { zone: "utc" }).setZone(timeZone);
+  const dayEnd = start.endOf("day");
+  const natural = start.plus({ minutes: durationMin });
+  const end = natural <= dayEnd ? natural : dayEnd;
+  // FC exclusive end: if clamped to day end, use start of next day so the block fills the last slot.
+  const exclusive =
+    end.equals(dayEnd) || end > dayEnd ? start.plus({ days: 1 }).startOf("day") : end;
+  return exclusive.toUTC().toISO({ suppressMilliseconds: true })!.replace(/\+00:00$/, "Z");
+}
 
 type CalView = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
 
@@ -54,6 +69,10 @@ function firstTag(note: Note, tags: Tag[]): Tag | undefined {
 }
 
 export function CalendarPage({ user }: { user: User }) {
+  const t0 = typeof performance !== "undefined" ? performance.now() : 0;
+  useLayoutEffect(() => {
+    recordRender("calendar", performance.now() - t0);
+  });
   const qc = useQueryClient();
   const isMobile = useMediaQuery(MOBILE_MAX);
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
@@ -89,6 +108,7 @@ export function CalendarPage({ user }: { user: User }) {
           id: `${it.note.id}:${it.original_start}`,
           title: it.note.title || "Без названия",
           start: it.occurrence_start,
+          end: eventEndIso(it.occurrence_start, user.timezone),
           allDay: false,
           backgroundColor: colors.fill,
           borderColor: colors.ink,
@@ -96,8 +116,37 @@ export function CalendarPage({ user }: { user: User }) {
           extendedProps: { occurrence: it },
         };
       }),
-    [cal.data, tagList],
+    [cal.data, tagList, user.timezone],
   );
+
+  // Recalculate FC geometry when the calendar container or sidebar width changes (D-089).
+  useEffect(() => {
+    const wrap = calendarWrapRef.current;
+    if (!wrap) return;
+    const update = () => {
+      calendarRef.current?.getApi().updateSize();
+    };
+    const ro = new ResizeObserver(() => update());
+    ro.observe(wrap);
+    const frame = wrap.closest(".app-frame");
+    const onTransitionEnd = (e: Event) => {
+      const te = e as TransitionEvent;
+      if (
+        te.propertyName === "grid-template-columns" ||
+        te.propertyName.includes("grid") ||
+        te.target === frame
+      ) {
+        update();
+      }
+    };
+    frame?.addEventListener("transitionend", onTransitionEnd);
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      frame?.removeEventListener("transitionend", onTransitionEnd);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
 
   useEffect(() => {
     if (!selected || !cal.data) return;

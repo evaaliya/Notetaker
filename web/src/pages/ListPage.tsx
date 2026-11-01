@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   useInfiniteQuery,
@@ -15,6 +15,7 @@ import { Switch } from "../components/Switch";
 import { TagPill } from "../components/TagPill";
 import { formatInZone } from "../format";
 import { useQuickAdd } from "../hooks/useQuickAdd";
+import { recordRender } from "../lib/renderProbe";
 
 type Filters = {
   q: string;
@@ -25,6 +26,10 @@ type Filters = {
 };
 
 export function ListPage({ user }: { user: User }) {
+  const t0 = typeof performance !== "undefined" ? performance.now() : 0;
+  useLayoutEffect(() => {
+    recordRender("list", performance.now() - t0);
+  });
   const qc = useQueryClient();
   const navigate = useNavigate();
   const quickAdd = useQuickAdd();
@@ -79,6 +84,17 @@ export function ListPage({ user }: { user: User }) {
         ? (el) => el.getBoundingClientRect().height
         : undefined,
   });
+
+  // Re-measure rows when the scrollport width changes (sidebar collapse / resize).
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      virtualizer.measure();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [virtualizer]);
 
   function applyFilters(e: FormEvent) {
     e.preventDefault();
