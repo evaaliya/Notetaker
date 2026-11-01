@@ -1,14 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CalendarClock, Paperclip, Repeat } from "lucide-react";
 import { ApiError, api, Note, Recurrence, Tag, User } from "../api";
 import { AttachmentsPanel } from "../components/AttachmentsPanel";
 import { ConflictDialog } from "../components/ConflictDialog";
+import { EditorMetaDisclosure } from "../components/EditorMetaDisclosure";
 import { NotesRail } from "../components/NotesRail";
 import { RecurrenceField } from "../components/RecurrenceField";
-import { ReminderOffsetsField } from "../components/ReminderOffsetsField";
+import { ReminderOffsetsField, REMINDER_OPTIONS } from "../components/ReminderOffsetsField";
 import { SharePanel } from "../components/SharePanel";
-import { formatInZone, localInputToUtcIso, utcIsoToLocalInput } from "../format";
+import { TagMultiSelect } from "../components/TagMultiSelect";
+import {
+  formatInZone,
+  formatSeriesRecurrenceHint,
+  localInputToUtcIso,
+  utcIsoToLocalInput,
+} from "../format";
 import {
   NEW_DRAFT_KEY,
   PendingFile,
@@ -143,6 +151,22 @@ function NoteEditorForm({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [draftReady, setDraftReady] = useState(Boolean(note));
   const [dirty, setDirty] = useState(false);
+  const [metaOpen, setMetaOpen] = useState<{
+    when: boolean;
+    recurrence: boolean;
+    reminders: boolean;
+    tags: boolean;
+    attachments: boolean;
+  }>({
+    when: false,
+    recurrence: false,
+    reminders: false,
+    tags: false,
+    attachments: false,
+  });
+  const [bodyDragOver, setBodyDragOver] = useState(false);
+  const attachmentIngestRef = useRef<((files: FileList | File[]) => void) | null>(null);
+  const headerFileInputRef = useRef<HTMLInputElement>(null);
 
   const noteRef = useRef(note);
   const versionRef = useRef(version);
@@ -468,13 +492,35 @@ function NoteEditorForm({
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [dirty, flushSave, persistIdb]);
 
-  function toggleTag(id: string) {
-    setTagIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      fieldsRef.current = { ...fieldsRef.current, tagIds: next };
-      return next;
-    });
+  function setTagIdsDirty(next: string[]) {
+    setTagIds(next);
+    fieldsRef.current = { ...fieldsRef.current, tagIds: next };
     markDirty();
+  }
+
+  function openMeta(key: keyof typeof metaOpen, open: boolean) {
+    setMetaOpen((prev) => ({ ...prev, [key]: open }));
+  }
+
+  function onBodyDragOver(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes("Files")) setBodyDragOver(true);
+  }
+
+  function onBodyDragLeave(e: DragEvent) {
+    e.preventDefault();
+    const related = e.relatedTarget as Node | null;
+    if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+    setBodyDragOver(false);
+  }
+
+  function onBodyDrop(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setBodyDragOver(false);
+    const files = e.dataTransfer.files;
+    if (files?.length) attachmentIngestRef.current?.(files);
   }
 
   function addPending(files: File[]) {
@@ -598,30 +644,55 @@ function NoteEditorForm({
         data-testid="note-form"
       >
         <header className="note-editor-bar">
-          <h1 className="note-editor-heading">
-            {note ? "Заметка" : "Новая заметка"}
-            {note?.ai_generated ? (
-              <span className="ai-badge" data-testid="ai-generated-badge">
-                создано ИИ
+          <div className="note-editor-bar-inner">
+            <h1 className="note-editor-heading">
+              {note ? "Заметка" : "Новая заметка"}
+              {note?.ai_generated ? (
+                <span className="ai-badge" data-testid="ai-generated-badge">
+                  создано ИИ
+                </span>
+              ) : null}
+            </h1>
+            <div className="note-editor-actions">
+              <span
+                className="muted small"
+                data-testid="note-save-status"
+                aria-live="polite"
+              >
+                {statusLabel}
               </span>
-            ) : null}
-          </h1>
-          <div className="note-editor-actions">
-            <span
-              className="muted small"
-              data-testid="note-save-status"
-              aria-live="polite"
-            >
-              {statusLabel}
-            </span>
-            <button type="button" className="secondary" onClick={() => void handleCancel()}>
-              Закрыть
-            </button>
+              <button
+                type="button"
+                className="secondary icon-btn"
+                data-testid="note-attach-btn"
+                aria-label="Прикрепить файл"
+                title="Прикрепить файл"
+                onClick={() => headerFileInputRef.current?.click()}
+              >
+                <Paperclip size={18} strokeWidth={2} aria-hidden />
+              </button>
+              <input
+                ref={headerFileInputRef}
+                type="file"
+                hidden
+                data-testid="note-attach-file-input"
+                accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.docx,image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                multiple
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (files?.length) attachmentIngestRef.current?.(files);
+                  e.target.value = "";
+                }}
+              />
+              <button type="button" className="secondary" onClick={() => void handleCancel()}>
+                Закрыть
+              </button>
+            </div>
           </div>
         </header>
 
         <div className="note-editor-body">
-          <label>
+          <label className="note-title-field">
             Название
             <input
               data-testid="note-title"
@@ -634,81 +705,158 @@ function NoteEditorForm({
               }}
             />
           </label>
-          <label className="note-body-field">
-            Текст
-            <textarea
-              data-testid="note-body"
-              className="note-body-textarea"
-              value={body}
-              onChange={(e) => {
-                const v = e.target.value;
-                setBody(v);
-                fieldsRef.current = { ...fieldsRef.current, body: v };
-                markDirty();
-              }}
-              rows={12}
-            />
-          </label>
-          <label>
-            Время
-            <span className="muted small" data-testid="note-tz-hint">
-              {" "}
-              (ввод в поясе {user.timezone})
-            </span>
-            <input
-              type="datetime-local"
-              data-testid="note-starts"
-              value={startsLocal}
-              onChange={(e) => {
-                const v = e.target.value;
-                setStartsLocal(v);
-                fieldsRef.current = { ...fieldsRef.current, startsLocal: v };
-                markDirty();
-              }}
-              required
-            />
-          </label>
-          <RecurrenceField
-            value={recurrence}
-            onChange={(v) => {
-              setRecurrence(v);
-              fieldsRef.current = { ...fieldsRef.current, recurrence: v };
-              markDirty();
-            }}
-            timeZone={user.timezone}
-            lockedTz={note?.rec_tz}
-          />
-          <ReminderOffsetsField
-            value={reminderOffsets}
-            onChange={(v) => {
-              setReminderOffsets(v);
-              fieldsRef.current = { ...fieldsRef.current, reminderOffsets: v };
-              markDirty();
-            }}
-            startsLocal={startsLocal}
-            timeZone={user.timezone}
-          />
-          <fieldset className="tag-pick">
-            <legend>Теги</legend>
-            {tags.map((t) => (
-              <label key={t.id} className="inline">
-                <input
-                  type="checkbox"
-                  checked={tagIds.includes(t.id)}
-                  onChange={() => toggleTag(t.id)}
-                />
-                <span className="tag-swatch tiny" style={{ background: t.color }} />
-                {t.name}
-              </label>
-            ))}
-          </fieldset>
+          <div
+            className={`note-body-dropzone${bodyDragOver ? " is-dragover" : ""}`}
+            data-testid="note-body-dropzone"
+            onDragEnter={onBodyDragOver}
+            onDragOver={onBodyDragOver}
+            onDragLeave={onBodyDragLeave}
+            onDrop={onBodyDrop}
+          >
+            <label className="note-body-field">
+              Текст
+              <textarea
+                data-testid="note-body"
+                className="note-body-textarea"
+                value={body}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setBody(v);
+                  fieldsRef.current = { ...fieldsRef.current, body: v };
+                  markDirty();
+                }}
+                rows={12}
+              />
+            </label>
+            {bodyDragOver ? (
+              <div className="note-body-drop-hint" data-testid="note-body-drop-hint" aria-hidden>
+                Отпустите, чтобы прикрепить файл
+              </div>
+            ) : null}
+          </div>
 
-          <AttachmentsPanel
-            noteId={note?.id ?? noteRef.current?.id ?? null}
-            pendingFiles={pendingFiles}
-            onAddPending={addPending}
-            onRemovePending={removePending}
-          />
+          <div className="note-meta-bar" data-testid="note-meta-bar">
+            <EditorMetaDisclosure
+              testId="meta-when"
+              label="Дата и время"
+              summary={startsLocal ? startsLocal.replace("T", " ") : "не задано"}
+              icon={<CalendarClock size={18} strokeWidth={2} />}
+              open={metaOpen.when}
+              onOpenChange={(o) => openMeta("when", o)}
+            >
+              <label>
+                Время
+                <span className="muted small" data-testid="note-tz-hint">
+                  {" "}
+                  (ввод в поясе {user.timezone})
+                </span>
+                <input
+                  type="datetime-local"
+                  data-testid="note-starts"
+                  value={startsLocal}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setStartsLocal(v);
+                    fieldsRef.current = { ...fieldsRef.current, startsLocal: v };
+                    markDirty();
+                  }}
+                  required
+                />
+              </label>
+            </EditorMetaDisclosure>
+
+            <EditorMetaDisclosure
+              testId="meta-recurrence"
+              label="Повтор"
+              summary={
+                recurrence
+                  ? formatSeriesRecurrenceHint(recurrence.freq, recurrence.until)
+                  : "без повтора"
+              }
+              icon={<Repeat size={18} strokeWidth={2} />}
+              open={metaOpen.recurrence}
+              onOpenChange={(o) => openMeta("recurrence", o)}
+            >
+              <RecurrenceField
+                embedded
+                value={recurrence}
+                onChange={(v) => {
+                  setRecurrence(v);
+                  fieldsRef.current = { ...fieldsRef.current, recurrence: v };
+                  markDirty();
+                }}
+                timeZone={user.timezone}
+                lockedTz={note?.rec_tz}
+              />
+            </EditorMetaDisclosure>
+
+            <EditorMetaDisclosure
+              testId="meta-reminders"
+              label="Напоминания"
+              summary={
+                reminderOffsets.length === 0
+                  ? "нет"
+                  : REMINDER_OPTIONS.filter((o) => reminderOffsets.includes(o.minutes))
+                      .map((o) => o.label)
+                      .join(", ")
+              }
+              open={metaOpen.reminders}
+              onOpenChange={(o) => openMeta("reminders", o)}
+            >
+              <ReminderOffsetsField
+                embedded
+                value={reminderOffsets}
+                onChange={(v) => {
+                  setReminderOffsets(v);
+                  fieldsRef.current = { ...fieldsRef.current, reminderOffsets: v };
+                  markDirty();
+                }}
+                startsLocal={startsLocal}
+                timeZone={user.timezone}
+              />
+            </EditorMetaDisclosure>
+
+            <EditorMetaDisclosure
+              testId="meta-tags"
+              label="Теги"
+              summary={
+                tagIds.length === 0
+                  ? "нет"
+                  : tags
+                      .filter((t) => tagIds.includes(t.id))
+                      .map((t) => t.name)
+                      .join(", ") || String(tagIds.length)
+              }
+              open={metaOpen.tags}
+              onOpenChange={(o) => openMeta("tags", o)}
+            >
+              <TagMultiSelect tags={tags} value={tagIds} onChange={setTagIdsDirty} />
+            </EditorMetaDisclosure>
+
+            <EditorMetaDisclosure
+              testId="meta-attachments"
+              label="Вложения"
+              summary={
+                pendingFiles.length > 0 || note?.has_attachments
+                  ? pendingFiles.length > 0
+                    ? String(pendingFiles.length)
+                    : "есть"
+                  : "нет"
+              }
+              icon={<Paperclip size={18} strokeWidth={2} />}
+              open={metaOpen.attachments}
+              onOpenChange={(o) => openMeta("attachments", o)}
+            >
+              <AttachmentsPanel
+                chrome="editor"
+                noteId={note?.id ?? noteRef.current?.id ?? null}
+                pendingFiles={pendingFiles}
+                onAddPending={addPending}
+                onRemovePending={removePending}
+                ingestRef={attachmentIngestRef}
+              />
+            </EditorMetaDisclosure>
+          </div>
 
           {(note || noteRef.current) && (
             <SharePanel note={(note || noteRef.current)!} />

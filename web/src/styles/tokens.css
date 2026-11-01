@@ -25,7 +25,8 @@
   --sidebar-width: 248px;
   --sidebar-collapsed-width: 64px;
   --note-rail-width: 320px;
-  --note-text-max: 760px;
+  /* Was text max on note page; editor uses full pane width (D-092). Kept for legacy refs. */
+  --note-text-max: none;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
