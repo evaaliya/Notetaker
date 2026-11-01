@@ -14,34 +14,37 @@ export {
 } from "./lib/wsInvalidateCoalesce";
 export type { InvalidateKey, InvalidateFlush } from "./lib/wsInvalidateCoalesce";
 
-let sharedCoalescer: InvalidateCoalescer | null = null;
-const qcHolder: { current: QueryClient | null } = { current: null };
+/**
+ * Per-QueryClient coalescer (M16). Module singleton keyed by client identity
+ * so Strict Mode remounts reuse the same QC and flush still hits the live client.
+ */
+const coalescers = new WeakMap<QueryClient, InvalidateCoalescer>();
 
-function sharedCoalescerInstance(): InvalidateCoalescer {
-  if (!sharedCoalescer) {
-    sharedCoalescer = new InvalidateCoalescer((keys: InvalidateKey[]) => {
-      const client = qcHolder.current;
-      if (!client) return;
-      for (const queryKey of keys) {
-        client.invalidateQueries({ queryKey: [...queryKey] });
+function coalescerFor(qc: QueryClient): InvalidateCoalescer {
+  let c = coalescers.get(qc);
+  if (!c) {
+    c = new InvalidateCoalescer((keys: InvalidateKey[]) => {
+      for (const key of keys) {
+        // TanStack expects a mutable QueryKey array.
+        void qc.invalidateQueries({ queryKey: key as unknown[] });
       }
     });
+    coalescers.set(qc, c);
   }
-  return sharedCoalescer;
-}
-
-/** Reset shared coalescer (tests / HMR). */
-export function resetInvalidateCoalescer(): void {
-  sharedCoalescer?.dispose();
-  sharedCoalescer = null;
-  qcHolder.current = null;
+  return c;
 }
 
 export function invalidateForEvent(qc: QueryClient, ev: RealtimeEvent): void {
   const keys = queryKeysForRealtimeEvent(ev);
   if (!keys.length) return;
-  qcHolder.current = qc;
-  sharedCoalescerInstance().enqueue(keys);
+  try {
+    coalescerFor(qc).enqueue(keys);
+  } catch {
+    // Never block toast / seen handlers if coalesce misbehaves.
+    for (const key of keys) {
+      void qc.invalidateQueries({ queryKey: key as unknown[] });
+    }
+  }
 }
 
 export function wsUrl(): string {

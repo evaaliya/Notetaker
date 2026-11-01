@@ -36,12 +36,17 @@ export function useRealtime(enabled: boolean, handlers: Handlers = {}): void {
         } catch {
           return;
         }
-        invalidateForEvent(qc, ev);
+        // Handlers first — toast must not depend on invalidate/coalesce (M16).
         if (ev.type === "notification.new") {
           handlersRef.current.onNotificationNew?.(ev);
         }
         if (ev.type === "notification.seen" && ev.ids?.[0]) {
           handlersRef.current.onNotificationSeen?.(ev.ids[0]);
+        }
+        try {
+          invalidateForEvent(qc, ev);
+        } catch {
+          /* ignore — list will catch up on focus/reconnect */
         }
       };
       ws.onclose = () => {
