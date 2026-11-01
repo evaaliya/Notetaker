@@ -96,13 +96,35 @@ test("m15_editor_recurrence_and_tags_persist_collapsed", async ({ page }) => {
   await page.getByTestId(`tag-multi-option-${tagJson.id}`).click();
   await expect(page.getByTestId("tag-multi-chips")).toContainText(tagJson.name);
   await expect(page.getByTestId("note-selected-tags")).toContainText(tagJson.name);
+  // Toggle off / on
+  await page.getByTestId(`tag-multi-option-${tagJson.id}`).click();
+  await expect(page.getByTestId("note-selected-tags")).toHaveCount(0);
+  await page.getByTestId(`tag-multi-option-${tagJson.id}`).click();
   await page.getByTestId("meta-tags-trigger").click();
   await expect(page.getByTestId("meta-tags")).toHaveAttribute("data-open", "0");
   await expect(page.getByTestId("meta-tags-trigger")).toContainText(tagJson.name);
   await expect(page.getByTestId("note-selected-tags")).toContainText(tagJson.name);
 });
 
-test("m15_editor_single_attach_and_body_dnd", async ({ page }) => {
+test("m15_editor_single_attach_opens_file_dialog", async ({ page }) => {
+  const login = uniqueLogin("m15clip");
+  await registerUi(page, login);
+  await page.goto("/notes/new");
+  await expect(page.getByTestId("note-form")).toBeVisible();
+
+  await expect(page.getByTestId("note-attach-btn")).toHaveCount(1);
+  await expect(page.getByTestId("attachment-add")).toHaveCount(0);
+  await expect(page.getByTestId("meta-attachments")).toHaveCount(0);
+  await expect(page.locator(".note-editor-actions [data-testid='note-attach-btn']")).toHaveCount(0);
+
+  const [chooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByTestId("note-attach-btn").click(),
+  ]);
+  expect(chooser.isMultiple()).toBe(true);
+});
+
+test("m15_editor_body_dnd_attachment", async ({ page }) => {
   const login = uniqueLogin("m15dnd");
   await registerUi(page, login);
   const note = await apiCreateNote(page.request, {
@@ -114,25 +136,11 @@ test("m15_editor_single_attach_and_body_dnd", async ({ page }) => {
   await expect(page.getByTestId("note-body-dropzone")).toBeVisible();
 
   await expect(page.getByText("Перетащите файл сюда")).toHaveCount(0);
-  await expect(page.getByTestId("meta-attachments")).toHaveCount(0);
-  // Exactly one paperclip control in the editor (toolbar), none next to Закрыть.
-  await expect(page.getByTestId("note-attach-btn")).toHaveCount(1);
-  await expect(page.getByTestId("attachment-add")).toHaveCount(0);
-  const attachInActions = await page
-    .locator(".note-editor-actions")
-    .getByTestId("note-attach-btn")
-    .count();
-  expect(attachInActions).toBe(0);
-
-  const chooserPromise = page.waitForEvent("filechooser");
-  await page.getByTestId("note-attach-btn").click();
-  const chooser = await chooserPromise;
-  await chooser.setFiles({
+  await page.getByTestId("note-attach-file-input").setInputFiles({
     name: "drop.png",
     mimeType: "image/png",
     buffer: PNG,
   });
-
   await expect(page.getByTestId("attachment-thumb")).toBeVisible({ timeout: 15_000 });
 });
 
@@ -147,9 +155,10 @@ test("m15_editor_responsive_390", async ({ page }) => {
   );
   expect(overflow).toBeLessThanOrEqual(1);
 
-  const barDir = await page
-    .getByTestId("note-meta-bar")
-    .evaluate((el) => getComputedStyle(el).flexDirection);
+  const barDir = await page.evaluate(() => {
+    const bar = document.querySelector('[data-testid="note-meta-bar"]');
+    return bar ? getComputedStyle(bar).flexDirection : "";
+  });
   expect(barDir).toBe("row");
 
   await page.getByTestId("meta-when-trigger").click();

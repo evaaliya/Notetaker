@@ -296,6 +296,7 @@
 - `make test` → **94 passed**.
 - `make e2e` → **81 passed** (`m15_editor_*` ×3 браузера + suite); `reminder_ui`/`timezone` учитывают exclusive popover.
 **Работает:** toolbar `flex-direction: row`; ровно один `note-attach-btn`; значения meta сохраняются при сворачивании; DnD на surface.
+**Дополнение (2026-11-02 00:01 +06, D-094):** у `.side-tags-scroll` скрыт системный скроллбар на тёмном сайдбаре; `make e2e` → **84 passed**.
 
 ## Следующий заход
 - Web Push / Service Worker.
