@@ -55,6 +55,48 @@ async function stubExtractYoutube(
   page: Page,
   payload: Record<string, unknown>,
 ): Promise<void> {
+  const jobId = "00000000-0000-4000-8000-000000000012";
+  // M14 UI uses job start + poll; keep sync route for compat.
+  await page.route("**/api/extract/youtube/jobs", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: jobId,
+        status: "pending",
+        step: "queued",
+        video_id: "dQw4w9WgXcQ",
+        reused: false,
+      }),
+    });
+  });
+  await page.route(`**/api/extract/jobs/${jobId}`, async (route) => {
+    if (route.request().method() === "POST") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: jobId,
+        status: "done",
+        step: "done",
+        video_id: "dQw4w9WgXcQ",
+        error_code: null,
+        error_message: null,
+        error_hint: null,
+        result: payload,
+        created_at: "2026-11-01T00:00:00Z",
+        updated_at: "2026-11-01T00:00:00Z",
+        finished_at: "2026-11-01T00:00:00Z",
+      }),
+    });
+  });
   await page.route("**/api/extract/youtube", async (route) => {
     if (route.request().method() !== "POST") {
       await route.continue();

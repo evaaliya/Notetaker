@@ -236,7 +236,7 @@ async def test_extract_youtube_uses_captions(client: AsyncClient, monkeypatch: p
         "/api/auth/register", json={"login": login, "password": "secret", "timezone": TZ}
     )
 
-    def fake_fetch(url: str, *, timeout: float = 30.0):
+    def fake_fetch(url: str, **_kwargs):
         return (
             "Участники: Аня. Задача: подготовить конспект завтра в 15:00. Решили: публикуем.",
             "ru/manual",

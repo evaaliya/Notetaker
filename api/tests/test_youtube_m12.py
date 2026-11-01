@@ -115,11 +115,11 @@ async def test_youtube_api_create_note_from_captions(
     login = f"yt_ok_{datetime.now(timezone.utc).timestamp():.0f}"
     await _register(client, login)
 
-    def fake_fetch(url: str, *, timeout: float = 30.0):
+    async def fake_captions(session, url, *, clock):
         assert "youtu" in url
         return RU_CAPTIONS, "ru/manual"
 
-    monkeypatch.setattr("app.routers.extract.fetch_youtube_captions", fake_fetch)
+    monkeypatch.setattr("app.routers.extract._captions_with_cache", fake_captions)
     res = await client.post(
         "/api/extract/youtube",
         json={"url": "https://youtu.be/dQw4w9WgXcQ", "timezone": TZ},
@@ -166,10 +166,10 @@ async def test_youtube_api_en_offers_summary_ru(
     login = f"yt_en_{datetime.now(timezone.utc).timestamp():.0f}"
     await _register(client, login)
 
-    monkeypatch.setattr(
-        "app.routers.extract.fetch_youtube_captions",
-        lambda url, *, timeout=30.0: (EN_CAPTIONS, "en/asr"),
-    )
+    async def fake_en(session, url, *, clock):
+        return EN_CAPTIONS, "en/asr"
+
+    monkeypatch.setattr("app.routers.extract._captions_with_cache", fake_en)
     res = await client.post(
         "/api/extract/youtube",
         json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "timezone": TZ},
@@ -195,14 +195,14 @@ async def test_youtube_api_error_no_captions(
     login = f"yt_nc_{datetime.now(timezone.utc).timestamp():.0f}"
     await _register(client, login)
 
-    def boom(url: str, *, timeout: float = 30.0):
+    async def boom(session, url, *, clock):
         raise AppError(
             "no_captions",
             "У ролика нет субтитров (ни ручных, ни авто). Разбор по тексту дорожки невозможен.",
             status_code=404,
         )
 
-    monkeypatch.setattr("app.routers.extract.fetch_youtube_captions", boom)
+    monkeypatch.setattr("app.routers.extract._captions_with_cache", boom)
     res = await client.post(
         "/api/extract/youtube",
         json={"url": "https://youtu.be/dQw4w9WgXcQ", "timezone": TZ},
@@ -220,14 +220,14 @@ async def test_youtube_api_error_video_unavailable(
     login = f"yt_un_{datetime.now(timezone.utc).timestamp():.0f}"
     await _register(client, login)
 
-    def boom(url: str, *, timeout: float = 30.0):
+    async def boom(session, url, *, clock):
         raise AppError(
             "video_unavailable",
             "YouTube: ролик недоступен (ERROR). Проверьте id (регистр важен: I ≠ l) и регион.",
             status_code=404,
         )
 
-    monkeypatch.setattr("app.routers.extract.fetch_youtube_captions", boom)
+    monkeypatch.setattr("app.routers.extract._captions_with_cache", boom)
     res = await client.post(
         "/api/extract/youtube",
         json={"url": "https://youtu.be/dQw4w9WgXcQ", "timezone": TZ},
@@ -245,14 +245,14 @@ async def test_youtube_api_error_network(
     login = f"yt_net_{datetime.now(timezone.utc).timestamp():.0f}"
     await _register(client, login)
 
-    def boom(url: str, *, timeout: float = 30.0):
+    async def boom(session, url, *, clock):
         raise AppError(
             "upstream_error",
             "YouTube недоступен: Connection refused",
             status_code=502,
         )
 
-    monkeypatch.setattr("app.routers.extract.fetch_youtube_captions", boom)
+    monkeypatch.setattr("app.routers.extract._captions_with_cache", boom)
     res = await client.post(
         "/api/extract/youtube",
         json={"url": "https://youtu.be/dQw4w9WgXcQ", "timezone": TZ},
@@ -271,10 +271,10 @@ async def test_youtube_api_foreign_user_cannot_see_note(
     other = f"yt_oth_{datetime.now(timezone.utc).timestamp():.0f}"
     await _register(client, owner)
 
-    monkeypatch.setattr(
-        "app.routers.extract.fetch_youtube_captions",
-        lambda url, *, timeout=30.0: (RU_CAPTIONS, "ru/manual"),
-    )
+    async def fake_ru(session, url, *, clock):
+        return RU_CAPTIONS, "ru/manual"
+
+    monkeypatch.setattr("app.routers.extract._captions_with_cache", fake_ru)
     res = await client.post(
         "/api/extract/youtube",
         json={"url": "https://youtu.be/dQw4w9WgXcQ", "timezone": TZ},

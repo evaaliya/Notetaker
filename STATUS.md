@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 19:53 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 20:57 +06.
 
 ## Этапы
 
@@ -22,6 +22,7 @@
 | M11.1 Стабилизация e2e | готов | 5 упавших e2e: календарные даты → «сегодня» (D-074); call extract → stub в `docker-compose.e2e.yml` (D-075) |
 | M12 Тесты/доки YouTube | готов | `test_youtube_*` (15) + `e2e_youtube_*` (3); README/CREDITS/D-076–077; `make test` 86; `make e2e` 46 |
 | M13 UI Polish | готов | токены/контроли (D-079); mid-width + OverflowMenu + мобильное «Ещё» (D-080); мобильный календарь/sheet/уведомления (D-081); `make test` 86; `make e2e` 49; отчёт `reports/verify-20261101-194344.md` (+ доработка mobile) |
+| M14 Сеть/гонки | готов | D-082 диагностика; job+кэш+cancel (D-083); аудит api.ts/WS/SMTP (D-084); `make test` 94; `make e2e` 51 |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -35,7 +36,8 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 86 passed на реальном Postgres (testcontainers); Playwright e2e → 49 passed (M12 youtube + M13 mobile).
+- Тесты: `make test` → 94 passed на реальном Postgres (testcontainers); Playwright e2e → 51 passed (M12 youtube + M13 mobile + M14 network).
+- **M14 сеть/гонки:** `POST /api/extract/youtube/jobs` + poll/cancel; captions cache; wall-clock 15s/60s + retry; ошибки по-русски + hint + «Повторить»; `api.ts` timeout/Abort; double-click/stale guard. Sync `/youtube` сохранён.
 - **M13 UI Polish:** токены `--control-h` / `--accent-hover` / холодные `--shadow-*`; единые hover/focus кнопок и полей (высота ≥44px); FullCalendar hover на бирюзу; `switch.off` нейтральный; адаптив mid-width (фильтры wrap, rail ≤900, строки → OverflowMenu «Действия»); на 390 «Ещё» → Уведомления/Теги/Звонок/Видео/Настройки; **отдельный мобильный календарь** (день по умолчанию, chrome, sheet-панель, «В корзину» без DnD); без горизонтального скролла. Backend не меняли.
 - **Звонки/видео (M11):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`, `/youtube`); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` и `/capture/video`; **субтитры YouTube** → extract → при EN выбор языка EN/RU → одна заметка-конспект; бейдж «создано ИИ». Конспект (D-068): главная мысль + заметки markdown-lite. Видео (D-069): по умолчанию только конспект. Пока ждём ответ — `AiThinkingPanel` (D-070). EN-ролик → выбор языка конспекта EN/RU (D-071, стабилизация D-073). UI видео (D-072): плеер слева от «Разобрать». Zoom API нет: только вставка/файл транскрипта или Web Speech в браузере.
 - **M12 тесты YouTube:** фикстуры + fake fetch (D-076); e2e route-mock extract + stub IFrame (D-077); покрыто: id/XML, create note, ошибки по-русски, ACL, bilingual UI. Не покрыто: live Innertube, live LLM.
@@ -227,6 +229,8 @@
 | M10 | Общие заметки между пользователями (`spec.md` §15) | готов |
 | M11 | Заметки из звонков и обучающих видео (`spec.md` §15); stub/OpenRouter | готов |
 | M12 | Тесты и документация субтитров YouTube (фикстуры, bilingual e2e) | готов |
+| M13 | UI Polish | готов |
+| M14 | Сетевые ошибки и гонки (jobs, timeouts, audit) | готов |
 
 ### Смоки M11 (2026-11-01)
 **Автоматически:**
@@ -263,6 +267,12 @@
 - `make e2e` → **49 passed** (`m13_mobile_calendar_day_nav_and_sheet`, `m13_mobile_notifications_from_more` + прежние).
 - Mobile calendar: chrome prev/next/today + День/Неделя/Месяц; клик по событию → sheet; «В корзину» в панели; desktop `e2e_drag_to_trash` без регрессии.
 - «Ещё» → Уведомления открывает `.notif-popover` на 390.
+
+### Смоки M14 (2026-11-01)
+**Диагностика (D-082):** captions ~7 с; OpenRouter free 29–182 с; `httpx.Timeout(90)` не wall-clock (trickle 120 с ok). Кэша не было; «второй быстрее» кэшем не объясняется.
+**Автоматически:**
+- `make test` → **94 passed** (`test_extract_jobs_m14` + регрессии).
+- `make e2e` → **51 passed** (`e2e_youtube_double_click_single_job`, `e2e_youtube_late_response_ignored_after_cancel` + youtube_m12 на job mock).
 
 ## Следующий заход
 - Web Push / Service Worker.
