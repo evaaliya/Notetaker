@@ -2223,11 +2223,43 @@ button.link {
     transition: none;
   }
 }
-.video-layout {
+.video-extract-card {
+  max-width: 960px;
+}
+.video-extract-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(200px, 0.55fr);
   gap: var(--space-4);
-  align-items: start;
+  align-items: center;
+}
+.video-extract-player {
+  min-width: 0;
+}
+.video-extract-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--line-strong);
+  background: var(--paper);
+  text-align: center;
+  padding: var(--space-4);
+}
+.video-extract-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+.video-extract-actions .btn-accent {
+  width: 100%;
+  min-height: 48px;
+}
+@media (max-width: 720px) {
+  .video-extract-row {
+    grid-template-columns: 1fr;
+  }
 }
 .yt-host,
 .native-video {

@@ -312,7 +312,7 @@ Stub остаётся для локальных тестов и `make test`. Б�
 3. Сайдбар → **Видео**: ссылка YouTube или другой URL → плеер и таймкоды.
 4. **ИИ из субтитров YouTube (без скачивания медиа):** Видео → вставьте youtube-ссылку → «Разобрать субтитры» → подтвердите черновики. Если у ролика нет субтитров — разобрать нельзя.
 
-Автотесты: `e2e_call_transcript_extract`, `e2e_video_note_at_timestamp`, `e2e_video_captions_button_visible`.
+Автотесты: `e2e_call_transcript_extract`, `e2e_video_player_in_extract_panel`, `e2e_video_captions_button_visible`.
 
 ---
 

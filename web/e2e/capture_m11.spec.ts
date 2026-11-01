@@ -34,39 +34,19 @@ test("e2e_video_captions_button_visible", async ({ page }) => {
   await expect(page.getByTestId("video-extract-captions")).toBeEnabled();
 });
 
-test("e2e_video_note_at_timestamp", async ({ page }) => {
+test("e2e_video_player_in_extract_panel", async ({ page }) => {
   const login = uniqueLogin("m11vid");
   await registerUi(page, login);
 
   await page.getByTestId("nav-video").click();
   await expect(page.getByTestId("video-notes-page")).toBeVisible();
 
-  // Local fixture in web/public (no external network / mic).
   const origin = new URL(page.url()).origin;
   await page.getByTestId("video-url-input").fill(`${origin}/m11-sample.mp4`);
   await page.getByTestId("video-open").click();
 
   const native = page.getByTestId("video-native");
   await expect(native).toBeVisible({ timeout: 15_000 });
-  await native.evaluate(async (el) => {
-    const v = el as HTMLVideoElement;
-    await v.play().catch(() => undefined);
-    v.pause();
-    v.currentTime = 3;
-  });
-
-  await page.getByTestId("video-note-title").fill("Кадр цветка");
-  await page.getByTestId("video-note-body").fill("Заметка без микрофона");
-  await page.getByTestId("video-note-at-time").click();
-
-  await expect(page.getByTestId("video-note-list")).toContainText("Кадр цветка");
-  await expect(page.getByTestId("video-timecode").first()).toBeVisible();
-
-  // Click timecode seeks (no mic involved).
-  await page.getByTestId("video-timecode").first().click();
-  const t = await page.evaluate(() => {
-    const v = document.querySelector('[data-testid="video-native"]') as HTMLVideoElement | null;
-    return v?.currentTime ?? -1;
-  });
-  expect(t).toBeGreaterThanOrEqual(2);
+  await expect(page.getByTestId("video-captions-extract").getByTestId("video-native")).toBeVisible();
+  await expect(page.getByTestId("video-note-at-time")).toHaveCount(0);
 });

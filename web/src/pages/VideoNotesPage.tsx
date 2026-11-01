@@ -58,8 +58,6 @@ export function VideoNotesPage({ user }: { user: User }) {
   const qc = useQueryClient();
   const [urlInput, setUrlInput] = useState("");
   const [source, setSource] = useState<VideoSource | null>(null);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
@@ -144,33 +142,6 @@ export function VideoNotesPage({ user }: { user: User }) {
     if (videoRef.current) videoRef.current.currentTime = ts;
   }
 
-  async function addAtCurrent() {
-    if (!source) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const ts = currentSeconds();
-      const starts = new Date().toISOString();
-      await api.createNote({
-        title: title.trim() || `Заметка ${formatTimecode(ts)}`,
-        body: body,
-        starts_at: starts,
-        reminder_offsets: [],
-        source: "video",
-        source_url: source.url,
-        source_ts: ts,
-        ai_generated: false,
-      });
-      setTitle("");
-      setBody("");
-      await qc.invalidateQueries({ queryKey: ["notes"] });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось создать");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function extractCaptions() {
     const url = source?.kind === "youtube" ? source.url : urlInput.trim();
     const parsed = parseVideoUrl(url);
@@ -191,11 +162,9 @@ export function VideoNotesPage({ user }: { user: User }) {
           : null;
       setSummaryEn(en);
       setSummaryRu(ru);
-      // Prefer original language for English sources; RU-only talks stay on Russian summary.
       const initialLang: SummaryLang = en && result.source_lang === "en" ? "en" : "ru";
       setSummaryLang(initialLang);
       const activeSummary = initialLang === "ru" && ru ? ru : en;
-      // Video: one lecture → one note by default; task/decision splinters stay unchecked (D-069).
       const rows = draftsFromExtract(activeSummary, result.drafts, {
         selectKinds: ["summary"],
       });
@@ -222,7 +191,7 @@ export function VideoNotesPage({ user }: { user: User }) {
     setError(null);
     try {
       const fallbackStarts = new Date().toISOString();
-      const ts = currentSeconds();
+      const ts = source ? currentSeconds() : null;
       for (const d of chosen) {
         await api.createNote({
           title: d.title,
@@ -231,7 +200,7 @@ export function VideoNotesPage({ user }: { user: User }) {
           reminder_offsets: d.reminder_offsets || [],
           source: "video",
           source_url: source?.url ?? null,
-          source_ts: source ? ts : null,
+          source_ts: ts,
           ai_generated: true,
         });
       }
@@ -255,14 +224,16 @@ export function VideoNotesPage({ user }: { user: User }) {
     setPending((prev) => applySummaryLang(prev, next));
   }
 
+  const canExtract =
+    (source?.kind === "youtube" || parseVideoUrl(urlInput)?.kind === "youtube") && !aiBusy && !busy;
+
   return (
     <div className="page capture-page video-page" data-testid="video-notes-page">
       <div className="page-head">
         <div>
           <h1>Заметки к видео</h1>
           <p className="mut">
-            Плеер + ручные таймкоды. ИИ: субтитры YouTube (если есть) → черновики. Медиа и звук не
-            скачиваем.
+            Откройте ссылку и разберите субтитры YouTube (ИИ). Медиа и звук не скачиваем.
           </p>
         </div>
       </div>
@@ -283,22 +254,44 @@ export function VideoNotesPage({ user }: { user: User }) {
         </div>
       </form>
 
-      <section className="card capture-card" data-testid="video-captions-extract">
+      <section className="card capture-card video-extract-card" data-testid="video-captions-extract">
         <label className="lab">Разобрать субтитры YouTube (ИИ)</label>
         <p className="muted small">
           Тянем текстовую дорожку субтитров с YouTube (ручные или авто), без скачивания ролика. Если
           субтитров нет — разобрать нельзя. Для прямых .mp4 субтитров нет.
         </p>
-        <div className="capture-actions">
-          <button
-            type="button"
-            className="btn-accent"
-            data-testid="video-extract-captions"
-            disabled={busy || aiBusy}
-            onClick={() => void extractCaptions()}
-          >
-            {aiBusy ? "Думаю…" : "Разобрать субтитры"}
-          </button>
+        <div className="video-extract-row">
+          <div className="video-extract-player" data-testid="video-player-slot">
+            {source ? (
+              source.kind === "youtube" ? (
+                <div ref={ytHostRef} className="yt-host" data-testid="video-yt-host" />
+              ) : (
+                <video
+                  ref={videoRef}
+                  className="native-video"
+                  data-testid="video-native"
+                  src={source.url}
+                  controls
+                  playsInline
+                />
+              )
+            ) : (
+              <div className="video-extract-placeholder muted small">
+                Откройте ссылку выше — здесь появится плеер
+              </div>
+            )}
+          </div>
+          <div className="video-extract-actions">
+            <button
+              type="button"
+              className="btn-accent"
+              data-testid="video-extract-captions"
+              disabled={!canExtract}
+              onClick={() => void extractCaptions()}
+            >
+              {aiBusy ? "Думаю…" : "Разобрать субтитры"}
+            </button>
+          </div>
         </div>
         <AiThinkingPanel
           active={aiBusy}
@@ -309,67 +302,31 @@ export function VideoNotesPage({ user }: { user: User }) {
         {error && <p className="error">{error}</p>}
       </section>
 
-      {source && (
-        <div className="video-layout">
-          <div className="video-player card">
-            {source.kind === "youtube" ? (
-              <div ref={ytHostRef} className="yt-host" data-testid="video-yt-host" />
-            ) : (
-              <video
-                ref={videoRef}
-                className="native-video"
-                data-testid="video-native"
-                src={source.url}
-                controls
-                playsInline
-              />
-            )}
-          </div>
-          <div className="video-notes-panel card">
-            <label className="lab">Заметка к текущей секунде</label>
-            <input
-              data-testid="video-note-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Заголовок"
-            />
-            <textarea
-              data-testid="video-note-body"
-              rows={4}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Текст"
-            />
-            <button
-              type="button"
-              className="btn-accent"
-              data-testid="video-note-at-time"
-              disabled={busy}
-              onClick={() => void addAtCurrent()}
-            >
-              Заметка к текущей секунде
-            </button>
-            <ul className="video-note-list" data-testid="video-note-list">
-              {videoNotes.map((n: Note) => (
-                <li key={n.id}>
+      {source && videoNotes.length > 0 ? (
+        <section className="card capture-card" data-testid="video-note-list-wrap">
+          <label className="lab">Заметки к этому видео</label>
+          <ul className="video-note-list" data-testid="video-note-list">
+            {videoNotes.map((n: Note) => (
+              <li key={n.id}>
+                {n.source_ts != null ? (
                   <button
                     type="button"
                     className="timecode-link"
                     data-testid="video-timecode"
                     onClick={() => seekTo(n.source_ts ?? 0)}
                   >
-                    {formatTimecode(n.source_ts ?? 0)}
+                    {formatTimecode(n.source_ts)}
                   </button>
-                  <span>
-                    {n.title}
-                    {n.ai_generated ? <span className="ai-badge">создано ИИ</span> : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
+                ) : null}
+                <span>
+                  {n.title}
+                  {n.ai_generated ? <span className="ai-badge">создано ИИ</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <ExtractDraftsModal
         open={confirmOpen}
