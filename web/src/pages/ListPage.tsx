@@ -10,6 +10,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { api, Tag, User } from "../api";
 import { AttachmentClipIcon } from "../components/AttachmentsPanel";
 import { NoteIllustration } from "../components/NoteIllustration";
+import { OverflowMenu } from "../components/OverflowMenu";
 import { Switch } from "../components/Switch";
 import { TagPill } from "../components/TagPill";
 import { formatInZone } from "../format";
@@ -289,14 +290,41 @@ export function ListPage({ user }: { user: User }) {
                 <div className="note-actions">
                   {n.role !== "editor" ? (
                     <>
-                      <Switch
-                        label={n.status === "active" ? "Активна" : "Неактивна"}
-                        checked={n.status === "active"}
-                        onChange={() => toggle.mutate(n)}
-                      />
-                      <button type="button" className="link" onClick={() => remove.mutate(n.id)}>
-                        В корзину
-                      </button>
+                      <div className="note-actions-wide">
+                        <Switch
+                          label={n.status === "active" ? "Активна" : "Неактивна"}
+                          checked={n.status === "active"}
+                          onChange={() => toggle.mutate(n)}
+                        />
+                        <button
+                          type="button"
+                          className="link"
+                          onClick={() => remove.mutate(n.id)}
+                        >
+                          В корзину
+                        </button>
+                      </div>
+                      <div className="note-actions-compact">
+                        <OverflowMenu
+                          label="Действия"
+                          items={[
+                            {
+                              id: "toggle",
+                              label:
+                                n.status === "active"
+                                  ? "Сделать неактивной"
+                                  : "Сделать активной",
+                              onSelect: () => toggle.mutate(n),
+                            },
+                            {
+                              id: "trash",
+                              label: "В корзину",
+                              danger: true,
+                              onSelect: () => remove.mutate(n.id),
+                            },
+                          ]}
+                        />
+                      </div>
                     </>
                   ) : null}
                 </div>
