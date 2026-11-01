@@ -71,6 +71,8 @@ test("e2e_reminder_from_ui_toast_and_mail", async ({ browser }) => {
     await a.getByTestId("new-note").click();
     await expect(a).toHaveURL(/\/notes\/new/);
     await expect(a.getByTestId("note-form")).toBeVisible();
+    await a.getByTestId("meta-when-trigger").click();
+    await a.getByTestId("meta-reminders-trigger").click();
     await expect(a.getByTestId("reminder-offsets")).toBeVisible();
 
     const starts = new Date(Date.now() + 11 * 60 * 1000);
@@ -86,6 +88,7 @@ test("e2e_reminder_from_ui_toast_and_mail", async ({ browser }) => {
     // Confirm offsets persisted on note page.
     await a.getByText(title).click();
     await expect(a).toHaveURL(/\/notes\//);
+    await a.getByTestId("meta-reminders-trigger").click();
     await expect(a.getByTestId("reminder-offset-10")).toBeChecked();
     await a.getByRole("button", { name: "Закрыть" }).click();
     await expect(a).toHaveURL(/\/list/);

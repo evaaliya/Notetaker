@@ -62,6 +62,7 @@ test("e2e_register_uses_browser_timezone", async ({ page }) => {
   await page.goto("/list");
   await page.getByTestId("new-note").click();
   await expect(page).toHaveURL(/\/notes\/new/);
+  await page.getByTestId("meta-when-trigger").click();
   await expect(page.getByTestId("note-tz-hint")).toContainText(browserTz);
 });
 
@@ -69,6 +70,8 @@ test("e2e_past_reminder_shows_warning", async ({ page }) => {
   const login = uniqueLogin("tzpast");
   await registerUi(page, login);
   await page.goto("/notes/new");
+  await page.getByTestId("meta-when-trigger").click();
+  await page.getByTestId("meta-reminders-trigger").click();
 
   // Event in 5 minutes + «за час» → fire_at already in the past.
   const starts = new Date(Date.now() + 5 * 60 * 1000);

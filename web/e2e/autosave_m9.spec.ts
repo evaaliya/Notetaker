@@ -34,13 +34,18 @@ test("e2e_autosave_pending_file_creates_and_uploads", async ({ page }) => {
   const login = uniqueLogin("asfile");
   await registerUi(page, login);
   await page.goto("/notes/new");
-  await page.getByTestId("attachment-file-input").setInputFiles({
+  await page.getByTestId("meta-attachments-trigger").click();
+  await page.getByTestId("note-attach-file-input").setInputFiles({
     name: "tiny.png",
     mimeType: "image/png",
     buffer: PNG,
   });
   await expect(page.getByTestId("attachment-pending")).toBeVisible();
   await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/i, { timeout: 15_000 });
+  // Keep attachments section open after navigate-replace to /notes/:id
+  if ((await page.getByTestId("meta-attachments").getAttribute("data-open")) !== "1") {
+    await page.getByTestId("meta-attachments-trigger").click();
+  }
   await expect(page.getByTestId("attachment-thumb")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("attachment-pending")).toHaveCount(0);
 });

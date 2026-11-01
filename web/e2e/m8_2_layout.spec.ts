@@ -24,6 +24,7 @@ test("e2e_reminders_in_one_row", async ({ page }) => {
   await registerUi(page, login);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/notes/new");
+  await page.getByTestId("meta-reminders-trigger").click();
   await expect(page.getByTestId("reminder-offsets-row")).toBeVisible();
   const boxes = await Promise.all(
     [10, 60, 1440].map(async (m) => {

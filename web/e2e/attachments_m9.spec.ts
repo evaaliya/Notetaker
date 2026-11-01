@@ -20,9 +20,10 @@ test("e2e_attachment_image_thumbnail", async ({ page }) => {
   });
 
   await page.goto(`/notes/${note.id}`);
+  await page.getByTestId("meta-attachments-trigger").click();
   await expect(page.getByTestId("note-attachments-slot")).toBeVisible();
 
-  await page.getByTestId("attachment-file-input").setInputFiles({
+  await page.getByTestId("note-attach-file-input").setInputFiles({
     name: "tiny.png",
     mimeType: "image/png",
     buffer: PNG,
