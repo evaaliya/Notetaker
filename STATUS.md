@@ -290,6 +290,13 @@
 - `make e2e` → **81 passed** (вкл. `m15_editor_*` на chromium/firefox/webkit + прежние `m15_layout`); адаптация `reminder_ui`/`timezone`/`attachments_m9`/`autosave_m9`/`m8_2` — раскрытие meta перед взаимодействием.
 **Работает:** title/body ≥70% ширины pane; meta свёрнута по умолчанию, значения сохраняются; paperclip + drop на body; sidebar collapse не ломает ширину.
 
+### Смоки M15 Apple Notes редактор (2026-11-01 23:38 +06)
+**Исправлено (D-093):** единая writing surface (title 28px/800 + body без рамок); горизонтальный `.note-action-bar` с popover; одна скрепка → filechooser; теги — `TagPill` toggle без поиска/чекбоксов; убраны вертикальные full-width карточки D-092 и скрепка у «Закрыть».
+**Автоматически:**
+- `make test` → **94 passed**.
+- `make e2e` → **81 passed** (`m15_editor_*` ×3 браузера + suite); `reminder_ui`/`timezone` учитывают exclusive popover.
+**Работает:** toolbar `flex-direction: row`; ровно один `note-attach-btn`; значения meta сохраняются при сворачивании; DnD на surface.
+
 ## Следующий заход
 - Web Push / Service Worker.
 - Интервал повтора и сложные правила («каждый второй вторник»).
