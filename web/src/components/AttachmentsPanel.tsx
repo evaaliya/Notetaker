@@ -28,8 +28,8 @@ type Props = {
   /** Compact mode for calendar side panel. */
   compact?: boolean;
   /**
-   * Editor layout (D-092): icon-only paperclip, no dashed empty drop zone;
-   * parent may bind body DnD via ingestRef.
+   * Editor layout (D-093): list only — parent owns the single paperclip;
+   * no dashed empty drop zone; body DnD via ingestRef.
    */
   chrome?: "panel" | "editor";
   /** Client queue before note has an id (autosave /notes/new). */
@@ -156,30 +156,32 @@ export function AttachmentsPanel({
       onDragLeave={editorChrome ? undefined : () => setDragOver(false)}
       onDrop={editorChrome ? undefined : onDrop}
     >
-      <div className="attachments-head">
-        {!editorChrome && <div className="lab">Вложения</div>}
-        <button
-          type="button"
-          className="secondary icon-btn"
-          data-testid="attachment-add"
-          aria-label="Прикрепить файл"
-          title="Прикрепить файл"
-          onClick={() => inputRef.current?.click()}
-          disabled={!noteId && !allowPending}
-        >
-          <Paperclip size={18} strokeWidth={2} aria-hidden />
-          {!compact && !editorChrome && <span>Файл</span>}
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          hidden
-          data-testid="attachment-file-input"
-          accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.docx,image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          multiple
-          onChange={onInputChange}
-        />
-      </div>
+      {!editorChrome && (
+        <div className="attachments-head">
+          <div className="lab">Вложения</div>
+          <button
+            type="button"
+            className="secondary icon-btn"
+            data-testid="attachment-add"
+            aria-label="Прикрепить файл"
+            title="Прикрепить файл"
+            onClick={() => inputRef.current?.click()}
+            disabled={!noteId && !allowPending}
+          >
+            <Paperclip size={18} strokeWidth={2} aria-hidden />
+            {!compact && <span>Файл</span>}
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            hidden
+            data-testid="attachment-file-input"
+            accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.docx,image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            multiple
+            onChange={onInputChange}
+          />
+        </div>
+      )}
 
       {progress != null && (
         <div className="attachment-progress" data-testid="attachment-progress" role="status">

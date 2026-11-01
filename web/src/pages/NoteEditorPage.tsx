@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Paperclip, Repeat } from "lucide-react";
+import { Bell, CalendarClock, Paperclip, Repeat, Tag as TagIcon } from "lucide-react";
 import { ApiError, api, Note, Recurrence, Tag, User } from "../api";
 import { AttachmentsPanel } from "../components/AttachmentsPanel";
 import { ConflictDialog } from "../components/ConflictDialog";
@@ -11,6 +11,7 @@ import { RecurrenceField } from "../components/RecurrenceField";
 import { ReminderOffsetsField, REMINDER_OPTIONS } from "../components/ReminderOffsetsField";
 import { SharePanel } from "../components/SharePanel";
 import { TagMultiSelect } from "../components/TagMultiSelect";
+import { TagPill } from "../components/TagPill";
 import {
   formatInZone,
   formatSeriesRecurrenceHint,
@@ -156,17 +157,15 @@ function NoteEditorForm({
     recurrence: boolean;
     reminders: boolean;
     tags: boolean;
-    attachments: boolean;
   }>({
     when: false,
     recurrence: false,
     reminders: false,
     tags: false,
-    attachments: false,
   });
   const [bodyDragOver, setBodyDragOver] = useState(false);
   const attachmentIngestRef = useRef<((files: FileList | File[]) => void) | null>(null);
-  const headerFileInputRef = useRef<HTMLInputElement>(null);
+  const attachFileInputRef = useRef<HTMLInputElement>(null);
 
   const noteRef = useRef(note);
   const versionRef = useRef(version);
@@ -499,8 +498,16 @@ function NoteEditorForm({
   }
 
   function openMeta(key: keyof typeof metaOpen, open: boolean) {
-    setMetaOpen((prev) => ({ ...prev, [key]: open }));
+    setMetaOpen(
+      open
+        ? { when: false, recurrence: false, reminders: false, tags: false, [key]: true }
+        : { when: false, recurrence: false, reminders: false, tags: false },
+    );
   }
+
+  const selectedTags = tags.filter((t) => tagIds.includes(t.id));
+  const attachCount =
+    pendingFiles.length + (note?.has_attachments || noteRef.current?.has_attachments ? 1 : 0);
 
   function onBodyDragOver(e: DragEvent) {
     e.preventDefault();
@@ -645,14 +652,17 @@ function NoteEditorForm({
       >
         <header className="note-editor-bar">
           <div className="note-editor-bar-inner">
-            <h1 className="note-editor-heading">
-              {note ? "Заметка" : "Новая заметка"}
+            <div className="note-editor-heading-wrap">
               {note?.ai_generated ? (
                 <span className="ai-badge" data-testid="ai-generated-badge">
                   создано ИИ
                 </span>
-              ) : null}
-            </h1>
+              ) : (
+                <span className="note-editor-chrome-label muted small">
+                  {note ? "Заметка" : "Новая заметка"}
+                </span>
+              )}
+            </div>
             <div className="note-editor-actions">
               <span
                 className="muted small"
@@ -661,29 +671,6 @@ function NoteEditorForm({
               >
                 {statusLabel}
               </span>
-              <button
-                type="button"
-                className="secondary icon-btn"
-                data-testid="note-attach-btn"
-                aria-label="Прикрепить файл"
-                title="Прикрепить файл"
-                onClick={() => headerFileInputRef.current?.click()}
-              >
-                <Paperclip size={18} strokeWidth={2} aria-hidden />
-              </button>
-              <input
-                ref={headerFileInputRef}
-                type="file"
-                hidden
-                data-testid="note-attach-file-input"
-                accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.docx,image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                multiple
-                onChange={(e) => {
-                  const files = e.target.files;
-                  if (files?.length) attachmentIngestRef.current?.(files);
-                  e.target.value = "";
-                }}
-              />
               <button type="button" className="secondary" onClick={() => void handleCancel()}>
                 Закрыть
               </button>
@@ -692,33 +679,43 @@ function NoteEditorForm({
         </header>
 
         <div className="note-editor-body">
-          <label className="note-title-field">
-            Название
-            <input
-              data-testid="note-title"
-              value={title}
-              onChange={(e) => {
-                const v = e.target.value;
-                setTitle(v);
-                fieldsRef.current = { ...fieldsRef.current, title: v };
-                markDirty();
-              }}
-            />
-          </label>
           <div
-            className={`note-body-dropzone${bodyDragOver ? " is-dragover" : ""}`}
+            className={`note-writing-surface${bodyDragOver ? " is-dragover" : ""}`}
             data-testid="note-body-dropzone"
             onDragEnter={onBodyDragOver}
             onDragOver={onBodyDragOver}
             onDragLeave={onBodyDragLeave}
             onDrop={onBodyDrop}
           >
+            <label className="note-title-field">
+              <span className="visually-hidden">Название</span>
+              <input
+                data-testid="note-title"
+                className="note-title-input"
+                value={title}
+                placeholder="Название"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setTitle(v);
+                  fieldsRef.current = { ...fieldsRef.current, title: v };
+                  markDirty();
+                }}
+              />
+            </label>
+            {selectedTags.length > 0 ? (
+              <div className="note-selected-tags" data-testid="note-selected-tags">
+                {selectedTags.map((t) => (
+                  <TagPill key={t.id} name={t.name} color={t.color} />
+                ))}
+              </div>
+            ) : null}
             <label className="note-body-field">
-              Текст
+              <span className="visually-hidden">Текст</span>
               <textarea
                 data-testid="note-body"
                 className="note-body-textarea"
                 value={body}
+                placeholder="Текст"
                 onChange={(e) => {
                   const v = e.target.value;
                   setBody(v);
@@ -730,25 +727,25 @@ function NoteEditorForm({
             </label>
             {bodyDragOver ? (
               <div className="note-body-drop-hint" data-testid="note-body-drop-hint" aria-hidden>
-                Отпустите, чтобы прикрепить файл
+                Отпустите, чтобы прикрепить
               </div>
             ) : null}
           </div>
 
-          <div className="note-meta-bar" data-testid="note-meta-bar">
+          <div className="note-action-bar" data-testid="note-meta-bar" role="toolbar" aria-label="Параметры заметки">
             <EditorMetaDisclosure
               testId="meta-when"
-              label="Дата и время"
-              summary={startsLocal ? startsLocal.replace("T", " ") : "не задано"}
+              label="Дата"
+              summary={startsLocal ? startsLocal.replace("T", " ") : ""}
               icon={<CalendarClock size={18} strokeWidth={2} />}
               open={metaOpen.when}
               onOpenChange={(o) => openMeta("when", o)}
             >
-              <label>
+              <label className="editor-tool-field">
                 Время
                 <span className="muted small" data-testid="note-tz-hint">
                   {" "}
-                  (ввод в поясе {user.timezone})
+                  (пояс {user.timezone})
                 </span>
                 <input
                   type="datetime-local"
@@ -771,7 +768,7 @@ function NoteEditorForm({
               summary={
                 recurrence
                   ? formatSeriesRecurrenceHint(recurrence.freq, recurrence.until)
-                  : "без повтора"
+                  : ""
               }
               icon={<Repeat size={18} strokeWidth={2} />}
               open={metaOpen.recurrence}
@@ -795,11 +792,12 @@ function NoteEditorForm({
               label="Напоминания"
               summary={
                 reminderOffsets.length === 0
-                  ? "нет"
+                  ? ""
                   : REMINDER_OPTIONS.filter((o) => reminderOffsets.includes(o.minutes))
                       .map((o) => o.label)
                       .join(", ")
               }
+              icon={<Bell size={18} strokeWidth={2} />}
               open={metaOpen.reminders}
               onOpenChange={(o) => openMeta("reminders", o)}
             >
@@ -821,42 +819,59 @@ function NoteEditorForm({
               label="Теги"
               summary={
                 tagIds.length === 0
-                  ? "нет"
-                  : tags
-                      .filter((t) => tagIds.includes(t.id))
-                      .map((t) => t.name)
-                      .join(", ") || String(tagIds.length)
+                  ? ""
+                  : selectedTags.map((t) => t.name).join(", ") || String(tagIds.length)
               }
+              icon={<TagIcon size={18} strokeWidth={2} />}
               open={metaOpen.tags}
               onOpenChange={(o) => openMeta("tags", o)}
             >
               <TagMultiSelect tags={tags} value={tagIds} onChange={setTagIdsDirty} />
             </EditorMetaDisclosure>
 
-            <EditorMetaDisclosure
-              testId="meta-attachments"
-              label="Вложения"
-              summary={
-                pendingFiles.length > 0 || note?.has_attachments
-                  ? pendingFiles.length > 0
-                    ? String(pendingFiles.length)
-                    : "есть"
-                  : "нет"
-              }
-              icon={<Paperclip size={18} strokeWidth={2} />}
-              open={metaOpen.attachments}
-              onOpenChange={(o) => openMeta("attachments", o)}
-            >
-              <AttachmentsPanel
-                chrome="editor"
-                noteId={note?.id ?? noteRef.current?.id ?? null}
-                pendingFiles={pendingFiles}
-                onAddPending={addPending}
-                onRemovePending={removePending}
-                ingestRef={attachmentIngestRef}
+            <div className="editor-tool editor-tool-attach">
+              <button
+                type="button"
+                className="editor-tool-btn"
+                data-testid="note-attach-btn"
+                aria-label="Прикрепить файл"
+                title="Прикрепить файл"
+                onClick={() => attachFileInputRef.current?.click()}
+              >
+                <span className="editor-tool-icon" aria-hidden="true">
+                  <Paperclip size={18} strokeWidth={2} />
+                </span>
+                <span className="editor-tool-label">Файл</span>
+                {attachCount > 0 ? (
+                  <span className="editor-tool-summary muted" data-testid="note-attach-count">
+                    есть
+                  </span>
+                ) : null}
+              </button>
+              <input
+                ref={attachFileInputRef}
+                type="file"
+                hidden
+                data-testid="note-attach-file-input"
+                accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.docx,image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                multiple
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (files?.length) attachmentIngestRef.current?.(files);
+                  e.target.value = "";
+                }}
               />
-            </EditorMetaDisclosure>
+            </div>
           </div>
+
+          <AttachmentsPanel
+            chrome="editor"
+            noteId={note?.id ?? noteRef.current?.id ?? null}
+            pendingFiles={pendingFiles}
+            onAddPending={addPending}
+            onRemovePending={removePending}
+            ingestRef={attachmentIngestRef}
+          />
 
           {(note || noteRef.current) && (
             <SharePanel note={(note || noteRef.current)!} />
