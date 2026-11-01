@@ -1102,17 +1102,18 @@ button:focus-visible {
   margin: 1px 2px 0 !important;
 }
 
-/* —— M17 TickTick-style timeline —— */
-.tl-week {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(140px, 1fr));
-  gap: var(--space-3);
-  overflow-x: auto;
-  padding-bottom: var(--space-2);
+/* —— M17 agenda week/day (reference: docs/design/week-agenda-reference.jpg) —— */
+.tl-week-agenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-2) var(--space-1) var(--space-4);
+  background: var(--surface);
 }
 
-.tl-week-stacked {
-  grid-template-columns: 1fr;
+.tl-week {
+  overflow: auto;
+  max-height: calc(100vh - 220px);
 }
 
 .tl-day-view {
@@ -1120,123 +1121,129 @@ button:focus-visible {
   max-height: calc(100vh - 220px);
 }
 
-.tl-day {
-  min-width: 0;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
+.tl-agenda-day {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
 }
 
-.tl-day-today {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
-}
-
-.tl-day-heading {
+.tl-agenda-date {
   display: flex;
   align-items: baseline;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
+  gap: 6px;
+  padding-top: 2px;
+  user-select: none;
 }
 
-.tl-day-num {
-  font: 800 28px/1 var(--font-display);
+.tl-agenda-num {
+  font: 700 34px/1 var(--font-display);
   color: var(--ink);
+  letter-spacing: -0.02em;
 }
 
-.tl-day-wd {
-  font: 600 13px var(--font-sans);
-  color: var(--muted);
-  text-transform: lowercase;
+.tl-agenda-num.on {
+  color: #3B82F6;
 }
 
-.tl-day-body {
-  display: flex;
-  gap: var(--space-2);
-  position: relative;
-}
-
-.tl-hours {
-  position: relative;
-  flex: 0 0 44px;
-  width: 44px;
-  font: 500 11px/1 var(--font-sans);
+.tl-agenda-wd {
+  font: 500 15px/1.2 var(--font-sans);
   color: var(--muted);
 }
 
-.tl-hour {
-  position: absolute;
-  left: 0;
-  transform: translateY(-50%);
-  white-space: nowrap;
-}
-
-.tl-rail-wrap {
-  position: relative;
-  flex: 1 1 auto;
+.tl-agenda-track {
   min-width: 0;
-  margin-left: 6px;
 }
 
-.tl-rail {
+.tl-agenda-empty {
+  font: 500 13px var(--font-sans);
+  padding: 8px 0;
+}
+
+.tl-agenda-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tl-agenda-row {
+  display: grid;
+  grid-template-columns: 44px 20px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.tl-agenda-hm {
+  font: 500 13px/1.2 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: #9AA3AD;
+  padding-top: 14px;
+  text-align: right;
+}
+
+.tl-agenda-spine {
+  position: relative;
+  width: 20px;
+  display: flex;
+  justify-content: center;
+  align-self: stretch;
+  min-height: 100%;
+  padding-top: 16px;
+}
+
+.tl-agenda-line {
   position: absolute;
-  left: 5px;
-  top: 0;
-  bottom: 0;
+  top: 22px;
+  bottom: calc(-1 * var(--space-4));
+  left: 50%;
   width: 2px;
-  background: var(--line-strong);
-  border-radius: 2px;
+  transform: translateX(-50%);
+  background: #E5E7EB;
+  border-radius: 1px;
 }
 
-.tl-dot-row {
-  position: absolute;
-  left: 0;
+.tl-agenda-dot {
+  position: relative;
+  z-index: 1;
   width: 12px;
   height: 12px;
-  z-index: 1;
-}
-
-.tl-dot {
-  display: block;
-  width: 10px;
-  height: 10px;
   border-radius: 50%;
-  background: var(--accent);
-  border: 2px solid var(--surface);
-  box-shadow: 0 0 0 1px var(--line-strong);
+  background: #fff;
+  border: 2px solid #D1D5DB;
+  box-sizing: border-box;
+  flex: none;
 }
 
-.tl-cards {
-  position: absolute;
-  left: 18px;
-  right: 0;
-  top: 0;
-  bottom: 0;
+.tl-agenda-card-wrap {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .tl-card {
-  position: absolute;
-  left: 0;
-  right: 0;
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px 12px 16px;
   border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--tag-bg, var(--accent-soft));
+  border-radius: 14px;
+  background: var(--tag-bg, #EEF2F6);
   color: var(--ink);
-  box-shadow: inset 3px 0 0 var(--tag-fg, var(--accent));
+  box-shadow: inset 4px 0 0 var(--tag-fg, var(--accent));
   cursor: pointer;
-  overflow: hidden;
   text-align: left;
-  font: 500 13px var(--font-sans);
-  min-height: 36px;
+  font-family: var(--font-sans);
+  min-height: 56px;
 }
 
 .tl-card:hover {
-  filter: brightness(0.98);
+  filter: brightness(0.985);
 }
 
 .tl-card:focus-visible {
@@ -1244,33 +1251,34 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-.tl-card-time {
-  flex: none;
+.tl-card-range {
+  font: 600 13px/1.2 var(--font-sans);
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--tag-fg, var(--accent));
 }
 
 .tl-card-title {
-  min-width: 0;
+  font: 600 15px/1.3 var(--font-sans);
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  max-width: 100%;
 }
 
 .tl-overflow {
-  position: absolute;
-  left: 0;
-  right: 0;
+  position: relative;
   z-index: 2;
+}
+
+.tl-overflow-flow {
+  position: relative;
 }
 
 .tl-overflow-btn {
   display: inline-flex;
   align-items: center;
-  min-height: 32px;
+  min-height: 36px;
   padding: 0 var(--space-3);
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius-sm);
@@ -1311,8 +1319,18 @@ button:focus-visible {
 }
 
 @media (max-width: 640px) {
-  .tl-day-view {
+  .tl-day-view,
+  .tl-week {
     max-height: none;
+  }
+
+  .tl-agenda-day {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .tl-agenda-num {
+    font-size: 28px;
   }
 
   .calendar-main-mobile .tl-week,

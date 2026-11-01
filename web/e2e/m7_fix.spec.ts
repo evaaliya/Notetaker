@@ -6,66 +6,32 @@ test("e2e_calendar_slot_matches_label_timezone", async ({ page }) => {
   await registerUi(page, login);
   await page.request.patch("/api/me", { data: { timezone: "Asia/Bishkek" } });
 
-  // 11:41 Asia/Bishkek = 05:41 UTC (+06).
+  // Today 11:41 in Asia/Bishkek (= 05:41Z) — calendar week uses that TZ, not UTC date.
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bishkek",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date()); // YYYY-MM-DD
+  const starts = `${ymd}T05:41:00Z`;
   const title = `Slot1141 ${Date.now()}`;
   await apiCreateNote(page.request, {
     title,
     body: "",
-    starts_at: "2026-10-29T05:41:00Z",
+    starts_at: starts,
     reminder_offsets: [],
     tag_ids: [],
   });
 
   await page.goto("/calendar");
   await page.getByTestId("cal-view-week").click();
-  // Event is on a fixed past date — walk both directions from "today".
-  for (let i = 0; i < 30; i++) {
-    if ((await page.getByTestId("tl-card").filter({ hasText: title }).count()) > 0) break;
-    await page.getByTestId("cal-prev").click();
-    await page.waitForTimeout(80);
-  }
-  for (let i = 0; i < 60; i++) {
-    if ((await page.getByTestId("tl-card").filter({ hasText: title }).count()) > 0) break;
-    await page.getByTestId("cal-next").click();
-    await page.waitForTimeout(80);
-  }
-
   const event = page.getByTestId("tl-card").filter({ hasText: title });
-  await expect(event).toBeVisible();
+  await expect(event).toBeVisible({ timeout: 15_000 });
   await expect(event).toHaveAttribute("data-hm", "11:41");
-
-  const day = page.locator('.tl-day[data-day="2026-10-29"]');
-  await expect(day).toBeVisible();
-  await day.locator(".tl-card-time").first().scrollIntoViewIfNeeded();
-
-  const pos = await day.evaluate((el) => {
-    const card = el.querySelector('[data-testid="tl-card"]') as HTMLElement | null;
-    const hours = Array.from(el.querySelectorAll(".tl-hour")) as HTMLElement[];
-    const h11 = hours.find((h) => h.textContent?.trim() === "11:00");
-    const h12 = hours.find((h) => h.textContent?.trim() === "12:00");
-    const h05 = hours.find((h) => h.textContent?.trim() === "05:00");
-    // Hours may be only on first week column — fall back to absolute tops from style.
-    const rail = el.querySelector(".tl-rail-wrap") as HTMLElement | null;
-    const cardTop = card?.offsetTop ?? -1;
-    const parseTop = (n: HTMLElement | undefined) =>
-      n ? parseFloat(n.style.top || "0") : NaN;
-    return {
-      cardTop,
-      top11: h11 ? h11.offsetTop : parseTop(undefined),
-      top12: h12 ? h12.offsetTop : NaN,
-      top05: h05 ? h05.offsetTop : NaN,
-      railH: rail?.clientHeight ?? 0,
-      hm: card?.getAttribute("data-hm"),
-    };
-  });
-
-  expect(pos.hm).toBe("11:41");
-  // Card sits in the 11:00 band (~11/24 of day height), not near 05:00.
-  const expected11 = (11 / 24) * (pos.railH || 1152);
-  const expected05 = (5 / 24) * (pos.railH || 1152);
-  expect(Math.abs(pos.cardTop - expected11)).toBeLessThan(Math.abs(pos.cardTop - expected05));
-  expect(pos.cardTop).toBeGreaterThan(expected11 - 20);
-  expect(pos.cardTop).toBeLessThan(expected11 + 48);
+  // Agenda rail shows wall-clock start next to the hollow dot (not UTC 05:41).
+  const day = event.locator("xpath=ancestor::*[@data-testid='tl-day']");
+  await expect(day.locator(".tl-agenda-hm").filter({ hasText: "11:41" })).toBeVisible();
+  await expect(event.locator(".tl-card-range")).toHaveText("11:41–12:11");
 });
 
 test("e2e_sidebar_fits_viewport", async ({ page }) => {
@@ -74,7 +40,6 @@ test("e2e_sidebar_fits_viewport", async ({ page }) => {
   await page.request.patch("/api/me", {
     data: { email: "long.email.for.truncation@example.com" },
   });
-  // Many tags to stress vertical layout — only tags scroll, footer stays.
   for (let i = 0; i < 20; i++) {
     await page.request.post("/api/tags", {
       data: { name: `Tag${i}_${Date.now()}`, color: "#3E6FB0" },
@@ -85,13 +50,11 @@ test("e2e_sidebar_fits_viewport", async ({ page }) => {
   await page.goto("/calendar");
   const sidebar = page.getByTestId("app-sidebar");
   await expect(sidebar).toBeVisible();
-  // Expand for footer/email layout check (default is collapsed 64px).
   if ((await sidebar.getAttribute("data-collapsed")) === "1") {
     await page.getByTestId("sidebar-toggle").click();
   }
   await expect(sidebar).toHaveAttribute("data-collapsed", "0");
 
-  // Allow 2px subpixel/scrollbar slack after expand animation.
   await expect
     .poll(async () => (await sidebar.boundingBox())?.width ?? 0, { timeout: 2000 })
     .toBeGreaterThan(200);
@@ -146,7 +109,6 @@ test("e2e_notifications_popover", async ({ page }) => {
   const markBox = await markAll.boundingBox();
   expect(inboxBox).toBeTruthy();
   expect(markBox).toBeTruthy();
-  // Popover sits in main (to the right of sidebar), not clipped.
   expect(inboxBox!.x).toBeGreaterThanOrEqual(sideW);
   expect(markBox!.x + markBox!.width).toBeLessThanOrEqual(inboxBox!.x + inboxBox!.width + 1);
   expect(markBox!.y).toBeGreaterThanOrEqual(inboxBox!.y - 1);

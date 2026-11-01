@@ -1,11 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { apiCreateNote, registerUi, uniqueLogin } from "./helpers";
 
-/** Today at HH:MM:00 UTC as API ISO-Z (avoids hardcoded past months). */
+/** Civil today in UTC at HH:MM → ISO-Z (matches user.timezone=UTC in these tests). */
 function todayAtUtc(hour: number, minute = 0): string {
-  const d = new Date();
-  d.setUTCHours(hour, minute, 0, 0);
-  return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return `${ymd}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00Z`;
 }
 
 async function ensureTag(
@@ -27,17 +31,7 @@ async function gotoWeekWithTitle(page: import("@playwright/test").Page, title: s
   await page.goto("/calendar");
   await page.getByTestId("cal-view-week").click();
   const card = () => page.getByTestId("tl-card").filter({ hasText: title });
-  // Past dates first: next→prev alone returns to "today" and never reaches last month.
-  for (let i = 0; i < 12; i++) {
-    if ((await card().count()) > 0) return;
-    await page.getByTestId("cal-prev").click();
-    await page.waitForTimeout(80);
-  }
-  for (let i = 0; i < 24; i++) {
-    if ((await card().count()) > 0) return;
-    await page.getByTestId("cal-next").click();
-    await page.waitForTimeout(80);
-  }
+  await expect.poll(async () => card().count(), { timeout: 10_000 }).toBeGreaterThan(0);
 }
 
 test("e2e_tags_visible_everywhere", async ({ page }) => {

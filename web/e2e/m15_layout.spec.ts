@@ -108,21 +108,20 @@ test("m15_day_end_event_not_clipped", async ({ page }) => {
   await expect(event).toBeVisible({ timeout: 15_000 });
 
   const clip = await event.evaluate((el) => {
-    const rail = el.closest(".tl-rail-wrap") as HTMLElement | null;
+    const day = el.closest(".tl-agenda-day") as HTMLElement | null;
     const er = el.getBoundingClientRect();
-    const dr = rail?.getBoundingClientRect();
+    const dr = day?.getBoundingClientRect();
     return {
       eventH: Math.round(er.height),
-      eventTop: Math.round(er.top),
-      dayBottom: dr ? Math.round(dr.bottom) : null,
-      dayTop: dr ? Math.round(dr.top) : null,
       text: (el.textContent || "").includes("M15 Late UTC"),
       startsInDay: dr ? er.top >= dr.top - 2 && er.top < dr.bottom : false,
       endsInDay: dr ? er.bottom <= dr.bottom + 2 : false,
+      hm: el.getAttribute("data-hm"),
     };
   });
   expect(clip.text).toBe(true);
-  expect(clip.eventH).toBeGreaterThanOrEqual(32);
+  expect(clip.hm).toBe("23:20");
+  expect(clip.eventH).toBeGreaterThanOrEqual(48);
   expect(clip.startsInDay).toBe(true);
   expect(clip.endsInDay).toBe(true);
 });

@@ -112,10 +112,15 @@ test("e2e_week_timeline_layout", async ({ page }) => {
   await page.getByTestId("cal-view-week").click();
   await expect(page.getByTestId("tl-week")).toBeVisible();
   await expect(page.locator(".fc-timegrid")).toHaveCount(0);
+  await expect(page.getByTestId("tl-week")).toHaveClass(/tl-week-agenda/);
   await expect(page.getByTestId("tl-day-heading")).toHaveCount(7);
   const card = page.getByTestId("tl-card").filter({ hasText: title });
   await expect(card).toBeVisible();
   await expect(card).toHaveAttribute("data-hm", "14:30");
+  await expect(card.locator(".tl-card-range")).toHaveText("14:30–15:00");
+  await expect(card.locator(".tl-card-title")).toHaveText(title);
+  await expect(page.locator(".tl-agenda-dot").first()).toBeVisible();
+  await expect(page.locator(".tl-agenda-hm").filter({ hasText: "14:30" })).toBeVisible();
   await expect(card.locator(".note-illustration")).toHaveCount(0);
   await expect(card.getByTestId("tag-pill")).toHaveCount(0);
 });
@@ -136,11 +141,11 @@ test("e2e_day_timeline_hours", async ({ page }) => {
   await page.goto("/calendar");
   await page.getByTestId("cal-view-day").click();
   await expect(page.getByTestId("tl-day-view")).toBeVisible();
-  await expect(page.getByTestId("tl-hours")).toBeVisible();
-  await expect(page.getByTestId("tl-hours")).toContainText("09:00");
+  await expect(page.locator(".tl-agenda-hm").filter({ hasText: "09:15" })).toBeVisible();
   const card = page.getByTestId("tl-card").filter({ hasText: title });
   await expect(card).toBeVisible();
   await expect(card).toHaveAttribute("data-hm", "09:15");
+  await expect(card.locator(".tl-card-range")).toHaveText("09:15–09:45");
 });
 
 test("e2e_timeline_overflow_plus_n", async ({ page }) => {
