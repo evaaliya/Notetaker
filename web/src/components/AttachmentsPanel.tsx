@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Paperclip, Trash2, X } from "lucide-react";
 import { ApiError, Attachment, api } from "../api";
 import type { PendingFile } from "../lib/noteDraftIdb";
+import { invalidateNoteCaches } from "../lib/queryInvalidation";
 
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
@@ -75,9 +76,7 @@ export function AttachmentsPanel({
       try {
         await api.uploadAttachment(noteId, file, setProgress);
         await qc.invalidateQueries({ queryKey: ["attachments", noteId] });
-        await qc.invalidateQueries({ queryKey: ["note", noteId] });
-        await qc.invalidateQueries({ queryKey: ["notes"] });
-        await qc.invalidateQueries({ queryKey: ["calendar"] });
+        invalidateNoteCaches(qc, { noteId });
       } catch (e) {
         const msg = e instanceof ApiError ? e.message : "Не удалось загрузить файл";
         setError(msg);
@@ -124,9 +123,7 @@ export function AttachmentsPanel({
     try {
       await api.deleteAttachment(noteId, att.id);
       await qc.invalidateQueries({ queryKey: ["attachments", noteId] });
-      await qc.invalidateQueries({ queryKey: ["note", noteId] });
-      await qc.invalidateQueries({ queryKey: ["notes"] });
-      await qc.invalidateQueries({ queryKey: ["calendar"] });
+      invalidateNoteCaches(qc, { noteId });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Не удалось удалить");
     }

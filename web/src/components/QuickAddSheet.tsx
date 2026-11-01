@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, User } from "../api";
+import { invalidateNoteCaches } from "../lib/queryInvalidation";
 import { ReminderOffsetsField } from "./ReminderOffsetsField";
 import { TagPill } from "./TagPill";
 import { localInputToUtcIso, utcIsoToLocalInput } from "../format";
@@ -38,9 +39,7 @@ export function QuickAddSheet({ user, open, onClose }: Props) {
         tag_ids: tagIds,
         reminder_offsets: reminderOffsets,
       });
-      qc.invalidateQueries({ queryKey: ["notes"] });
-      qc.invalidateQueries({ queryKey: ["calendar"] });
-      qc.invalidateQueries({ queryKey: ["upcoming"] });
+      invalidateNoteCaches(qc);
       setTitle("");
       setBody("");
       onClose();

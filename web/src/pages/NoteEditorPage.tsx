@@ -29,6 +29,7 @@ import {
   revokePendingPreviews,
   saveDraft,
 } from "../lib/noteDraftIdb";
+import { invalidateNoteCaches } from "../lib/queryInvalidation";
 
 const AUTOSAVE_MS = 600;
 
@@ -83,17 +84,11 @@ export function NoteEditorPage({ user }: Props) {
         note={isNew ? null : noteQuery.data!}
         onCancel={() => navigate("/list")}
         onCreated={(n) => {
-          qc.invalidateQueries({ queryKey: ["notes"] });
-          qc.invalidateQueries({ queryKey: ["note", n.id] });
-          qc.invalidateQueries({ queryKey: ["calendar"] });
-          qc.invalidateQueries({ queryKey: ["upcoming"] });
+          invalidateNoteCaches(qc, { noteId: n.id });
           navigate(`/notes/${n.id}`, { replace: true });
         }}
         onPatched={(n) => {
-          qc.invalidateQueries({ queryKey: ["notes"] });
-          qc.invalidateQueries({ queryKey: ["note", n.id] });
-          qc.invalidateQueries({ queryKey: ["calendar"] });
-          qc.invalidateQueries({ queryKey: ["upcoming"] });
+          invalidateNoteCaches(qc, { noteId: n.id });
         }}
       />
     </div>
@@ -329,9 +324,7 @@ function NoteEditorForm({
         setPendingFiles([]);
         pendingRef.current = [];
         await qc.invalidateQueries({ queryKey: ["attachments", noteId] });
-        await qc.invalidateQueries({ queryKey: ["note", noteId] });
-        await qc.invalidateQueries({ queryKey: ["notes"] });
-        await qc.invalidateQueries({ queryKey: ["calendar"] });
+        invalidateNoteCaches(qc, { noteId });
       } finally {
         uploadingRef.current = false;
       }

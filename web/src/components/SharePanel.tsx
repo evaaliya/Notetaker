@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, Note } from "../api";
+import { invalidateNoteCaches } from "../lib/queryInvalidation";
 
 type Props = { note: Note };
 
@@ -40,9 +41,7 @@ export function SharePanel({ note }: Props) {
   const leave = useMutation({
     mutationFn: () => api.leaveNote(note.id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["notes"] });
-      qc.invalidateQueries({ queryKey: ["calendar"] });
-      qc.invalidateQueries({ queryKey: ["upcoming"] });
+      invalidateNoteCaches(qc);
       navigate("/list");
     },
   });
