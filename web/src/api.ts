@@ -35,6 +35,7 @@ export type Note = {
   source_url?: string | null;
   source_ts?: number | null;
   ai_generated?: boolean;
+  show_in_calendar?: boolean;
 };
 
 export type ExtractDraft = {

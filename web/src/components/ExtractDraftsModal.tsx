@@ -17,6 +17,9 @@ type Props = {
   summaryLang?: SummaryLang;
   onSummaryLangChange?: (lang: SummaryLang) => void;
   bilingual?: boolean;
+  /** Video path: optional «Показать в календаре» (default off). Call modal omits this. */
+  showInCalendar?: boolean;
+  onShowInCalendarChange?: (value: boolean) => void;
 };
 
 export function ExtractDraftsModal({
@@ -31,6 +34,8 @@ export function ExtractDraftsModal({
   summaryLang,
   onSummaryLangChange,
   bilingual,
+  showInCalendar,
+  onShowInCalendarChange,
 }: Props) {
   if (!open) return null;
   return (
@@ -103,6 +108,16 @@ export function ExtractDraftsModal({
             </li>
           ))}
         </ul>
+        {onShowInCalendarChange != null && showInCalendar != null ? (
+          <label className="draft-row" data-testid="extract-show-in-calendar">
+            <input
+              type="checkbox"
+              checked={showInCalendar}
+              onChange={(e) => onShowInCalendarChange(e.target.checked)}
+            />
+            <span>Показать в календаре</span>
+          </label>
+        ) : null}
         <div className="capture-actions">
           <button type="button" className="secondary" onClick={onCancel}>
             Отмена

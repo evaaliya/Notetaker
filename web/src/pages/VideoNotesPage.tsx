@@ -62,6 +62,7 @@ function applyJobResult(result: ExtractResult, setters: {
   setPending: (p: PendingDraft[]) => void;
   setConfirmOpen: (v: boolean) => void;
   setUiError: (e: ExtractUiError | null) => void;
+  setShowInCalendar?: (v: boolean) => void;
 }) {
   setters.setTranscript(result.transcript ?? null);
   const en = result.summary;
@@ -86,6 +87,7 @@ function applyJobResult(result: ExtractResult, setters: {
     return;
   }
   setters.setPending(rows);
+  setters.setShowInCalendar?.(false);
   setters.setConfirmOpen(true);
 }
 
@@ -104,6 +106,8 @@ export function VideoNotesPage({ user }: { user: User }) {
   const [summaryEn, setSummaryEn] = useState<ExtractDraft | null>(null);
   const [summaryRu, setSummaryRu] = useState<ExtractDraft | null>(null);
   const [summaryLang, setSummaryLang] = useState<SummaryLang>("en");
+  /** Video drafts: hide from calendar by default (M16 / D-096). */
+  const [showInCalendar, setShowInCalendar] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const ytHostRef = useRef<HTMLDivElement | null>(null);
   const ytPlayerRef = useRef<YTPlayer | null>(null);
@@ -188,6 +192,7 @@ export function VideoNotesPage({ user }: { user: User }) {
             setPending,
             setConfirmOpen,
             setUiError,
+            setShowInCalendar,
           });
           setAiBusy(false);
           setJobId(null);
@@ -291,14 +296,17 @@ export function VideoNotesPage({ user }: { user: User }) {
           source_url: source?.url ?? null,
           source_ts: null,
           ai_generated: true,
+          show_in_calendar: showInCalendar,
         });
       }
       await qc.invalidateQueries({ queryKey: ["notes"] });
+      await qc.invalidateQueries({ queryKey: ["calendar"] });
       setConfirmOpen(false);
       setPending([]);
       setTranscript(null);
       setSummaryEn(null);
       setSummaryRu(null);
+      setShowInCalendar(false);
     } catch (err) {
       setUiError(extractErrorFromUnknown(err));
     } finally {
@@ -444,12 +452,15 @@ export function VideoNotesPage({ user }: { user: User }) {
           setConfirmOpen(false);
           setSummaryEn(null);
           setSummaryRu(null);
+          setShowInCalendar(false);
         }}
         onConfirm={() => void confirmSelected()}
         testId="video-drafts-modal"
         bilingual={!!(summaryEn && summaryRu)}
         summaryLang={summaryLang}
         onSummaryLangChange={changeSummaryLang}
+        showInCalendar={showInCalendar}
+        onShowInCalendarChange={setShowInCalendar}
       />
     </div>
   );
