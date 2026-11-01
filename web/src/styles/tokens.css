@@ -10,9 +10,13 @@
   --ink: #17212b;
   --muted: #5b6773;
   --accent: #0e7c7b;
+  --accent-hover: #0a6564;
   --accent-soft: #e8f5f3;
   --danger: #b4402f;
+  --danger-hover: #943628;
   --danger-soft: #fbefea;
+  --danger-line: #d9a89a;
+  --danger-muted-text: #8f3b22;
   --radius-sm: 12px;
   --radius-md: 18px;
   --radius-lg: 22px;
@@ -28,4 +32,12 @@
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
+  /* Controls: keep comfortable hit targets (M13). Primary ≥44px; compact secondary ≥36px. */
+  --control-h: 44px;
+  --control-h-sm: 36px;
+  --control-pad-x: 16px;
+  --control-pad-x-sm: 12px;
+  --shadow-sm: 0 8px 20px rgba(23, 33, 43, 0.1);
+  --shadow-md: 0 12px 28px rgba(23, 33, 43, 0.14);
+  --shadow-lg: 0 18px 44px rgba(23, 33, 43, 0.22);
 }
