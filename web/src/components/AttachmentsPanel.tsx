@@ -1,4 +1,11 @@
-import { ChangeEvent, DragEvent, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  DragEvent,
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Paperclip, Trash2, X } from "lucide-react";
 import { ApiError, Attachment, api } from "../api";
@@ -20,18 +27,27 @@ type Props = {
   noteId: string | null;
   /** Compact mode for calendar side panel. */
   compact?: boolean;
+  /**
+   * Editor layout (D-092): icon-only paperclip, no dashed empty drop zone;
+   * parent may bind body DnD via ingestRef.
+   */
+  chrome?: "panel" | "editor";
   /** Client queue before note has an id (autosave /notes/new). */
   pendingFiles?: PendingFile[];
   onAddPending?: (files: File[]) => void;
   onRemovePending?: (localId: string) => void;
+  /** Parent drop zones call this to reuse upload/pending queue. */
+  ingestRef?: MutableRefObject<((files: FileList | File[]) => void) | null>;
 };
 
 export function AttachmentsPanel({
   noteId,
   compact = false,
+  chrome = "panel",
   pendingFiles = [],
   onAddPending,
   onRemovePending,
+  ingestRef,
 }: Props) {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +56,7 @@ export function AttachmentsPanel({
   const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<Attachment | null>(null);
   const [pendingLightbox, setPendingLightbox] = useState<PendingFile | null>(null);
+  const editorChrome = chrome === "editor";
 
   const list = useQuery({
     queryKey: ["attachments", noteId],
@@ -81,6 +98,15 @@ export function AttachmentsPanel({
     }
   }
 
+  useEffect(() => {
+    if (!ingestRef) return;
+    ingestRef.current = (files) => ingest(files);
+    return () => {
+      ingestRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ingest closes over noteId/handlers
+  }, [ingestRef, noteId, onAddPending]);
+
   function onInputChange(e: ChangeEvent<HTMLInputElement>) {
     ingest(e.target.files);
     e.target.value = "";
@@ -116,18 +142,22 @@ export function AttachmentsPanel({
 
   return (
     <section
-      className={`note-attachments-slot${dragOver ? " is-dragover" : ""}${compact ? " compact" : ""}`}
+      className={`note-attachments-slot${dragOver ? " is-dragover" : ""}${compact ? " compact" : ""}${editorChrome ? " editor-chrome" : ""}`}
       data-testid="note-attachments-slot"
       aria-label="Вложения"
-      onDragOver={(e) => {
-        e.preventDefault();
-        if (noteId || allowPending) setDragOver(true);
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={onDrop}
+      onDragOver={
+        editorChrome
+          ? undefined
+          : (e) => {
+              e.preventDefault();
+              if (noteId || allowPending) setDragOver(true);
+            }
+      }
+      onDragLeave={editorChrome ? undefined : () => setDragOver(false)}
+      onDrop={editorChrome ? undefined : onDrop}
     >
       <div className="attachments-head">
-        <div className="lab">Вложения</div>
+        {!editorChrome && <div className="lab">Вложения</div>}
         <button
           type="button"
           className="secondary icon-btn"
@@ -138,7 +168,7 @@ export function AttachmentsPanel({
           disabled={!noteId && !allowPending}
         >
           <Paperclip size={18} strokeWidth={2} aria-hidden />
-          {!compact && <span>Файл</span>}
+          {!compact && !editorChrome && <span>Файл</span>}
         </button>
         <input
           ref={inputRef}
@@ -280,12 +310,15 @@ export function AttachmentsPanel({
         </ul>
       )}
 
-      {empty && (
+      {empty && !editorChrome && (
         <p className="muted small">
           {allowPending || noteId
             ? "Перетащите файл сюда или нажмите скрепку"
             : "Сохраните заметку, чтобы добавить файлы"}
         </p>
+      )}
+      {empty && editorChrome && !(allowPending || noteId) && (
+        <p className="muted small">Сохраните заметку, чтобы добавить файлы</p>
       )}
 
       {lightbox && noteId && (

@@ -6,16 +6,18 @@ type Props = {
   timeZone: string;
   /** When editing an existing series master — show read-only summary. */
   lockedTz?: string | null;
+  /** Hide outer legend when wrapped in EditorMetaDisclosure. */
+  embedded?: boolean;
 };
 
-export function RecurrenceField({ value, onChange, timeZone, lockedTz }: Props) {
+export function RecurrenceField({ value, onChange, timeZone, lockedTz, embedded = false }: Props) {
   const enabled = value != null;
   const freq = value?.freq ?? "daily";
   const until = value?.until ?? "";
 
   return (
-    <fieldset className="tag-pick" data-testid="recurrence-field">
-      <legend>Повтор</legend>
+    <fieldset className={`tag-pick${embedded ? " is-embedded" : ""}`} data-testid="recurrence-field">
+      {!embedded && <legend>Повтор</legend>}
       <label className="inline">
         <input
           type="checkbox"

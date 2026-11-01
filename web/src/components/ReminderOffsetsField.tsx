@@ -15,6 +15,8 @@ type Props = {
   startsLocal?: string;
   timeZone?: string;
   now?: Date;
+  /** Hide outer legend when wrapped in EditorMetaDisclosure. */
+  embedded?: boolean;
 };
 
 export function reminderFireIsPast(
@@ -38,6 +40,7 @@ export function ReminderOffsetsField({
   startsLocal,
   timeZone,
   now,
+  embedded = false,
 }: Props) {
   function toggle(minutes: number) {
     if (value.includes(minutes)) {
@@ -59,8 +62,11 @@ export function ReminderOffsetsField({
   });
 
   return (
-    <fieldset className="tag-pick reminder-field" data-testid="reminder-offsets">
-      <legend>Напоминания</legend>
+    <fieldset
+      className={`tag-pick reminder-field${embedded ? " is-embedded" : ""}`}
+      data-testid="reminder-offsets"
+    >
+      {!embedded && <legend>Напоминания</legend>}
       <div className="reminder-opts-row" data-testid="reminder-offsets-row">
         {REMINDER_OPTIONS.map((opt) => {
           const checked = value.includes(opt.minutes);
