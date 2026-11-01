@@ -96,6 +96,7 @@ async def process_due_reminders(session: AsyncSession, now: datetime, *, batch_s
                 id=notify_id,
                 user_id=note.user_id,
                 reminder_id=rem.id,
+                note_id=note.id,
                 title=title,
                 body=body,
                 created_at=now,
@@ -132,7 +133,7 @@ async def process_due_reminders(session: AsyncSession, now: datetime, *, batch_s
             note.user_id,
             "notification.new",
             ids=[notify_id],
-            extra={"title": title, "body": body},
+            extra={"title": title, "body": body, "note_id": str(note.id)},
         )
 
     return len(ids)

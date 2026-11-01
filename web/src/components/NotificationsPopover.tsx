@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { NoteIllustration } from "./NoteIllustration";
+import { NoteLink } from "./NoteLink";
 
 type Props = {
   open: boolean;
@@ -94,10 +95,31 @@ export function NotificationsPopover({
         {items.map((n) => (
           <li key={n.id} className="notif-popover-row">
             <NoteIllustration title={n.title} body={n.body} size={44} />
-            <div className="note-main">
-              <strong>{n.title}</strong>
-              <span className="muted small">{n.body}</span>
-            </div>
+            {n.note_id ? (
+              <NoteLink
+                noteId={n.note_id}
+                className="note-main linkish"
+                onClick={() => {
+                  void onMarkSeen(n.id);
+                  onClose();
+                }}
+              >
+                <strong>{n.title}</strong>
+                <span className="muted small">{n.body}</span>
+              </NoteLink>
+            ) : (
+              <button
+                type="button"
+                className="note-main linkish"
+                onClick={() => {
+                  void onMarkSeen(n.id);
+                  onClose();
+                }}
+              >
+                <strong>{n.title}</strong>
+                <span className="muted small">{n.body}</span>
+              </button>
+            )}
           </li>
         ))}
       </ul>

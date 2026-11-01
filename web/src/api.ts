@@ -110,6 +110,7 @@ export type Notification = {
   created_at: string;
   seen_at: string | null;
   reminder_id: string | null;
+  note_id: string | null;
 };
 
 export type RealtimeEvent = {

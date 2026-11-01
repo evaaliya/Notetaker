@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ExtractDraft, ExtractJob, ExtractResult, Note, User } from "../api";
+import { NoteLink } from "../components/NoteLink";
 import {
   AiThinkingPanel,
   VIDEO_EXTRACT_STEPS,
@@ -423,10 +424,10 @@ export function VideoNotesPage({ user }: { user: User }) {
           <ul className="video-note-list" data-testid="video-note-list">
             {videoNotes.map((n: Note) => (
               <li key={n.id}>
-                <span>
-                  {n.title}
+                <NoteLink noteId={n.id} className="video-note-link">
+                  {n.title || "Без названия"}
                   {n.ai_generated ? <span className="ai-badge">создано ИИ</span> : null}
-                </span>
+                </NoteLink>
               </li>
             ))}
           </ul>

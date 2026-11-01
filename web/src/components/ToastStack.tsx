@@ -1,7 +1,10 @@
+import { NoteLink } from "./NoteLink";
+
 export type ToastItem = {
   id: string;
   title: string;
   body: string;
+  noteId?: string | null;
 };
 
 type Props = {
@@ -26,7 +29,13 @@ export function ToastStack({
       {toasts.map((t) => (
         <div key={t.id} className="toast" data-testid="toast" data-toast-id={t.id}>
           <div>
-            <strong>{t.title || "Напоминание"}</strong>
+            {t.noteId ? (
+              <NoteLink noteId={t.noteId} className="toast-note-link" onClick={() => onDismiss(t.id)}>
+                <strong>{t.title || "Напоминание"}</strong>
+              </NoteLink>
+            ) : (
+              <strong>{t.title || "Напоминание"}</strong>
+            )}
             {t.body ? <p className="small muted">{t.body}</p> : null}
             {audioBlockedHint ? (
               <p className="small muted" data-testid="audio-blocked-hint">

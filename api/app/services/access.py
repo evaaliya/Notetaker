@@ -102,6 +102,7 @@ async def create_access_granted_notification(
         id=uuid.uuid4(),
         user_id=member_id,
         reminder_id=None,
+        note_id=note.id,
         title="Вам открыт доступ",
         body=f"Заметка «{label}» · владелец: {owner_login}",
         created_at=now,

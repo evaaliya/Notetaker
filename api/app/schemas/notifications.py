@@ -13,3 +13,4 @@ class NotificationOut(BaseModel):
     created_at: datetime
     seen_at: datetime | None
     reminder_id: uuid.UUID | None = None
+    note_id: uuid.UUID | None = None
