@@ -71,13 +71,13 @@ test("e2e_reminder_from_ui_toast_and_mail", async ({ browser }) => {
     await a.getByTestId("new-note").click();
     await expect(a).toHaveURL(/\/notes\/new/);
     await expect(a.getByTestId("note-form")).toBeVisible();
-    await a.getByTestId("meta-when-trigger").click();
-    await a.getByTestId("meta-reminders-trigger").click();
-    await expect(a.getByTestId("reminder-offsets")).toBeVisible();
-
     const starts = new Date(Date.now() + 11 * 60 * 1000);
     await a.getByTestId("note-title").fill(title);
+    // Popovers exclusive (D-093): fill starts_at while «Дата» is open.
+    await a.getByTestId("meta-when-trigger").click();
     await a.getByTestId("note-starts").fill(localDatetimeLocal(starts));
+    await a.getByTestId("meta-reminders-trigger").click();
+    await expect(a.getByTestId("reminder-offsets")).toBeVisible();
     await a.getByTestId("reminder-offset-10").check();
     // Autosave (D-057): create after debounce — no Save button.
     await expect(a).toHaveURL(/\/notes\/[^/]+$/, { timeout: 10_000 });

@@ -70,15 +70,15 @@ test("e2e_past_reminder_shows_warning", async ({ page }) => {
   const login = uniqueLogin("tzpast");
   await registerUi(page, login);
   await page.goto("/notes/new");
+  // Popovers are exclusive (D-093): set time first, then open reminders.
   await page.getByTestId("meta-when-trigger").click();
-  await page.getByTestId("meta-reminders-trigger").click();
-
   // Event in 5 minutes + «за час» → fire_at already in the past.
   const starts = new Date(Date.now() + 5 * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, "0");
   // Form interprets in user TZ; new users get browser TZ — use local components.
   const local = `${starts.getFullYear()}-${pad(starts.getMonth() + 1)}-${pad(starts.getDate())}T${pad(starts.getHours())}:${pad(starts.getMinutes())}`;
   await page.getByTestId("note-starts").fill(local);
+  await page.getByTestId("meta-reminders-trigger").click();
   await page.getByTestId("reminder-offset-60").check();
   await expect(page.getByTestId("reminder-past-warning")).toBeVisible();
   await expect(page.getByTestId("reminder-past-warning")).toContainText(
