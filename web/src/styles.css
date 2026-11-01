@@ -671,9 +671,16 @@ button:focus-visible {
   overflow-x: hidden;
 }
 
-.app-main.note-main {
+/* note-route — NOT .note-main (that class is for list/upcoming row titles; D-085/D-086) */
+.app-main.note-route {
   padding: 0;
   overflow: hidden;
+  display: block; /* override any accidental grid from shared selectors */
+}
+
+.app-main.note-route > .notes-workspace {
+  width: 100%;
+  min-width: 0;
 }
 
 .page-head {
@@ -824,6 +831,12 @@ button:focus-visible {
 
 .calendar-main .fc-timegrid-event {
   border-radius: var(--radius-sm);
+  /* Late-day events with eventMinHeight may extend slightly; don't clip title (D-088). */
+  overflow: visible;
+}
+
+.calendar-main .fc-timegrid-event .cal-event {
+  overflow: visible;
 }
 
 .calendar-main .fc .fc-daygrid-day.fc-day-today {
@@ -1053,8 +1066,11 @@ button:focus-visible {
   height: auto;
 }
 
+/* Row title block only — never attach .note-main to layout shells (D-086). */
 button.note-main,
-.note-main {
+.note-row .note-main,
+.notif-popover-row .note-main,
+.trash-row .note-main {
   display: grid;
   gap: var(--space-1);
   text-align: left;
@@ -2859,6 +2875,23 @@ button.note-main,
   display: flex;
   gap: var(--space-3);
   align-items: baseline;
+}
+.video-note-link {
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+}
+.video-note-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.toast-note-link {
+  color: inherit;
+  text-decoration: none;
+}
+.toast-note-link:hover strong {
+  color: var(--accent);
+  text-decoration: underline;
 }
 .timecode-link {
   font: 600 13px var(--font-sans);

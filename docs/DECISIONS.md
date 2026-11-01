@@ -578,3 +578,84 @@
 **Причина:** один класс сбоев (таймаут/сеть/гонка) должен закрываться одинаково.
 **Последствия:** e2e `network_m14`; pytest `test_extract_jobs_m14`.
 
+
+### D-085 · 2026-11-01 21:46 +06 · M15 · Диагностика вёрстки a–d (эксперимент)
+**Решение:** зафиксировать причины по коду + Playwright-измерениям до правок.
+
+| Симптом | Причина |
+|---|---|
+| **(a)** клик по заметке под видео | `VideoNotesPage` рендерит `<span>{title}</span>` без `Link`/`navigate`; в Списке — `navigate(/notes/:id)`. |
+| **(b)** узкая страница заметки, «пустые поля» справа, «уже у другого аккаунта» | **Не** аккаунт и **не** `localStorage` сайдбара. На `/notes/*` класс `app-main note-main` совпадает с селектором строк списка `.note-main` → у `<main>` `display:grid; justify-items:start` → `notes-workspace` shrink-to-fit (~709px при viewport 1440, `main`=1376). Pref `sidebarCollapsed` 0/1 не меняет ширину (forced `sidebar-collapsed`). Аккаунты A/B при 1440 идентичны. Уже при меньшем viewport (C=1100 → rail 260) и из‑за intrinsic ширины полей в shrink-wrap. `max-width:760px` у `.note-editor-body` здесь не виноват (pane уже <760). |
+| **(c)** обрезание в конце суток (День) | Timed-события без `end` → FC `defaultTimedEventDuration` 1h; у нижней границы дня harness/`overflow:hidden` режет карточку. |
+| **(d)** глюк сетки при сворачивании панели | `app-frame` анимирует `grid-template-columns` 150ms; `CalendarPage` не вызывает `updateSize` (нет ResizeObserver / transitionend). |
+
+**Измерения (Chromium, Playwright, 2026-11-01):** sidebar всегда 64 на note-route; workspace 709 при main 1376 (LS 0/1/null без разницы); A≡B на 1440; 390 → full width (rail none).
+
+**Альтернативы:** менять только `max-width` текста; гадать на zoom/аккаунт.
+**Причина:** класс проблем — коллизия имён CSS / отсутствие resize-hook / отсутствие ссылки / дефолт длительности FC.
+**Последствия:** правки точечно по классу; клик-аудит и e2e на a–d отдельно.
+
+### D-086 · 2026-11-01 21:46 +06 · M15 · Коллизия `.note-main` ломала ширину редактора
+**Решение:** модификатор маршрута заметки — `app-main.note-route` (не `note-main`); стили строк ограничены `button.note-main` / `.note-row .note-main` / popover / trash; workspace `width:100%`.
+**Альтернативы:** `!important` на workspace; убрать `justify-items` у `.note-main`; переименовать класс строк.
+**Причина:** эксперимент D-085 — `<main class="note-main">` наследовал `display:grid; justify-items:start` от стиля заголовка строки → shrink-wrap ~709px при main 1376.
+**Последствия:** e2e `list-note-main` без изменений; регрессия ширины ловится e2e на `/notes/new`.
+
+### D-087 · 2026-11-01 21:48 +06 · M15 · Аудит кликов по заметке + note_id в уведомлениях
+**Решение:** единый `NoteLink` → `/notes/:id` для list-like поверхностей. Календарь и «Ближайшее» оставляют `NoteSidePanel` (предусмотренный UX). Уведомления/toast открывают заметку при наличии `note_id`. Корзина — без открытия (заметка удалена; только «Восстановить»). Звонок после create → `/list` (уже есть). Общий доступ живёт на странице заметки.
+
+| Место | Было | Стало / вердикт |
+|---|---|---|
+| Список | `navigate(/notes/:id)` | ок |
+| NotesRail | `Link /notes/:id` | ок |
+| Видео «к этому видео» | `<span>` без клика | `NoteLink` |
+| Календарь | side panel | ок (UX) |
+| Ближайшее | side panel | ок (UX) |
+| Уведомления inbox | без клика | `NoteLink` если `note_id` |
+| Toast | без ссылки | ссылка при `ev.note_id` |
+| Корзина | cursor:default | намеренно без open |
+| Звонок | redirect `/list` | ок |
+| Share | на `/notes/:id` | ок |
+
+API: `notifications.note_id` (миграция 008, backfill из reminders; access/worker пишут note_id; WS extra тоже).
+**Альтернативы:** всё вести на `/notes/:id` включая календарь; парсить title уведомления.
+**Причина:** симптом (a) — класс «заметка видна, но не открывается»; панель календаря/upcoming — отдельный продуктовый путь.
+**Последствия:** e2e на video-link и notif-link; старые уведомления без note_id до backfill/новых create — без ссылки.
+
+### D-088 · 2026-11-01 21:48 +06 · M15 · События в конце суток не обрезаются
+**Решение:** явный `end` = start+30м, clamp к локальной полуночи (`eventEndIso` + luxon/`user.timezone`); `overflow:visible` у timegrid event; `eventMinHeight` сохранён.
+**Альтернативы:** `defaultTimedEventDuration` глобально; `slotMaxTime: 25:00`; CSS-only.
+**Причина:** FC без `end` рисует 1h → у границы дня harness обрезает карточку.
+**Последствия:** поздние заметки короче по высоте, но целиком в сутках; e2e day-end.
+
+### D-089 · 2026-11-01 21:48 +06 · M15 · FullCalendar updateSize при смене ширины
+**Решение:** `ResizeObserver` на обёртку календаря + `transitionend` на `.app-frame` + `window.resize` → `getApi().updateSize()`. У списка — `ResizeObserver` → `virtualizer.measure()`.
+**Альтернативы:** remount FC на toggle; только debounce resize.
+**Причина:** анимация `grid-template-columns` 150ms без пересчёта → «пляшущие»/пропавшие ячейки (симптом d).
+**Последствия:** e2e sidebar collapse на календаре проверяет стабильность колонок.
+
+### D-090 · 2026-11-01 21:50 +06 · M15 · Playwright: 3 браузера только для m15_*
+**Решение:** projects chromium (весь suite) + firefox/webkit с `testMatch: /m15_/`. `make e2e` ставит chromium/firefox/webkit.
+**Альтернативы:** гонять все 50+ тестов ×3 (долго); только Chromium + ручной WebKit.
+**Причина:** аудит ширин/скролла требует движков; полный suite ×3 — избыточный CI-шум для M15.
+**Последствия:** регрессии вне layout в Firefox/WebKit не ловятся автоматически.
+
+### D-091 · 2026-11-01 21:54 +06 · M15 · Profiler: memo не нужен
+**Решение:** оставить архитектуру без разделения контекстов и без `memo` на списках/календаре. Probe (`localStorage m15.profile=1` → `window.__m15Renders`) оставить opt-in для повторных замеров.
+
+**Измерения после фиксов a–d (Chromium 1440, demo 10k seed):**
+
+| Сценарий | Рендеры | Σ ms | last ms |
+|---|---|---|---|
+| Upcoming mount | upcoming 4 / useNow 4 | ~5.5 | ~0.9 |
+| Upcoming +32s (тик useNow) | 1 / 1 | ~78 | ~78 |
+| List mount | 7 | ~26 | 4 |
+| List scroll | 5 | ~32 | 6.7 |
+| Calendar mount | 6 | ~72 | 4.4 |
+| Calendar sidebar toggle×2 | 2 | ~22 | 7.7 |
+
+Пустой аккаунт: тик useNow → 1 рендер ~2 ms. WS/focus без лишних рендеров страницы (invalidate через TanStack, не sync setState на каждое событие в page).
+
+**Альтернативы:** NowContext + memo строк; один общий таймер на app.
+**Причина:** цифры не показывают проблему «лишних» рендеров; единственный заметный кадр — пересчёт бакетов на тике (~78 ms / 30 с) — приемлемо. Правки без измеримой пользы запрещены уточнением к M15.
+**Последствия:** при росте стоимости `liveBuckets` — точечно мемоизировать бакеты, не трогая shell.

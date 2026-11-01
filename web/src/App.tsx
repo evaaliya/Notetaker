@@ -190,7 +190,15 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
       if (!id) return;
       setToasts((prev) => {
         if (prev.some((t) => t.id === id)) return prev;
-        return [...prev, { id, title: ev.title ?? "Напоминание", body: ev.body ?? "" }];
+        return [
+          ...prev,
+          {
+            id,
+            title: ev.title ?? "Напоминание",
+            body: ev.body ?? "",
+            noteId: ev.note_id ?? null,
+          },
+        ];
       });
       const prefs = loadUiPrefs();
       const reduceMotion =
@@ -268,7 +276,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         bellShake={bellShake}
         soundPlaying={soundPlaying}
       />
-      <main className={`app-main${isNoteRoute ? " note-main" : ""}`}>
+      <main className={`app-main${isNoteRoute ? " note-route" : ""}`}>
         <Routes>
           <Route path="/" element={<Navigate to="/calendar" replace />} />
           <Route path="/calendar" element={<CalendarPage user={user} />} />
