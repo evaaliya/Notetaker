@@ -14,13 +14,22 @@ export class InvalidateCoalescer {
   private pending = new Map<string, QueryKey>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private flushCount = 0;
+  private onFlush: InvalidateFlush;
+  private delayMs: number;
+  private schedule: typeof setTimeout;
+  private cancel: typeof clearTimeout;
 
   constructor(
-    private readonly onFlush: InvalidateFlush,
-    private readonly delayMs: number = WS_INVALIDATE_COALESCE_MS,
-    private readonly schedule: typeof setTimeout = setTimeout,
-    private readonly cancel: typeof clearTimeout = clearTimeout,
-  ) {}
+    onFlush: InvalidateFlush,
+    delayMs: number = WS_INVALIDATE_COALESCE_MS,
+    schedule: typeof setTimeout = setTimeout,
+    cancel: typeof clearTimeout = clearTimeout,
+  ) {
+    this.onFlush = onFlush;
+    this.delayMs = delayMs;
+    this.schedule = schedule;
+    this.cancel = cancel;
+  }
 
   enqueue(keys: QueryKey[]): void {
     for (const key of keys) {
