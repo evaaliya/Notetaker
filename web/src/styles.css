@@ -1053,20 +1053,27 @@ button:focus-visible {
   height: auto;
 }
 
+button.note-main,
 .note-main {
   display: grid;
   gap: var(--space-1);
   text-align: left;
+  justify-content: stretch;
   justify-items: start;
+  align-items: start;
   background: none;
   border: none;
   color: inherit;
   padding: 0;
   margin: 0;
   cursor: pointer;
-  min-height: auto;
+  min-height: 0;
+  width: 100%;
   min-width: 0;
   font-weight: 400;
+  font-size: inherit;
+  line-height: inherit;
+  filter: none;
 }
 
 .list-note-title {
