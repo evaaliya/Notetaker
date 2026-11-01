@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { apiCreateNote, registerUi, uniqueLogin } from "./helpers";
 
+/** Today at HH:MM:00 UTC as API ISO-Z (avoids hardcoded past months). */
+function todayAtUtc(hour: number, minute = 0): string {
+  const d = new Date();
+  d.setUTCHours(hour, minute, 0, 0);
+  return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
 async function ensureTag(
   page: import("@playwright/test").Page,
   name: string,
@@ -19,15 +26,16 @@ async function ensureTag(
 async function gotoWeekWithTitle(page: import("@playwright/test").Page, title: string) {
   await page.goto("/calendar");
   await page.locator(".fc-timeGridWeek-button").click();
-  for (let i = 0; i < 36; i++) {
-    if ((await page.locator(".fc-event").filter({ hasText: title }).count()) > 0) return;
-    await page.locator(".fc-next-button").click();
-    await page.waitForTimeout(120);
-  }
-  for (let i = 0; i < 36; i++) {
+  // Past dates first: next→prev alone returns to "today" and never reaches last month.
+  for (let i = 0; i < 12; i++) {
     if ((await page.locator(".fc-event").filter({ hasText: title }).count()) > 0) return;
     await page.locator(".fc-prev-button").click();
-    await page.waitForTimeout(120);
+    await page.waitForTimeout(80);
+  }
+  for (let i = 0; i < 24; i++) {
+    if ((await page.locator(".fc-event").filter({ hasText: title }).count()) > 0) return;
+    await page.locator(".fc-next-button").click();
+    await page.waitForTimeout(80);
   }
 }
 
@@ -40,7 +48,7 @@ test("e2e_tags_visible_everywhere", async ({ page }) => {
   const note = await apiCreateNote(page.request, {
     title,
     body: "созвон",
-    starts_at: "2026-10-28T12:00:00Z",
+    starts_at: todayAtUtc(12, 0),
     reminder_offsets: [10],
     tag_ids: [tagId],
   });
@@ -70,7 +78,7 @@ test("e2e_week_many_notes_in_slot", async ({ page }) => {
   const login = uniqueLogin("m7slot");
   await registerUi(page, login);
   await page.request.patch("/api/me", { data: { timezone: "UTC" } });
-  const starts = "2026-10-28T10:00:00Z";
+  const starts = todayAtUtc(10, 0);
   const titles: string[] = [];
   for (let i = 0; i < 5; i++) {
     const title = `Slot${i}_${Date.now()}`;
@@ -97,7 +105,7 @@ test("e2e_drag_to_trash", async ({ page }) => {
   const note = await apiCreateNote(page.request, {
     title,
     body: "",
-    starts_at: "2026-10-28T14:00:00Z",
+    starts_at: todayAtUtc(14, 0),
     reminder_offsets: [],
     tag_ids: [],
   });

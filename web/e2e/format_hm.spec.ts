@@ -6,6 +6,17 @@ import {
 } from "../src/format";
 import { apiCreateNote, registerUi, uniqueLogin } from "./helpers";
 
+/** Today at HH:MM:00 UTC as API ISO-Z (stays in current month/week view). */
+function todayAtUtc(hour: number, minute = 0): string {
+  const d = new Date();
+  d.setUTCHours(hour, minute, 0, 0);
+  return d.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+function todayDateUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 test("formatSeriesRecurrenceHint_human_readable", () => {
   expect(formatSeriesRecurrenceHint("daily", "2026-10-28")).toBe(
     "Повторяется каждый день до 28.10.2026",
@@ -37,43 +48,41 @@ test("e2e_calendar_list_upcoming_time_hhmm", async ({ page }) => {
   await registerUi(page, login);
   await page.request.patch("/api/me", { data: { timezone: "UTC" } });
 
+  const until = todayDateUtc();
+  const startsOnHour = todayAtUtc(4, 0);
+  const startsWithMin = todayAtUtc(8, 22);
+  const hmOnHour = formatTimeHm(startsOnHour, "UTC");
+  const hmWithMin = formatTimeHm(startsWithMin, "UTC");
+  expect(hmOnHour).toBe("04:00");
+  expect(hmWithMin).toBe("08:22");
+
   const titleOnHour = `OnHour ${Date.now()}`;
   const titleWithMin = `WithMin ${Date.now()}`;
   await apiCreateNote(page.request, {
     title: titleOnHour,
     body: "",
-    starts_at: "2026-10-25T04:00:00Z",
+    starts_at: startsOnHour,
     reminder_offsets: [],
     tag_ids: [],
-    recurrence: { freq: "daily", until: "2026-10-25", tz: "UTC" },
+    recurrence: { freq: "daily", until, tz: "UTC" },
   });
   await apiCreateNote(page.request, {
     title: titleWithMin,
     body: "",
-    starts_at: "2026-10-24T08:22:00Z",
+    starts_at: startsWithMin,
     reminder_offsets: [],
     tag_ids: [],
   });
 
   await page.goto("/calendar");
   await page.locator(".fc-dayGridMonth-button").click();
-  // Seeded dates are 2026-10-24/25 — jump if FC opened on another month.
-  for (let i = 0; i < 24; i++) {
-    const n = await page.locator(".fc-event").filter({ hasText: titleOnHour }).count();
-    if (n > 0) break;
-    await page.locator(".fc-next-button").click();
-  }
-  for (let i = 0; i < 24; i++) {
-    const n = await page.locator(".fc-event").filter({ hasText: titleOnHour }).count();
-    if (n > 0) break;
-    await page.locator(".fc-prev-button").click();
-  }
+  // Notes are today — current month already contains them (no next→prev round-trip).
   const onHourEvent = page.locator(".fc-event").filter({ hasText: titleOnHour });
   const withMinEvent = page.locator(".fc-event").filter({ hasText: titleWithMin });
   await expect(onHourEvent).toBeVisible();
   await expect(withMinEvent).toBeVisible();
-  await expect(onHourEvent).toContainText("04:00");
-  await expect(withMinEvent).toContainText("08:22");
+  await expect(onHourEvent).toContainText(hmOnHour);
+  await expect(withMinEvent).toContainText(hmWithMin);
   // Regression: month view must not show bare "04" without minutes.
   await expect(onHourEvent).not.toHaveText(/^04\s/);
 
@@ -81,7 +90,7 @@ test("e2e_calendar_list_upcoming_time_hhmm", async ({ page }) => {
   const listOnHour = page.getByRole("button", { name: new RegExp(titleOnHour) });
   const listWithMin = page.getByRole("button", { name: new RegExp(titleWithMin) });
   await expect(listOnHour).toContainText(/\d{2}:\d{2}/);
-  await expect(listWithMin).toContainText("08:22");
+  await expect(listWithMin).toContainText(hmWithMin);
 
   await page.goto("/upcoming");
   await expect(page.getByText(titleOnHour).first()).toBeVisible();
@@ -91,18 +100,10 @@ test("e2e_calendar_list_upcoming_time_hhmm", async ({ page }) => {
 
   await page.goto("/calendar");
   await page.locator(".fc-dayGridMonth-button").click();
-  for (let i = 0; i < 24; i++) {
-    if ((await page.locator(".fc-event").filter({ hasText: titleOnHour }).count()) > 0) break;
-    await page.locator(".fc-next-button").click();
-  }
-  for (let i = 0; i < 24; i++) {
-    if ((await page.locator(".fc-event").filter({ hasText: titleOnHour }).count()) > 0) break;
-    await page.locator(".fc-prev-button").click();
-  }
   await page.locator(".fc-event").filter({ hasText: titleOnHour }).first().click();
   const hint = page.getByTestId("series-occ-hint");
   await expect(hint).toBeVisible();
-  await expect(hint).toHaveText("Повторяется каждый день до 25.10.2026");
+  await expect(hint).toHaveText(formatSeriesRecurrenceHint("daily", until));
   await expect(hint).not.toContainText("ключ");
   await expect(hint).not.toContainText("T04:00");
 });
