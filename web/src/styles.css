@@ -2955,6 +2955,16 @@ button.note-main,
   gap: var(--space-3);
   align-items: flex-start;
 }
+/* Global `input { width: 100% }` stretches checkboxes and pushes the label right. */
+.draft-row input[type="checkbox"] {
+  width: auto;
+  min-width: 1.125rem;
+  min-height: 1.125rem;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
 .ai-badge {
   display: inline-block;
   margin-left: var(--space-2);
