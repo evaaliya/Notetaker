@@ -144,10 +144,10 @@ test("e2e_edit_in_tab_a_visible_in_tab_b", async ({ browser }) => {
       await b.getByTestId("cal-next").click();
       await b.waitForTimeout(80);
     }
-    await expect(b.getByTestId("tl-card").filter({ hasText: title }).first()).toBeVisible({
-      timeout: 10_000,
-    });
-    await expect(b.getByText(`${title} edited`).first()).toBeVisible();
+    const editedCard = b.getByTestId("tl-card").filter({ hasText: `${title} edited` });
+    await expect(editedCard.first()).toBeVisible({ timeout: 10_000 });
+    await editedCard.first().scrollIntoViewIfNeeded();
+    await expect(editedCard.first()).toContainText(`${title} edited`);
   } finally {
     await ctxA.close();
     await ctxB.close();

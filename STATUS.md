@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-02 00:34 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-02 02:14 +06.
 
 ## Этапы
 
@@ -25,6 +25,7 @@
 | M14 Сеть/гонки | готов | D-082 диагностика; job+кэш+cancel (D-083); аудит api.ts/WS/SMTP (D-084); `make test` 94; `make e2e` 51 |
 | M15 Вёрстка/рендеринг | готов | D-085–091; клики/ширина/день/resize; Profiler без memo; `make test` 94; `make e2e` 69 (chromium+m15×ff/wk) |
 | M16 Общие теги и состояние | готов | `note_user_tags` + `show_in_calendar`; D-095–097; `make test` 97; `make e2e` 87 |
+| M17 Календарь плотность | готов | D-098; месяц пилюля+колбаска; week/day таймлайн; `make test` 97; `make e2e` 93 |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -38,7 +39,8 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 97 passed на реальном Postgres (testcontainers); Playwright e2e → 87 passed (chromium suite + m15 firefox/webkit + M16).
+- Тесты: `make test` → 97 passed на реальном Postgres (testcontainers); Playwright e2e → 93 passed (chromium suite + m15 firefox/webkit + M16/M17).
+- **M17 календарь:** месяц — одна главная пилюля + сегмент-«колбаска» (session switch + панель); неделя/день — TickTick-таймлайн вне FC (D-098); DnD trash только в месяце; скрины `calendar-{1440,390,month-1440,day-1440}.png`.
 - **M16 персональные теги / календарь:** `note_user_tags` (viewer-specific); чужой tag → 404; `show_in_calendar` скрывает из `/calendar`, не из list/upcoming/reminders; видео-модалка — чекбокс default off; звонки не меняли. WS coalesce 75 мс + `invalidateNoteCaches` (D-097).
 - **M14 сеть/гонки:** `POST /api/extract/youtube/jobs` + poll/cancel; captions cache; wall-clock 15s/60s + retry; ошибки по-русски + hint + «Повторить»; `api.ts` timeout/Abort; double-click/stale guard. Sync `/youtube` сохранён.
 - **M13 UI Polish:** токены `--control-h` / `--accent-hover` / холодные `--shadow-*`; единые hover/focus кнопок и полей (высота ≥44px); FullCalendar hover на бирюзу; `switch.off` нейтральный; адаптив mid-width (фильтры wrap, rail ≤900, строки → OverflowMenu «Действия»); на 390 «Ещё» → Уведомления/Теги/Звонок/Видео/Настройки; **отдельный мобильный календарь** (день по умолчанию, chrome, sheet-панель, «В корзину» без DnD); без горизонтального скролла. Backend не меняли.
@@ -236,6 +238,13 @@
 | M14 | Сетевые ошибки и гонки (jobs, timeouts, audit) | готов |
 | M15 | Вёрстка и рендеринг (клики, ширина, календарь, Profiler) | готов |
 | M16 | Персональные теги + show_in_calendar + аудит кэша/WS (§15) | готов |
+| M17 | Вид календаря при многих заметках (месяц+таймлайн) | готов |
+
+### Смоки M17 (2026-11-02 02:14 +06)
+**Автоматически:**
+- `make test` → **97 passed**.
+- `make e2e` → **93 passed** (`e2e_month_main_pill_and_segments`, `e2e_month_segment_switches_main_and_opens_panel`, `e2e_week_timeline_layout`, `e2e_day_timeline_hours`, `e2e_timeline_overflow_plus_n` + регрессии).
+**Работает:** месяц с переключением главной через колбаску; week/day вертикальный таймлайн; overflow `+N ещё`; панель без изменений по API.
 
 ### Смоки M16 (2026-11-02 00:34 +06)
 **Автоматически:**

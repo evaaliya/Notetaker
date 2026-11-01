@@ -84,10 +84,9 @@ test("e2e_month_segment_switches_main_and_opens_panel", async ({ page }) => {
   await page.getByTestId("cal-view-month").click();
   await expect(page.getByTestId("month-main-pill").filter({ hasText: a })).toBeVisible();
 
-  const segs = page.getByTestId("month-day-seg");
-  await segs.nth(1).click();
+  await page.locator(`[data-testid="month-day-seg"][aria-label="${b}"]`).click();
   await expect(page.getByTestId("note-side-panel")).toBeVisible();
-  await expect(page.getByTestId("note-side-panel")).toContainText(b);
+  await expect(page.getByTestId("note-side-panel").locator("input").first()).toHaveValue(b);
   await expect(page.getByTestId("month-main-pill").filter({ hasText: b })).toBeVisible();
 
   await page.reload();
@@ -170,5 +169,7 @@ test("e2e_timeline_overflow_plus_n", async ({ page }) => {
   await expect(page.getByTestId("tl-overflow-list")).toBeVisible();
   await page.getByTestId("tl-overflow-item").filter({ hasText: titles[5] }).click();
   await expect(page.getByTestId("note-side-panel")).toBeVisible();
-  await expect(page.getByTestId("note-side-panel")).toContainText(titles[5]);
+  await expect(page.getByTestId("note-side-panel").locator("input").first()).toHaveValue(
+    titles[5],
+  );
 });
