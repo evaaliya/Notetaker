@@ -4,3 +4,5 @@ services:
   api:
     environment:
       E2E_HOOKS: "true"
+      # Deterministic extract (D-075): ignore host .env AI_PROVIDER=openrouter.
+      AI_PROVIDER: "stub"

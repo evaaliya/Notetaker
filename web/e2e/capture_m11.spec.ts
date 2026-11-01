@@ -11,12 +11,18 @@ test("e2e_call_transcript_extract", async ({ page }) => {
   const transcript =
     "Участники: Аня, Боря\nЗадача: подготовить отчёт завтра в 15:00\nРешили: переносим релиз на пятницу";
   await page.getByTestId("call-transcript-text").fill(transcript);
+
+  const extractResp = page.waitForResponse(
+    (r) => r.url().includes("/api/extract") && r.request().method() === "POST",
+  );
   await page.getByTestId("call-extract").click();
 
-  // Thinking panel may flash on fast stub; modal is the durable outcome.
+  // Thinking panel may flash on fast stub; wait for API then durable modal.
   await expect(
     page.getByTestId("call-ai-thinking").or(page.getByTestId("call-drafts-modal")),
   ).toBeVisible();
+  const resp = await extractResp;
+  expect(resp.ok(), await resp.text()).toBeTruthy();
   await expect(page.getByTestId("call-drafts-modal")).toBeVisible();
   await expect(page.getByTestId("call-draft-list")).toContainText("создано ИИ");
   await page.getByTestId("call-confirm-drafts").click();
