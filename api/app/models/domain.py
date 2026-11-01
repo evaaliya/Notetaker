@@ -14,7 +14,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -260,3 +260,54 @@ class WorkerHeartbeat(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class YoutubeCaptionCache(Base):
+    """Cached YouTube caption track text by video id (M14)."""
+
+    __tablename__ = "youtube_caption_cache"
+
+    video_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    lang: Mapped[str] = mapped_column(Text, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    chars: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+
+class ExtractJob(Base):
+    """Background extract pipeline state (M14). Survives api/worker restart."""
+
+    __tablename__ = "extract_jobs"
+    __table_args__ = (
+        CheckConstraint("kind IN ('youtube')", name="ck_extract_jobs_kind"),
+        CheckConstraint(
+            "status IN ('pending', 'running', 'done', 'error', 'cancelled')",
+            name="ck_extract_jobs_status",
+        ),
+        CheckConstraint(
+            "step IN ('queued', 'captions', 'extract', 'done')",
+            name="ck_extract_jobs_step",
+        ),
+        Index("ix_extract_jobs_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'youtube'"))
+    video_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    timezone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'pending'"))
+    step: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'queued'"))
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    error_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_hint: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

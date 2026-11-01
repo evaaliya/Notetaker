@@ -1,12 +1,13 @@
-"""M11: extract drafts from text / transcript / YouTube captions (does not persist notes)."""
+"""M11/M14: extract drafts from text / transcript / YouTube captions."""
 
 from __future__ import annotations
 
+import uuid
 from datetime import timezone
-from typing import Annotated
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError, field_serializer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_clock, get_current_user
@@ -14,64 +15,91 @@ from app.clock import Clock
 from app.config import get_settings
 from app.db import get_session
 from app.errors import AppError
-from app.models import User
-from app.schemas.extract import DraftOut, ExtractIn, ExtractOut, YoutubeExtractIn
-from app.services.ai import DraftNote, get_provider
+from app.models import ExtractJob, User
+from app.schemas.extract import ExtractIn, ExtractOut, YoutubeExtractIn
+from app.services.extract_jobs import (
+    create_youtube_job,
+    get_cached_captions,
+    put_cached_captions,
+    request_cancel,
+)
+from app.services.extract_run import run_text_extract
 from app.services.transcripts import parse_transcript
-from app.services.youtube_captions import fetch_youtube_captions
+from app.services.youtube_captions import extract_youtube_id, fetch_youtube_captions
 
 router = APIRouter(prefix="/extract", tags=["extract"])
 
 
-def _draft_out(d: DraftNote) -> DraftOut:
-    starts = d.starts_at
-    if starts is not None and starts.tzinfo is not None:
-        starts = starts.astimezone(timezone.utc)
-    kind = d.kind if d.kind in ("summary", "task", "decision") else "task"
-    return DraftOut(
-        title=d.title,
-        body=d.body,
-        starts_at=starts,
-        reminder_offsets=list(d.reminder_offsets or []),
-        tag_names=list(d.tag_names or []),
-        kind=kind,  # type: ignore[arg-type]
+def _iso_z(value) -> str:
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+class ExtractJobOut(BaseModel):
+    id: uuid.UUID
+    status: Literal["pending", "running", "done", "error", "cancelled"]
+    step: Literal["queued", "captions", "extract", "done"]
+    video_id: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+    error_hint: str | None = None
+    result: ExtractOut | None = None
+    created_at: Any
+    updated_at: Any
+    finished_at: Any | None = None
+
+    @field_serializer("created_at", "updated_at", "finished_at")
+    def ser_dt(self, value):
+        if value is None:
+            return None
+        return _iso_z(value)
+
+
+class ExtractJobCreated(BaseModel):
+    id: uuid.UUID
+    status: str
+    step: str
+    video_id: str | None = None
+    reused: bool = False
+
+
+def _job_to_out(job: ExtractJob) -> ExtractJobOut:
+    result = None
+    if job.status == "done" and isinstance(job.result, dict):
+        result = ExtractOut.model_validate(job.result)
+    return ExtractJobOut(
+        id=job.id,
+        status=job.status,  # type: ignore[arg-type]
+        step=job.step,  # type: ignore[arg-type]
+        video_id=job.video_id,
+        error_code=job.error_code,
+        error_message=job.error_message,
+        error_hint=job.error_hint,
+        result=result,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+        finished_at=job.finished_at,
     )
 
 
-def _run_extract(
-    text: str,
-    *,
-    user: User,
-    clock: Clock,
-    timezone_name: str | None,
-    transcript: str | None = None,
-) -> ExtractOut:
-    tz = timezone_name or user.timezone or "UTC"
-    provider_name = (get_settings().ai_provider or "stub").strip().lower()
-    try:
-        provider = get_provider()
-        result = provider.extract(text, now=clock.now(), timezone=tz)
-    except AppError:
-        raise
-    except ValueError as exc:
-        raise AppError("config_error", str(exc), status_code=503) from exc
-    except Exception as exc:  # noqa: BLE001 — surface provider failures cleanly
-        raise AppError("extract_failed", str(exc), status_code=502) from exc
-
-    lang = (result.source_lang or "").strip().lower() or None
-    if lang not in ("en", "ru", "other"):
-        lang = None
-    summary_ru = result.summary_ru
-    if summary_ru is not None and not summary_ru.title.strip() and not summary_ru.body.strip():
-        summary_ru = None
-    return ExtractOut(
-        summary=_draft_out(result.summary) if result.summary else None,
-        drafts=[_draft_out(d) for d in result.drafts],
-        provider=provider_name,
-        transcript=transcript,
-        source_lang=lang,  # type: ignore[arg-type]
-        summary_ru=_draft_out(summary_ru) if summary_ru else None,
+async def _captions_with_cache(
+    session: AsyncSession, url: str, *, clock: Clock
+) -> tuple[str, str]:
+    settings = get_settings()
+    video_id = extract_youtube_id(url)
+    now = clock.now()
+    cached = await get_cached_captions(
+        session, video_id, now=now, ttl_hours=settings.youtube_caption_cache_ttl_hours
     )
+    if cached:
+        return cached
+    text, lang = fetch_youtube_captions(
+        url,
+        timeout=settings.youtube_captions_timeout_sec,
+        retries=settings.extract_transient_retries,
+        retry_pause_sec=settings.extract_retry_pause_sec,
+    )
+    await put_cached_captions(session, video_id, text, lang, now=now)
+    return text, lang
 
 
 @router.post("", response_model=ExtractOut)
@@ -81,7 +109,7 @@ async def extract_text(
     clock: Annotated[Clock, Depends(get_clock)],
     _db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ExtractOut:
-    return _run_extract(body.text, user=user, clock=clock, timezone_name=body.timezone)
+    return run_text_extract(body.text, user=user, clock=clock, timezone_name=body.timezone)
 
 
 @router.post("/transcript", response_model=ExtractOut)
@@ -109,7 +137,7 @@ async def extract_transcript(
         except ValidationError as exc:
             raise AppError("validation_error", "Неизвестный IANA timezone") from exc
 
-    return _run_extract(raw_text, user=user, clock=clock, timezone_name=timezone_name)
+    return run_text_extract(raw_text, user=user, clock=clock, timezone_name=timezone_name)
 
 
 @router.post("/youtube", response_model=ExtractOut)
@@ -117,18 +145,72 @@ async def extract_youtube(
     body: YoutubeExtractIn,
     user: Annotated[User, Depends(get_current_user)],
     clock: Annotated[Clock, Depends(get_clock)],
-    _db: Annotated[AsyncSession, Depends(get_session)],
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ExtractOut:
-    """Pull YouTube caption track (no media download) → extract drafts."""
-    text, lang = fetch_youtube_captions(body.url)
-    out = _run_extract(
+    """Sync path (compat). Prefers caption cache; same timeouts as jobs."""
+    text, _lang = await _captions_with_cache(db, body.url, clock=clock)
+    await db.commit()
+    return run_text_extract(
         text,
         user=user,
         clock=clock,
         timezone_name=body.timezone,
         transcript=text,
     )
-    # Surface which caption track we used via transcript prefix in client details;
-    # keep transcript as caption body only.
-    _ = lang
-    return out
+
+
+@router.post("/youtube/jobs", response_model=ExtractJobCreated)
+async def start_youtube_job(
+    body: YoutubeExtractIn,
+    user: Annotated[User, Depends(get_current_user)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> ExtractJobCreated:
+    """Start (or reuse in-flight) background YouTube extract job."""
+    before = None
+    video_id = extract_youtube_id(body.url)
+    from app.services.extract_jobs import find_inflight_job
+
+    before = await find_inflight_job(db, user_id=user.id, video_id=video_id)
+    job = await create_youtube_job(
+        db, user=user, url=body.url, timezone_name=body.timezone, now=clock.now()
+    )
+    reused = before is not None and before.id == job.id
+    await db.commit()
+    return ExtractJobCreated(
+        id=job.id,
+        status=job.status,
+        step=job.step,
+        video_id=job.video_id,
+        reused=reused,
+    )
+
+
+@router.get("/jobs/{job_id}", response_model=ExtractJobOut)
+async def get_extract_job(
+    job_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> ExtractJobOut:
+    job = await db.get(ExtractJob, job_id)
+    if job is None or job.user_id != user.id:
+        raise AppError("not_found", "Задача не найдена", status_code=404)
+    return _job_to_out(job)
+
+
+@router.post("/jobs/{job_id}/cancel", response_model=ExtractJobOut)
+async def cancel_extract_job(
+    job_id: uuid.UUID,
+    user: Annotated[User, Depends(get_current_user)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> ExtractJobOut:
+    job = await db.get(ExtractJob, job_id)
+    if job is None or job.user_id != user.id:
+        raise AppError("not_found", "Задача не найдена", status_code=404)
+    if job.status in ("done", "error", "cancelled"):
+        return _job_to_out(job)
+    await request_cancel(db, job=job, now=clock.now())
+    await db.commit()
+    await db.refresh(job)
+    return _job_to_out(job)

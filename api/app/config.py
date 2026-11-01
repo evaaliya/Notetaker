@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     # Default: OpenRouter free router (:free). Override via OPENROUTER_MODEL.
     openrouter_model: str = "openrouter/free"
+    # M14: wall-clock budgets for external calls (seconds).
+    youtube_captions_timeout_sec: float = 15.0
+    openrouter_timeout_sec: float = 60.0
+    extract_job_deadline_sec: float = 90.0
+    extract_transient_retries: int = 1
+    extract_retry_pause_sec: float = 1.0
+    youtube_caption_cache_ttl_hours: int = 24
 
 
 @lru_cache

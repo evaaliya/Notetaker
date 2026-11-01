@@ -20,6 +20,12 @@ class AppError(Exception):
 
 
 async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
-    content: dict[str, Any] = {"error": {"code": exc.code, "message": exc.message}}
-    content.update(exc.extra)
+    err: dict[str, Any] = {"code": exc.code, "message": exc.message}
+    if "hint" in exc.extra:
+        err["hint"] = exc.extra["hint"]
+    content: dict[str, Any] = {"error": err}
+    # Keep top-level extras (e.g. note on 409) for backward compatibility.
+    for k, v in exc.extra.items():
+        if k != "hint":
+            content[k] = v
     return JSONResponse(status_code=exc.status_code, content=content)

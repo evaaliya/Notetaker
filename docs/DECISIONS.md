@@ -546,3 +546,35 @@
 
 **Последствия для M14:** нужны wall-clock дедлайны + retry, кэш captions по `video_id`, job в БД с cancel между этапами, прогресс/poll вместо одного долгого HTTP, русские коды ошибок; клиентский timeout/Abort и защита от гонок — на весь класс `api.ts`/WS.
 
+### D-083 · 2026-11-01 20:40 +06 · M14 · Extract job в БД + кэш captions + wall-clock
+**Решение:**
+1. Таблицы `extract_jobs` (статус/шаг/`cancel_requested`/result JSONB) и `youtube_caption_cache(video_id PK)`.
+2. UI стартует `POST /api/extract/youtube/jobs` → poll `GET /api/extract/jobs/{id}`; `POST …/cancel` ставит `cancel_requested` — воркер не пишет result и ставит `cancelled`. Sync `POST /api/extract/youtube` сохраняем (обратная совместимость тестов/клиентов), внутри — те же таймауты/кэш/ошибки.
+3. Воркер claim `pending` через `FOR UPDATE SKIP LOCKED`; шаги `captions` → `extract`; между шагами проверка cancel.
+4. Wall-clock: captions 15 с, model 60 с (`asyncio.wait_for` + `to_thread`), 1 retry с паузой на transient; общий дедлайн job ~90 с. httpx read-timeout больше не считаем достаточным (D-082).
+5. Partial unique `(user_id, video_id)` для in-flight — повторный клик возвращает тот же job.
+**Альтернативы:** только BackgroundTasks в api (теряется при рестарте); Celery; убрать sync endpoint.
+**Причина:** состояние должно переживать рестарт (требование M14); cancel должен быть серверным; sync endpoint нужен M12 pytest/e2e mocks.
+**Последствия:** worker начинает обрабатывать extract; UI зависит от poll; e2e youtube переводятся на job API или route-mock job.
+
+### D-084 · 2026-11-01 20:55 +06 · M14 · Аудит сетевых вызовов (класс проблем)
+**Решение:** таблица мест и исправлений (без несвязанного рефакторинга).
+
+| Место | Проблема | Исправлено |
+|---|---|---|
+| `web/src/api.ts` `request` | нет timeout/Abort; сеть/5xx без кода | да: default 30s, AbortSignal, `timeout`/`network`/`hint` |
+| `extractTranscriptFile` | отдельный fetch без timeout | да: через `request` + FormData |
+| `extractYoutube` sync | долгий HTTP без бюджета на клиенте | да: timeout 100s; UI → jobs |
+| YouTube captions httpx | timeout per-request, не wall-clock; нет retry | да: 15s wall + 1 retry |
+| OpenRouter `_chat` | `Timeout(90)` не wall-clock (D-082) | да: 60s + retry; коды invalid_key/model_no_response |
+| Extract pipeline | один sync HTTP; нет cancel/idempotency/cache | да: `extract_jobs` + cache + cancel |
+| Upload XHR attachments | нет timeout; onerror без кода | да: 60s, network/timeout |
+| WebSocket `useRealtime` | обрыв → invalidate + backoff | уже ок; не трогали |
+| SMTP outbox | timeout 30s; stale sending reclaim | уже ок (D-031/032) |
+| Call extract UI | double-click / stale response | да: gen-token + busy guard |
+| Video extract UI | нет cancel/progress/retry UX | да: poll steps, Отменить, Повторить |
+
+**Альтернативы:** глобальный axios interceptor; Service Worker offline queue.
+**Причина:** один класс сбоев (таймаут/сеть/гонка) должен закрываться одинаково.
+**Последствия:** e2e `network_m14`; pytest `test_extract_jobs_m14`.
+

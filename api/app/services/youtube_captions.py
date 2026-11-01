@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import xml.etree.ElementTree as ET
 from html import unescape
 from urllib.parse import parse_qs, unquote, urlparse
@@ -11,6 +12,8 @@ from urllib.parse import parse_qs, unquote, urlparse
 import httpx
 
 from app.errors import AppError
+from app.services.extract_errors import map_httpx_error, raise_extract
+from app.services.http_retry import call_with_retry, remaining_timeout
 
 _UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -48,53 +51,84 @@ def extract_youtube_id(url_or_id: str) -> str:
     return vid
 
 
-def fetch_youtube_captions(url_or_id: str, *, timeout: float = 30.0) -> tuple[str, str]:
-    """Return (plain_text, lang_or_kind). Raises AppError if no captions."""
+def fetch_youtube_captions(
+    url_or_id: str,
+    *,
+    timeout: float = 15.0,
+    retries: int = 1,
+    retry_pause_sec: float = 1.0,
+) -> tuple[str, str]:
+    """Return (plain_text, lang_or_kind). Raises AppError if no captions.
+
+    ``timeout`` is a **wall-clock** budget for the whole captions chain (M14 / D-083),
+    not only per-request httpx read timeout.
+    """
     video_id = extract_youtube_id(url_or_id)
-    headers = {"User-Agent": _UA, "Accept-Language": "ru,en;q=0.8"}
+
+    def once() -> tuple[str, str]:
+        return _fetch_captions_once(video_id, wall_timeout=timeout)
+
     try:
-        with httpx.Client(timeout=timeout, follow_redirects=True, headers=headers) as client:
-            tracks, playability = _caption_tracks(client, video_id)
-            if not tracks:
-                status = (playability or {}).get("status")
-                reason = (playability or {}).get("reason") or ""
-                if status and status != "OK":
-                    raise AppError(
-                        "video_unavailable",
-                        f"YouTube: ролик недоступен ({reason or status}). "
-                        "Проверьте id (регистр важен: I ≠ l) и регион.",
-                        status_code=404,
-                    )
-                raise AppError(
-                    "no_captions",
-                    "У ролика нет субтитров (ни ручных, ни авто). Разбор по тексту дорожки невозможен.",
-                    status_code=404,
-                )
-            # Try preferred track first, then others if body empty (stale/blocked baseUrl).
-            ordered = _order_tracks(tracks)
-            last_empty = False
-            for track in ordered:
-                base = track.get("baseUrl") or track.get("base_url")
-                if not base:
-                    continue
-                base = str(base).replace("&fmt=srv3", "")
-                res = client.get(base)
-                if res.status_code >= 400:
-                    continue
-                text = captions_xml_to_text(res.text)
-                if not text.strip():
-                    last_empty = True
-                    continue
-                lang = str(track.get("languageCode") or track.get("language_code") or "?")
-                kind = "asr" if track.get("kind") == "asr" else "manual"
-                return text, f"{lang}/{kind}"
-            if last_empty:
-                raise AppError("no_captions", "Дорожка субтитров пустая", status_code=404)
-            raise AppError("no_captions", "Не удалось получить URL дорожки субтитров", status_code=404)
+        return call_with_retry(
+            once,
+            retries=retries,
+            pause_sec=retry_pause_sec,
+            is_transient=lambda exc: isinstance(exc, httpx.HTTPError)
+            and not isinstance(exc, AppError),
+        )
     except AppError:
         raise
+    except httpx.TimeoutException as exc:
+        f = map_httpx_error(exc)
+        raise AppError(f.code, f.message, status_code=f.status_code, extra={"hint": f.hint}) from exc
     except httpx.HTTPError as exc:
-        raise AppError("upstream_error", f"YouTube недоступен: {exc}", status_code=502) from exc
+        f = map_httpx_error(exc)
+        raise AppError(f.code, f.message, status_code=f.status_code, extra={"hint": f.hint}) from exc
+
+
+def _fetch_captions_once(video_id: str, *, wall_timeout: float) -> tuple[str, str]:
+    headers = {"User-Agent": _UA, "Accept-Language": "ru,en;q=0.8"}
+    deadline = time.monotonic() + max(0.5, wall_timeout)
+    # Per-request cap shares the wall budget; connect stays short.
+    per = min(wall_timeout, 10.0)
+    timeout = httpx.Timeout(connect=5.0, read=per, write=per, pool=5.0)
+    with httpx.Client(timeout=timeout, follow_redirects=True, headers=headers) as client:
+        tracks, playability = _caption_tracks(client, video_id, deadline=deadline)
+        if not tracks:
+            status = (playability or {}).get("status")
+            reason = (playability or {}).get("reason") or ""
+            if status and status != "OK":
+                raise_extract(
+                    "video_unavailable",
+                    detail=(
+                        f"YouTube: ролик недоступен ({reason or status}). "
+                        "Проверьте id (регистр важен: I ≠ l) и регион."
+                    ),
+                )
+            raise_extract("no_captions")
+        ordered = _order_tracks(tracks)
+        last_empty = False
+        for track in ordered:
+            remaining_timeout(deadline)
+            base = track.get("baseUrl") or track.get("base_url")
+            if not base:
+                continue
+            base = str(base).replace("&fmt=srv3", "")
+            left = remaining_timeout(deadline)
+            res = client.get(base, timeout=httpx.Timeout(connect=5.0, read=left, write=left, pool=5.0))
+            if res.status_code >= 400:
+                continue
+            text = captions_xml_to_text(res.text)
+            if not text.strip():
+                last_empty = True
+                continue
+            lang = str(track.get("languageCode") or track.get("language_code") or "?")
+            kind = "asr" if track.get("kind") == "asr" else "manual"
+            return text, f"{lang}/{kind}"
+        if last_empty:
+            raise_extract("no_captions", detail="Дорожка субтитров пустая")
+        raise_extract("no_captions", detail="Не удалось получить URL дорожки субтитров")
+    raise AssertionError("unreachable")
 
 
 def captions_xml_to_text(raw: str) -> str:
@@ -152,16 +186,22 @@ def _strip_tags(raw: str) -> str:
     return re.sub(r"\s+", " ", unescape(cleaned)).strip()
 
 
-def _caption_tracks(client: httpx.Client, video_id: str) -> tuple[list[dict], dict | None]:
+def _caption_tracks(
+    client: httpx.Client, video_id: str, *, deadline: float | None = None
+) -> tuple[list[dict], dict | None]:
     """Return (tracks, playabilityStatus). Prefer Innertube ANDROID — watch-page baseUrl often empty."""
+    if deadline is not None:
+        remaining_timeout(deadline)
     watch = client.get(f"https://www.youtube.com/watch?v={video_id}")
     if watch.status_code >= 400:
-        raise AppError("upstream_error", f"YouTube watch HTTP {watch.status_code}", status_code=502)
+        raise_extract("upstream_error", detail=f"YouTube watch HTTP {watch.status_code}")
     html = unescape(watch.text)
     playability: dict | None = None
 
     api_key_m = _INNERTUBE_KEY_RE.search(html)
     if api_key_m:
+        if deadline is not None:
+            remaining_timeout(deadline)
         tracks, playability = _tracks_from_innertube(client, video_id, api_key_m.group(1))
         if tracks:
             return tracks, playability
@@ -181,6 +221,8 @@ def _caption_tracks(client: httpx.Client, video_id: str) -> tuple[list[dict], di
         if tracks:
             return [t for t in tracks if isinstance(t, dict)], playability
 
+    if deadline is not None:
+        remaining_timeout(deadline)
     listed = client.get(
         "https://www.youtube.com/api/timedtext",
         params={"type": "list", "v": video_id},

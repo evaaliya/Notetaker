@@ -10,15 +10,24 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from datetime import datetime, timezone as dt_timezone
 from zoneinfo import ZoneInfo
 
 import httpx
 
+from app.config import get_settings
 from app.errors import AppError
 from app.services.ai.base import DraftNote, ExtractResult
 from app.services.ai.bilingual import ensure_en_pair
 from app.services.ai.lang import detect_lang
+from app.services.extract_errors import (
+    failure_for,
+    map_httpx_error,
+    map_openrouter_status,
+    raise_extract,
+)
+from app.services.http_retry import call_with_retry
 
 _SYSTEM = """You turn a transcript (meeting, lecture, talk, or educational video) into structured notes as JSON only.
 
@@ -225,8 +234,40 @@ class OpenRouterProvider:
         )
 
     def _chat(self, payload: dict) -> str:
+        settings = get_settings()
+        wall = float(settings.openrouter_timeout_sec)
+        retries = int(settings.extract_transient_retries)
+        pause = float(settings.extract_retry_pause_sec)
+
+        def once() -> str:
+            return self._chat_once(payload, wall_timeout=wall)
+
         try:
-            with httpx.Client(timeout=90.0) as client:
+            return call_with_retry(
+                once,
+                retries=retries,
+                pause_sec=pause,
+                is_transient=lambda exc: isinstance(
+                    exc, (httpx.TimeoutException, httpx.ConnectError, httpx.RemoteProtocolError)
+                )
+                or (
+                    isinstance(exc, AppError)
+                    and exc.code in ("timeout", "network")
+                ),
+            )
+        except AppError:
+            raise
+        except httpx.HTTPError as exc:
+            f = map_httpx_error(exc)
+            raise AppError(f.code, f.message, status_code=f.status_code, extra={"hint": f.hint}) from exc
+
+    def _chat_once(self, payload: dict, *, wall_timeout: float) -> str:
+        # Wall-clock: connect short; read capped by remaining budget (D-082/D-083).
+        deadline = time.monotonic() + max(1.0, wall_timeout)
+        left = max(1.0, deadline - time.monotonic())
+        timeout = httpx.Timeout(connect=10.0, read=left, write=min(30.0, left), pool=5.0)
+        try:
+            with httpx.Client(timeout=timeout) as client:
                 res = client.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers={
@@ -237,24 +278,31 @@ class OpenRouterProvider:
                     },
                     json=payload,
                 )
+        except httpx.TimeoutException as exc:
+            f = map_httpx_error(exc)
+            raise AppError(f.code, f.message, status_code=f.status_code, extra={"hint": f.hint}) from exc
         except httpx.HTTPError as exc:
-            raise AppError("upstream_error", f"OpenRouter недоступен: {exc}", status_code=502) from exc
+            f = map_httpx_error(exc)
+            raise AppError(f.code, f.message, status_code=f.status_code, extra={"hint": f.hint}) from exc
 
         if res.status_code >= 400:
-            raise AppError(
-                "upstream_error",
-                f"OpenRouter HTTP {res.status_code}: {res.text[:300]}",
-                status_code=502,
-            )
+            f = map_openrouter_status(res.status_code, res.text)
+            raise AppError(f.code, f.message, status_code=f.status_code, extra={"hint": f.hint})
 
-        data = res.json()
+        try:
+            data = res.json()
+        except json.JSONDecodeError as exc:
+            ff = failure_for("model_no_response")
+            raise AppError(ff.code, ff.message, status_code=ff.status_code, extra={"hint": ff.hint}) from exc
+
         try:
             content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
-            raise AppError("upstream_error", "Неожиданный ответ OpenRouter", status_code=502) from exc
+            ff = failure_for("model_no_response")
+            raise AppError(ff.code, ff.message, status_code=ff.status_code, extra={"hint": ff.hint}) from exc
 
         if not isinstance(content, str) or not content.strip():
-            raise AppError("upstream_error", "Пустой ответ OpenRouter", status_code=502)
+            raise_extract("model_no_response")
         return content
 
 

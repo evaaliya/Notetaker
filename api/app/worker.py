@@ -15,6 +15,7 @@ from app.migrate import run_migrations
 from app.models import WorkerHeartbeat
 from app.services.reminders import extend_all_series_horizons
 from app.services.attachments import unlink_storage
+from app.services.extract_jobs import process_due_extract_jobs
 from app.services.worker_jobs import (
     process_due_reminders,
     process_outbox,
@@ -74,6 +75,18 @@ async def tick(
         )
         if sent:
             logger.info("outbox processed %s row(s)", sent)
+
+    # M14: YouTube extract jobs (captions → model), state in DB.
+    try:
+        n_extract = await process_due_extract_jobs(
+            db_module.SessionLocal,
+            now=now,
+            settings=settings,
+        )
+        if n_extract:
+            logger.info("extract jobs claimed %s", n_extract)
+    except Exception:  # noqa: BLE001 — don't stall reminders on extract bugs
+        logger.exception("extract job tick failed")
 
     do_hourly = force_hourly or _last_hourly_at is None or (now - _last_hourly_at) >= timedelta(hours=1)
     if do_hourly:

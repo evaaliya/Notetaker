@@ -1,6 +1,7 @@
 from app.models.domain import (
     Attachment,
     EmailOutbox,
+    ExtractJob,
     Note,
     NoteMember,
     NoteTag,
@@ -11,6 +12,7 @@ from app.models.domain import (
     Tag,
     User,
     WorkerHeartbeat,
+    YoutubeCaptionCache,
 )
 
 __all__ = [
@@ -26,4 +28,6 @@ __all__ = [
     "Notification",
     "EmailOutbox",
     "WorkerHeartbeat",
+    "YoutubeCaptionCache",
+    "ExtractJob",
 ]
