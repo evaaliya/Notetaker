@@ -35,7 +35,7 @@ e2e:
 	if [ "$$ok" != "1" ]; then echo "api/web not ready"; exit 1; fi
 	@curl -sf -o /dev/null -w "e2e hooks (expect 401/422 not 404): %{http_code}\n" \
 		-X POST http://127.0.0.1:8000/api/e2e/tick_reminders || true
-	cd web && npx playwright install chromium && npx playwright test; \
+	cd web && PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=180000 npx playwright install chromium firefox webkit && npx playwright test; \
 	status=$$?; \
 	echo "restoring api without E2E_HOOKS..."; \
 	$(COMPOSE) up -d --force-recreate --no-deps api; \
@@ -69,7 +69,7 @@ verify:
 		sleep 2; \
 	done; \
 	if [ "$$ok" != "1" ]; then echo "api/web not ready"; exit 1; fi; \
-	(cd web && npx playwright install chromium && \
+	(cd web && PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT=180000 npx playwright install chromium firefox webkit && \
 		npx playwright test --reporter=json > ../$$PWJSON); E2E_RC=$$?; \
 	echo "restoring api without E2E_HOOKS..."; \
 	$(COMPOSE) up -d --force-recreate --no-deps api; \

@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 20:57 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 22:18 +06.
 
 ## Этапы
 
@@ -23,6 +23,7 @@
 | M12 Тесты/доки YouTube | готов | `test_youtube_*` (15) + `e2e_youtube_*` (3); README/CREDITS/D-076–077; `make test` 86; `make e2e` 46 |
 | M13 UI Polish | готов | токены/контроли (D-079); mid-width + OverflowMenu + мобильное «Ещё» (D-080); мобильный календарь/sheet/уведомления (D-081); `make test` 86; `make e2e` 49; отчёт `reports/verify-20261101-194344.md` (+ доработка mobile) |
 | M14 Сеть/гонки | готов | D-082 диагностика; job+кэш+cancel (D-083); аудит api.ts/WS/SMTP (D-084); `make test` 94; `make e2e` 51 |
+| M15 Вёрстка/рендеринг | готов | D-085–091; клики/ширина/день/resize; Profiler без memo; `make test` 94; `make e2e` 69 (chromium+m15×ff/wk) |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -36,7 +37,7 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 94 passed на реальном Postgres (testcontainers); Playwright e2e → 51 passed (M12 youtube + M13 mobile + M14 network).
+- Тесты: `make test` → 94 passed на реальном Postgres (testcontainers); Playwright e2e → 69 passed (chromium suite + m15 firefox/webkit).
 - **M14 сеть/гонки:** `POST /api/extract/youtube/jobs` + poll/cancel; captions cache; wall-clock 15s/60s + retry; ошибки по-русски + hint + «Повторить»; `api.ts` timeout/Abort; double-click/stale guard. Sync `/youtube` сохранён.
 - **M13 UI Polish:** токены `--control-h` / `--accent-hover` / холодные `--shadow-*`; единые hover/focus кнопок и полей (высота ≥44px); FullCalendar hover на бирюзу; `switch.off` нейтральный; адаптив mid-width (фильтры wrap, rail ≤900, строки → OverflowMenu «Действия»); на 390 «Ещё» → Уведомления/Теги/Звонок/Видео/Настройки; **отдельный мобильный календарь** (день по умолчанию, chrome, sheet-панель, «В корзину» без DnD); без горизонтального скролла. Backend не меняли.
 - **Звонки/видео (M11):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`, `/youtube`); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` и `/capture/video`; **субтитры YouTube** → extract → при EN выбор языка EN/RU → одна заметка-конспект; бейдж «создано ИИ». Конспект (D-068): главная мысль + заметки markdown-lite. Видео (D-069): по умолчанию только конспект. Пока ждём ответ — `AiThinkingPanel` (D-070). EN-ролик → выбор языка конспекта EN/RU (D-071, стабилизация D-073). UI видео (D-072): плеер слева от «Разобрать». Zoom API нет: только вставка/файл транскрипта или Web Speech в браузере.
@@ -231,6 +232,7 @@
 | M12 | Тесты и документация субтитров YouTube (фикстуры, bilingual e2e) | готов |
 | M13 | UI Polish | готов |
 | M14 | Сетевые ошибки и гонки (jobs, timeouts, audit) | готов |
+| M15 | Вёрстка и рендеринг (клики, ширина, календарь, Profiler) | готов |
 
 ### Смоки M11 (2026-11-01)
 **Автоматически:**
@@ -273,6 +275,13 @@
 **Автоматически:**
 - `make test` → **94 passed** (`test_extract_jobs_m14` + регрессии).
 - `make e2e` → **51 passed** (`e2e_youtube_double_click_single_job`, `e2e_youtube_late_response_ignored_after_cancel` + youtube_m12 на job mock).
+
+### Смоки M15 (2026-11-01)
+**Диагностика (D-085, эксперимент):** (b) коллизия `app-main.note-main` ↔ `.note-main` строк → shrink-wrap workspace 709 при main 1376; LS/аккаунт не влияют; (a) video list без Link; (c) FC 1h без end; (d) нет `updateSize`.
+**Исправлено:** `note-route` (D-086); `NoteLink` + `notifications.note_id` (D-087); clamp end суток (D-088); ResizeObserver/transitionend (D-089); m15 e2e ×3 браузера (D-090); Profiler — memo не нужен (D-091).
+**Автоматически:**
+- `make test` → **94 passed**.
+- `make e2e` → **69 passed** (chromium полный suite + `m15_layout` на firefox/webkit); ширины 390–1920, без h-scroll.
 
 ## Следующий заход
 - Web Push / Service Worker.

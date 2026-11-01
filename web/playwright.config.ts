@@ -13,6 +13,22 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
-    ...devices["Desktop Chrome"],
   },
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    // M15 layout audit only — full suite stays on Chromium (D-090).
+    {
+      name: "firefox",
+      testMatch: /m15_/,
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      name: "webkit",
+      testMatch: /m15_/,
+      use: { ...devices["Desktop Safari"] },
+    },
+  ],
 });
