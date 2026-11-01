@@ -283,6 +283,13 @@
 - `make test` → **94 passed**.
 - `make e2e` → **69 passed** (chromium полный suite + `m15_layout` на firefox/webkit); ширины 390–1920, без h-scroll.
 
+### Смоки M15 редактор (2026-11-01 23:02 +06)
+**Исправлено (D-092):** редактор на всю ширину панели (без max 760px); мета — `EditorMetaDisclosure` (время/повтор/напоминания/теги/вложения); теги — `TagMultiSelect` + чипы; DnD файла на текст + скрепка; бизнес-логика autosave/API без изменений.
+**Автоматически:**
+- `make test` → **94 passed**.
+- `make e2e` → **81 passed** (вкл. `m15_editor_*` на chromium/firefox/webkit + прежние `m15_layout`); адаптация `reminder_ui`/`timezone`/`attachments_m9`/`autosave_m9`/`m8_2` — раскрытие meta перед взаимодействием.
+**Работает:** title/body ≥70% ширины pane; meta свёрнута по умолчанию, значения сохраняются; paperclip + drop на body; sidebar collapse не ломает ширину.
+
 ## Следующий заход
 - Web Push / Service Worker.
 - Интервал повтора и сложные правила («каждый второй вторник»).
