@@ -5,49 +5,26 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import luxonPlugin from "@fullcalendar/luxon3";
-import type {
-  DatesSetArg,
-  EventClickArg,
-  EventContentArg,
-  EventDropArg,
-} from "@fullcalendar/core";
-import type { EventDragStartArg, EventDragStopArg } from "@fullcalendar/interaction";
 import { DateTime } from "luxon";
-import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
-import { api, EditScope, Note, Occurrence, Tag, User } from "../api";
+import { Trash2 } from "lucide-react";
+import { api, EditScope, Note, Occurrence, User } from "../api";
 import { EditScopeDialog } from "../components/EditScopeDialog";
-import { AttachmentClipIcon } from "../components/AttachmentsPanel";
-import { NoteIllustration } from "../components/NoteIllustration";
 import { NoteSidePanel } from "../components/NoteSidePanel";
-import { TagPill } from "../components/TagPill";
+import { CalendarChrome } from "../components/calendar/CalendarChrome";
+import { MonthCalendar } from "../components/calendar/MonthCalendar";
+import { WeekTimelineView } from "../components/calendar/WeekTimelineView";
+import { DayTimelineView } from "../components/calendar/DayTimelineView";
 import { MOBILE_MAX, useMediaQuery } from "../hooks/useMediaQuery";
-import { tagColors } from "../lib/tagColors";
-import { formatTimeHm, relocateKeepWallTime } from "../format";
+import {
+  type CalView,
+  rangeForView,
+  shiftAnchor,
+  todayAnchor,
+} from "../lib/calendar/groupByLocalDay";
 import { recordRender } from "../lib/renderProbe";
-
-/** Timed event end for FC: default 30m, never past local midnight (D-088). */
-function eventEndIso(startIso: string, timeZone: string, durationMin = 30): string {
-  const start = DateTime.fromISO(startIso, { zone: "utc" }).setZone(timeZone);
-  const dayEnd = start.endOf("day");
-  const natural = start.plus({ minutes: durationMin });
-  const end = natural <= dayEnd ? natural : dayEnd;
-  // FC exclusive end: if clamped to day end, use start of next day so the block fills the last slot.
-  const exclusive =
-    end.equals(dayEnd) || end > dayEnd ? start.plus({ days: 1 }).startOf("day") : end;
-  return exclusive.toUTC().toISO({ suppressMilliseconds: true })!.replace(/\+00:00$/, "Z");
-}
-
-type CalView = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
-
-type Range = { from: string; to: string };
 
 type Selected = {
   note: Note;
@@ -59,15 +36,6 @@ type PendingTrash = {
   originalStart: string | null;
 };
 
-function toIsoZ(d: Date): string {
-  return d.toISOString().replace(/\.\d{3}Z$/, "Z");
-}
-
-function firstTag(note: Note, tags: Tag[]): Tag | undefined {
-  const id = note.tag_ids[0];
-  return id ? tags.find((t) => t.id === id) : undefined;
-}
-
 export function CalendarPage({ user }: { user: User }) {
   const t0 = typeof performance !== "undefined" ? performance.now() : 0;
   useLayoutEffect(() => {
@@ -77,55 +45,65 @@ export function CalendarPage({ user }: { user: User }) {
   const isMobile = useMediaQuery(MOBILE_MAX);
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
   const tagList = tags.data ?? [];
-  const [range, setRange] = useState<Range | null>(null);
+
+  const [view, setView] = useState<CalView>(() => (isMobile ? "day" : "week"));
+  const [anchor, setAnchor] = useState(() => todayAnchor(user.timezone));
+  const [mainByDay, setMainByDay] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Selected | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [overTrash, setOverTrash] = useState(false);
   const [pendingTrash, setPendingTrash] = useState<PendingTrash | null>(null);
   const [undo, setUndo] = useState<{ noteId: string; title: string } | null>(null);
-  const [viewTitle, setViewTitle] = useState("");
-  const [mobileView, setMobileView] = useState<CalView>("timeGridDay");
+  const [monthTitle, setMonthTitle] = useState("");
+
   const trashZoneRef = useRef<HTMLDivElement>(null);
   const calendarWrapRef = useRef<HTMLDivElement>(null);
-  const calendarRef = useRef<FullCalendar>(null);
-  const dropOnTrashRef = useRef(false);
-  const overTrashRef = useRef(false);
-  const dragOccRef = useRef<Occurrence | null>(null);
+  const monthCalRef = useRef<FullCalendar>(null);
+  const mobileInit = useRef(false);
 
-  const cal = useQuery({
-    queryKey: ["calendar", range?.from, range?.to],
-    queryFn: () => api.calendar(range!.from, range!.to),
-    enabled: !!range,
-  });
+  // Sync default view when crossing mobile breakpoint once.
+  useEffect(() => {
+    if (!mobileInit.current) {
+      mobileInit.current = true;
+      setView(isMobile ? "day" : "week");
+      return;
+    }
+    if (isMobile && view === "week") {
+      // keep user's choice; only initial default differs
+    }
+  }, [isMobile, view]);
 
-  const events = useMemo(
-    () =>
-      (cal.data?.items ?? []).map((it) => {
-        const tag = firstTag(it.note, tagList);
-        const colors = tagColors(tag?.color);
-        return {
-          id: `${it.note.id}:${it.original_start}`,
-          title: it.note.title || "Без названия",
-          start: it.occurrence_start,
-          end: eventEndIso(it.occurrence_start, user.timezone),
-          allDay: false,
-          backgroundColor: colors.fill,
-          borderColor: colors.ink,
-          textColor: "#2B2620",
-          extendedProps: { occurrence: it },
-        };
-      }),
-    [cal.data, tagList, user.timezone],
+  const computed = useMemo(
+    () => rangeForView(view, anchor, user.timezone),
+    [view, anchor, user.timezone],
   );
 
-  // Recalculate FC geometry when the calendar container or sidebar width changes (D-089).
+  const range = useMemo(
+    () => ({ from: computed.from, to: computed.to }),
+    [computed.from, computed.to],
+  );
+
+  const viewTitle = view === "month" && monthTitle ? monthTitle : computed.title;
+
+  const cal = useQuery({
+    queryKey: ["calendar", range.from, range.to],
+    queryFn: () => api.calendar(range.from, range.to),
+  });
+
+  // Keep month FC on the anchor month.
+  useEffect(() => {
+    if (view !== "month") return;
+    const apiFc = monthCalRef.current?.getApi();
+    if (!apiFc) return;
+    const target = DateTime.fromISO(anchor, { zone: user.timezone }).toJSDate();
+    apiFc.gotoDate(target);
+  }, [view, anchor, user.timezone]);
+
   useEffect(() => {
     const wrap = calendarWrapRef.current;
-    if (!wrap) return;
-    const update = () => {
-      calendarRef.current?.getApi().updateSize();
-    };
+    if (!wrap || view !== "month") return;
+    const update = () => monthCalRef.current?.getApi().updateSize();
     const ro = new ResizeObserver(() => update());
     ro.observe(wrap);
     const frame = wrap.closest(".app-frame");
@@ -146,7 +124,7 @@ export function CalendarPage({ user }: { user: User }) {
       frame?.removeEventListener("transitionend", onTransitionEnd);
       window.removeEventListener("resize", update);
     };
-  }, []);
+  }, [view]);
 
   useEffect(() => {
     if (!selected || !cal.data) return;
@@ -163,40 +141,29 @@ export function CalendarPage({ user }: { user: User }) {
     }
   }, [cal.data, selected]);
 
-  const onDatesSet = useCallback((arg: DatesSetArg) => {
-    setRange({ from: toIsoZ(arg.start), to: toIsoZ(arg.end) });
-    setViewTitle(arg.view.title);
+  const selectOcc = useCallback((occ: Occurrence) => {
+    setSelected({
+      note: occ.note,
+      originalStart: occ.note.rec_freq ? occ.original_start : null,
+    });
   }, []);
 
-  function calApi() {
-    return calendarRef.current?.getApi() ?? null;
-  }
+  const onMainChange = useCallback((dayKey: string, occ: Occurrence) => {
+    setMainByDay((prev) => ({ ...prev, [dayKey]: `${occ.note.id}:${occ.original_start}` }));
+  }, []);
 
   function goPrev() {
-    calApi()?.prev();
+    setAnchor((a) => shiftAnchor(view, a, user.timezone, -1));
   }
   function goNext() {
-    calApi()?.next();
+    setAnchor((a) => shiftAnchor(view, a, user.timezone, 1));
   }
   function goToday() {
-    calApi()?.today();
+    setAnchor(todayAnchor(user.timezone));
   }
-  function changeMobileView(view: CalView) {
-    setMobileView(view);
-    calApi()?.changeView(view);
+  function changeView(v: CalView) {
+    setView(v);
   }
-
-  useEffect(() => {
-    const apiFc = calApi();
-    if (!apiFc) return;
-    if (isMobile) {
-      apiFc.changeView(mobileView);
-    } else if (apiFc.view.type === "timeGridDay") {
-      apiFc.changeView("timeGridWeek");
-    }
-    // remount key also handles hard switch; this covers live resize
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMobile]);
 
   const patchDrop = useMutation({
     mutationFn: ({
@@ -261,220 +228,18 @@ export function CalendarPage({ user }: { user: User }) {
     qc.invalidateQueries({ queryKey: ["trash"] });
   }
 
-  function onEventClick(arg: EventClickArg) {
-    const occ = arg.event.extendedProps.occurrence as Occurrence;
-    setSelected({
-      note: occ.note,
-      originalStart: occ.note.rec_freq ? occ.original_start : null,
-    });
-  }
-
-  function onEventDragStart(arg: EventDragStartArg) {
-    dropOnTrashRef.current = false;
-    dragOccRef.current = (arg.event.extendedProps.occurrence as Occurrence) ?? null;
-    setDragging(true);
-    setOverTrash(false);
-  }
-
-  function onEventDragStop(arg: EventDragStopArg) {
-    const js = arg.jsEvent as MouseEvent | undefined;
-    const hit = hitTrashZone(js);
-    dropOnTrashRef.current = hit;
-    if (hit && dragOccRef.current) {
-      const occ = dragOccRef.current;
-      dragOccRef.current = null;
-      setDragging(false);
-      setOverTrash(false);
-      const originalStart = occ.note.rec_freq ? occ.original_start : null;
-      if (originalStart) {
-        setPendingTrash({ note: occ.note, originalStart });
-      } else {
-        void trashNote(occ.note).catch((err: Error) => setDropError(err.message));
-      }
+  function onTrashDrop(occ: Occurrence) {
+    const originalStart = occ.note.rec_freq ? occ.original_start : null;
+    if (originalStart) {
+      setPendingTrash({ note: occ.note, originalStart });
       return;
     }
-    dragOccRef.current = null;
-    setDragging(false);
-    setOverTrash(false);
+    void trashNote(occ.note).catch((err: Error) => setDropError(err.message));
   }
 
-  function hitTrashZone(jsEvent: MouseEvent | undefined | null): boolean {
-    const zone = trashZoneRef.current;
-    if (!zone || !jsEvent) return false;
-    const r = zone.getBoundingClientRect();
-    return (
-      jsEvent.clientX >= r.left &&
-      jsEvent.clientX <= r.right &&
-      jsEvent.clientY >= r.top &&
-      jsEvent.clientY <= r.bottom
-    );
-  }
-
-  function onEventDrop(arg: EventDropArg) {
-    const occ = arg.event.extendedProps.occurrence as Occurrence;
-    // FC may fire eventDrop before eventDragStop — check zone from jsEvent too.
-    const toTrash = dropOnTrashRef.current || hitTrashZone(arg.jsEvent as MouseEvent);
-    dropOnTrashRef.current = false;
-    if (toTrash) {
-      arg.revert();
-      const originalStart = occ.note.rec_freq ? occ.original_start : null;
-      if (originalStart) {
-        setPendingTrash({ note: occ.note, originalStart });
-        return;
-      }
-      void trashNote(occ.note).catch((err: Error) => setDropError(err.message));
-      return;
-    }
-    const drop = arg.event.start;
-    if (!drop) {
-      arg.revert();
-      return;
-    }
-    const baseIso = occ.occurrence_start;
-    const starts_at = relocateKeepWallTime(baseIso, drop, user.timezone);
-    patchDrop.mutate(
-      {
-        note: occ.note,
-        starts_at,
-        originalStart: occ.note.rec_freq ? occ.original_start : null,
-      },
-      { onError: () => arg.revert() },
-    );
-  }
-
-  function renderEventContent(arg: EventContentArg) {
-    const occ = arg.event.extendedProps.occurrence as Occurrence | undefined;
-    if (!occ) return true;
-    const tag = firstTag(occ.note, tagList);
-    const allTags = occ.note.tag_ids
-      .map((id) => tagList.find((t) => t.id === id))
-      .filter(Boolean) as Tag[];
-    const pills = allTags.slice(0, 2);
-    const more = Math.max(0, allTags.length - pills.length);
-    const hm = formatTimeHm(occ.occurrence_start, user.timezone);
-    const colors = tagColors(tag?.color);
-
-    if (isMobile) {
-      return (
-        <div
-          className="cal-event cal-event-compact"
-          data-occ-key={`${occ.note.id}:${occ.original_start}`}
-          style={
-            {
-              "--tag-bg": colors.fill,
-              "--tag-fg": colors.ink,
-            } as CSSProperties
-          }
-        >
-          <div className="cal-event-body">
-            <span className="cal-event-time">{hm}</span>
-            <b>
-              {arg.event.title}
-              {occ.note.has_attachments ? <AttachmentClipIcon /> : null}
-            </b>
-            {pills[0] ? <TagPill name={pills[0].name} color={pills[0].color} /> : null}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div
-        className="cal-event"
-        data-occ-key={`${occ.note.id}:${occ.original_start}`}
-        style={
-          {
-            "--tag-bg": colors.fill,
-            "--tag-fg": colors.ink,
-          } as CSSProperties
-        }
-      >
-        <NoteIllustration
-          title={occ.note.title}
-          body={occ.note.body}
-          tagName={tag?.name}
-          tagColor={tag?.color}
-          size={34}
-        />
-        <div className="cal-event-body">
-          <b>
-            {arg.event.title}
-            {occ.note.has_attachments ? <AttachmentClipIcon /> : null}
-          </b>
-          {occ.note.role === "editor" && occ.note.owner_login ? (
-            <span className="cal-event-shared" data-testid="shared-note-badge">
-              Общая · владелец: {occ.note.owner_login}
-            </span>
-          ) : null}
-          <span className="cal-event-time">{hm}</span>
-          {pills.length > 0 && (
-            <div className="cal-event-tags">
-              {pills.map((t) => (
-                <TagPill key={t.id} name={t.name} color={t.color} />
-              ))}
-              {more > 0 && <span className="cal-more">+{more}</span>}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  useEffect(() => {
-    const wrap = calendarWrapRef.current;
-    if (!wrap || isMobile) return;
-    function onPointerDown(e: PointerEvent) {
-      const t = e.target as HTMLElement | null;
-      if (!t?.closest?.(".fc-event")) return;
-      dropOnTrashRef.current = false;
-      overTrashRef.current = false;
-      setDragging(true);
-      setOverTrash(false);
-      const keyEl = t.closest("[data-occ-key]") as HTMLElement | null;
-      const key = keyEl?.getAttribute("data-occ-key");
-      if (key && cal.data) {
-        const found = cal.data.items.find(
-          (it) => `${it.note.id}:${it.original_start}` === key,
-        );
-        if (found) dragOccRef.current = found;
-      }
-    }
-    function onPointerMove(e: PointerEvent) {
-      if (!dragOccRef.current) return;
-      const hit = hitTrashZone(e);
-      overTrashRef.current = hit;
-      dropOnTrashRef.current = hit;
-      setOverTrash(hit);
-    }
-    function onPointerUp() {
-      const occ = dragOccRef.current;
-      const hit = overTrashRef.current || dropOnTrashRef.current;
-      setDragging(false);
-      setOverTrash(false);
-      overTrashRef.current = false;
-      if (hit && occ) {
-        dragOccRef.current = null;
-        dropOnTrashRef.current = false;
-        const originalStart = occ.note.rec_freq ? occ.original_start : null;
-        if (originalStart) {
-          setPendingTrash({ note: occ.note, originalStart });
-        } else {
-          void trashNote(occ.note).catch((err: Error) => setDropError(err.message));
-        }
-        return;
-      }
-      dragOccRef.current = null;
-      dropOnTrashRef.current = false;
-    }
-    wrap.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    return () => {
-      wrap.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-  }, [cal.data, isMobile]);
+  const onMonthRangeChange = useCallback((_from: string, _to: string, title: string) => {
+    setMonthTitle(title);
+  }, []);
 
   return (
     <section className={`calendar-page${isMobile ? " calendar-page-mobile" : ""}`}>
@@ -490,122 +255,65 @@ export function CalendarPage({ user }: { user: User }) {
           className={`calendar-main card calendar-main-relative${isMobile ? " calendar-main-mobile" : ""}`}
           ref={calendarWrapRef}
           data-testid="calendar-main"
+          data-cal-view={view}
         >
-          {isMobile && (
-            <div className="cal-mobile-chrome" data-testid="cal-mobile-chrome">
-              <div className="cal-mobile-nav">
-                <button
-                  type="button"
-                  className="secondary cal-mobile-nav-btn"
-                  aria-label="Предыдущий период"
-                  data-testid="cal-mobile-prev"
-                  onClick={goPrev}
-                >
-                  <ChevronLeft size={20} aria-hidden="true" />
-                </button>
-                <div className="cal-mobile-title" data-testid="cal-mobile-title">
-                  {viewTitle || "…"}
-                </div>
-                <button
-                  type="button"
-                  className="secondary cal-mobile-nav-btn"
-                  aria-label="Следующий период"
-                  data-testid="cal-mobile-next"
-                  onClick={goNext}
-                >
-                  <ChevronRight size={20} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className="secondary cal-mobile-today"
-                  data-testid="cal-mobile-today"
-                  onClick={goToday}
-                >
-                  Сегодня
-                </button>
-              </div>
-              <div
-                className="cal-mobile-views"
-                role="tablist"
-                aria-label="Режим календаря"
-                data-testid="cal-mobile-views"
-              >
-                {(
-                  [
-                    ["timeGridDay", "День"],
-                    ["timeGridWeek", "Неделя"],
-                    ["dayGridMonth", "Месяц"],
-                  ] as const
-                ).map(([view, label]) => (
-                  <button
-                    key={view}
-                    type="button"
-                    role="tab"
-                    aria-selected={mobileView === view}
-                    className={mobileView === view ? "on" : undefined}
-                    data-testid={`cal-mobile-view-${view}`}
-                    onClick={() => changeMobileView(view)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {cal.isLoading && <p className="muted">Загрузка…</p>}
-          <FullCalendar
-            key={isMobile ? "mobile" : "desktop"}
-            ref={calendarRef}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
-            initialView={isMobile ? mobileView : "timeGridWeek"}
-            headerToolbar={
-              isMobile
-                ? false
-                : {
-                    left: "prev,next today",
-                    center: "title",
-                    right: "dayGridMonth,timeGridWeek,timeGridDay",
-                  }
-            }
-            buttonText={{
-              today: "Сегодня",
-              month: "Месяц",
-              week: "Неделя",
-              day: "День",
-            }}
-            locale="ru"
-            timeZone={user.timezone}
-            height={isMobile ? "100%" : "auto"}
-            editable={!isMobile}
-            eventStartEditable={!isMobile}
-            eventDurationEditable={false}
-            /* D-041: default slotEventOverlap:true squeezed many timed events
-               into unreadably thin columns (~3 visible). Stack instead. */
-            slotEventOverlap={false}
-            eventMinHeight={isMobile ? 44 : 52}
-            dayMaxEvents={isMobile ? 3 : false}
-            moreLinkText="ещё"
-            eventTimeFormat={{
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-              omitZeroMinute: false,
-            }}
-            slotLabelFormat={{
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-              omitZeroMinute: false,
-            }}
-            eventContent={renderEventContent}
-            events={events}
-            datesSet={onDatesSet}
-            eventClick={onEventClick}
-            eventDrop={isMobile ? undefined : onEventDrop}
-            eventDragStart={isMobile ? undefined : onEventDragStart}
-            eventDragStop={isMobile ? undefined : onEventDragStop}
+          <CalendarChrome
+            title={viewTitle}
+            view={view}
+            isMobile={isMobile}
+            onPrev={goPrev}
+            onNext={goNext}
+            onToday={goToday}
+            onViewChange={changeView}
           />
-          {!isMobile && (
+          {cal.isLoading && <p className="muted">Загрузка…</p>}
+          {view === "month" && (
+            <MonthCalendar
+              timeZone={user.timezone}
+              anchorIsoDay={anchor}
+              items={cal.data?.items ?? []}
+              tags={tagList}
+              isMobile={isMobile}
+              rangeFrom={range.from}
+              rangeTo={range.to}
+              mainByDay={mainByDay}
+              onMainChange={onMainChange}
+              onSelect={selectOcc}
+              onRangeChange={onMonthRangeChange}
+              onDropRelocate={(note, starts_at, originalStart) =>
+                patchDrop.mutate({ note, starts_at, originalStart })
+              }
+              onDropError={setDropError}
+              editable={!isMobile}
+              trashZoneRef={trashZoneRef}
+              onDraggingChange={(d, over) => {
+                setDragging(d);
+                setOverTrash(over);
+              }}
+              onTrashDrop={onTrashDrop}
+              calendarRef={monthCalRef}
+            />
+          )}
+          {view === "week" && (
+            <WeekTimelineView
+              anchorIsoDay={anchor}
+              items={cal.data?.items ?? []}
+              tags={tagList}
+              timeZone={user.timezone}
+              stacked={isMobile}
+              onSelect={selectOcc}
+            />
+          )}
+          {view === "day" && (
+            <DayTimelineView
+              dayKey={anchor}
+              items={cal.data?.items ?? []}
+              tags={tagList}
+              timeZone={user.timezone}
+              onSelect={selectOcc}
+            />
+          )}
+          {view === "month" && !isMobile && (
             <div
               ref={trashZoneRef}
               className={`cal-trash-zone${dragging ? " visible" : ""}${overTrash ? " active" : ""}`}
