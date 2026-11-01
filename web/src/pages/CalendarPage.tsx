@@ -19,15 +19,18 @@ import type {
   EventDropArg,
 } from "@fullcalendar/core";
 import type { EventDragStartArg, EventDragStopArg } from "@fullcalendar/interaction";
-import { Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { api, EditScope, Note, Occurrence, Tag, User } from "../api";
 import { EditScopeDialog } from "../components/EditScopeDialog";
 import { AttachmentClipIcon } from "../components/AttachmentsPanel";
 import { NoteIllustration } from "../components/NoteIllustration";
 import { NoteSidePanel } from "../components/NoteSidePanel";
 import { TagPill } from "../components/TagPill";
+import { MOBILE_MAX, useMediaQuery } from "../hooks/useMediaQuery";
 import { tagColors } from "../lib/tagColors";
 import { formatTimeHm, relocateKeepWallTime } from "../format";
+
+type CalView = "timeGridDay" | "timeGridWeek" | "dayGridMonth";
 
 type Range = { from: string; to: string };
 
@@ -52,6 +55,7 @@ function firstTag(note: Note, tags: Tag[]): Tag | undefined {
 
 export function CalendarPage({ user }: { user: User }) {
   const qc = useQueryClient();
+  const isMobile = useMediaQuery(MOBILE_MAX);
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
   const tagList = tags.data ?? [];
   const [range, setRange] = useState<Range | null>(null);
@@ -61,8 +65,11 @@ export function CalendarPage({ user }: { user: User }) {
   const [overTrash, setOverTrash] = useState(false);
   const [pendingTrash, setPendingTrash] = useState<PendingTrash | null>(null);
   const [undo, setUndo] = useState<{ noteId: string; title: string } | null>(null);
+  const [viewTitle, setViewTitle] = useState("");
+  const [mobileView, setMobileView] = useState<CalView>("timeGridDay");
   const trashZoneRef = useRef<HTMLDivElement>(null);
   const calendarWrapRef = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<FullCalendar>(null);
   const dropOnTrashRef = useRef(false);
   const overTrashRef = useRef(false);
   const dragOccRef = useRef<Occurrence | null>(null);
@@ -109,7 +116,38 @@ export function CalendarPage({ user }: { user: User }) {
 
   const onDatesSet = useCallback((arg: DatesSetArg) => {
     setRange({ from: toIsoZ(arg.start), to: toIsoZ(arg.end) });
+    setViewTitle(arg.view.title);
   }, []);
+
+  function calApi() {
+    return calendarRef.current?.getApi() ?? null;
+  }
+
+  function goPrev() {
+    calApi()?.prev();
+  }
+  function goNext() {
+    calApi()?.next();
+  }
+  function goToday() {
+    calApi()?.today();
+  }
+  function changeMobileView(view: CalView) {
+    setMobileView(view);
+    calApi()?.changeView(view);
+  }
+
+  useEffect(() => {
+    const apiFc = calApi();
+    if (!apiFc) return;
+    if (isMobile) {
+      apiFc.changeView(mobileView);
+    } else if (apiFc.view.type === "timeGridDay") {
+      apiFc.changeView("timeGridWeek");
+    }
+    // remount key also handles hard switch; this covers live resize
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
 
   const patchDrop = useMutation({
     mutationFn: ({
@@ -267,6 +305,30 @@ export function CalendarPage({ user }: { user: User }) {
     const hm = formatTimeHm(occ.occurrence_start, user.timezone);
     const colors = tagColors(tag?.color);
 
+    if (isMobile) {
+      return (
+        <div
+          className="cal-event cal-event-compact"
+          data-occ-key={`${occ.note.id}:${occ.original_start}`}
+          style={
+            {
+              "--tag-bg": colors.fill,
+              "--tag-fg": colors.ink,
+            } as CSSProperties
+          }
+        >
+          <div className="cal-event-body">
+            <span className="cal-event-time">{hm}</span>
+            <b>
+              {arg.event.title}
+              {occ.note.has_attachments ? <AttachmentClipIcon /> : null}
+            </b>
+            {pills[0] ? <TagPill name={pills[0].name} color={pills[0].color} /> : null}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
         className="cal-event"
@@ -311,7 +373,7 @@ export function CalendarPage({ user }: { user: User }) {
 
   useEffect(() => {
     const wrap = calendarWrapRef.current;
-    if (!wrap) return;
+    if (!wrap || isMobile) return;
     function onPointerDown(e: PointerEvent) {
       const t = e.target as HTMLElement | null;
       if (!t?.closest?.(".fc-event")) return;
@@ -363,28 +425,99 @@ export function CalendarPage({ user }: { user: User }) {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [cal.data]);
+  }, [cal.data, isMobile]);
 
   return (
-    <section className="calendar-page">
+    <section className={`calendar-page${isMobile ? " calendar-page-mobile" : ""}`}>
       <div className="page-head">
         <div>
           <h1>Календарь</h1>
-          <div className="mut">{user.timezone}</div>
+          {!isMobile && <div className="mut">{user.timezone}</div>}
         </div>
       </div>
       {dropError && <p className="error">{dropError}</p>}
       <div className={`calendar-layout${selected ? " with-panel" : ""}`}>
-        <div className="calendar-main card calendar-main-relative" ref={calendarWrapRef}>
+        <div
+          className={`calendar-main card calendar-main-relative${isMobile ? " calendar-main-mobile" : ""}`}
+          ref={calendarWrapRef}
+          data-testid="calendar-main"
+        >
+          {isMobile && (
+            <div className="cal-mobile-chrome" data-testid="cal-mobile-chrome">
+              <div className="cal-mobile-nav">
+                <button
+                  type="button"
+                  className="secondary cal-mobile-nav-btn"
+                  aria-label="Предыдущий период"
+                  data-testid="cal-mobile-prev"
+                  onClick={goPrev}
+                >
+                  <ChevronLeft size={20} aria-hidden="true" />
+                </button>
+                <div className="cal-mobile-title" data-testid="cal-mobile-title">
+                  {viewTitle || "…"}
+                </div>
+                <button
+                  type="button"
+                  className="secondary cal-mobile-nav-btn"
+                  aria-label="Следующий период"
+                  data-testid="cal-mobile-next"
+                  onClick={goNext}
+                >
+                  <ChevronRight size={20} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="secondary cal-mobile-today"
+                  data-testid="cal-mobile-today"
+                  onClick={goToday}
+                >
+                  Сегодня
+                </button>
+              </div>
+              <div
+                className="cal-mobile-views"
+                role="tablist"
+                aria-label="Режим календаря"
+                data-testid="cal-mobile-views"
+              >
+                {(
+                  [
+                    ["timeGridDay", "День"],
+                    ["timeGridWeek", "Неделя"],
+                    ["dayGridMonth", "Месяц"],
+                  ] as const
+                ).map(([view, label]) => (
+                  <button
+                    key={view}
+                    type="button"
+                    role="tab"
+                    aria-selected={mobileView === view}
+                    className={mobileView === view ? "on" : undefined}
+                    data-testid={`cal-mobile-view-${view}`}
+                    onClick={() => changeMobileView(view)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {cal.isLoading && <p className="muted">Загрузка…</p>}
           <FullCalendar
+            key={isMobile ? "mobile" : "desktop"}
+            ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxonPlugin]}
-            initialView="timeGridWeek"
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,timeGridWeek,timeGridDay",
-            }}
+            initialView={isMobile ? mobileView : "timeGridWeek"}
+            headerToolbar={
+              isMobile
+                ? false
+                : {
+                    left: "prev,next today",
+                    center: "title",
+                    right: "dayGridMonth,timeGridWeek,timeGridDay",
+                  }
+            }
             buttonText={{
               today: "Сегодня",
               month: "Месяц",
@@ -393,15 +526,16 @@ export function CalendarPage({ user }: { user: User }) {
             }}
             locale="ru"
             timeZone={user.timezone}
-            height="auto"
-            editable
-            eventStartEditable
+            height={isMobile ? "100%" : "auto"}
+            editable={!isMobile}
+            eventStartEditable={!isMobile}
             eventDurationEditable={false}
             /* D-041: default slotEventOverlap:true squeezed many timed events
                into unreadably thin columns (~3 visible). Stack instead. */
             slotEventOverlap={false}
-            eventMinHeight={52}
-            dayMaxEvents={false}
+            eventMinHeight={isMobile ? 44 : 52}
+            dayMaxEvents={isMobile ? 3 : false}
+            moreLinkText="ещё"
             eventTimeFormat={{
               hour: "2-digit",
               minute: "2-digit",
@@ -418,22 +552,24 @@ export function CalendarPage({ user }: { user: User }) {
             events={events}
             datesSet={onDatesSet}
             eventClick={onEventClick}
-            eventDrop={onEventDrop}
-            eventDragStart={onEventDragStart}
-            eventDragStop={onEventDragStop}
+            eventDrop={isMobile ? undefined : onEventDrop}
+            eventDragStart={isMobile ? undefined : onEventDragStart}
+            eventDragStop={isMobile ? undefined : onEventDragStop}
           />
-          <div
-            ref={trashZoneRef}
-            className={`cal-trash-zone${dragging ? " visible" : ""}${overTrash ? " active" : ""}`}
-            data-testid="cal-trash-zone"
-            aria-hidden={!dragging}
-          >
-            <Trash2 aria-hidden="true" />
-            <span>
-              Отпустите, чтобы убрать в корзину{" "}
-              <span className="cal-trash-hint">· вернуть можно в течение 30 дней</span>
-            </span>
-          </div>
+          {!isMobile && (
+            <div
+              ref={trashZoneRef}
+              className={`cal-trash-zone${dragging ? " visible" : ""}${overTrash ? " active" : ""}`}
+              data-testid="cal-trash-zone"
+              aria-hidden={!dragging}
+            >
+              <Trash2 aria-hidden="true" />
+              <span>
+                Отпустите, чтобы убрать в корзину{" "}
+                <span className="cal-trash-hint">· вернуть можно в течение 30 дней</span>
+              </span>
+            </div>
+          )}
         </div>
         {selected && (
           <NoteSidePanel
@@ -442,7 +578,23 @@ export function CalendarPage({ user }: { user: User }) {
             tags={tagList}
             note={selected.note}
             occurrenceOriginalStart={selected.originalStart}
+            presentation={isMobile ? "sheet" : "aside"}
             onClose={() => setSelected(null)}
+            onTrash={
+              selected.note.role === "editor"
+                ? undefined
+                : () => {
+                    const s = selected;
+                    if (s.originalStart) {
+                      setPendingTrash({
+                        note: s.note,
+                        originalStart: s.originalStart,
+                      });
+                      return;
+                    }
+                    void trashNote(s.note).catch((err: Error) => setDropError(err.message));
+                  }
+            }
             onSaved={(n) => {
               setSelected((prev) =>
                 prev ? { note: n, originalStart: prev.originalStart } : null,

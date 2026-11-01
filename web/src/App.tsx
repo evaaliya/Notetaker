@@ -291,7 +291,12 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           onMuteSound={muteAlarm}
         />
       </main>
-      {!isNoteRoute && <MobileNav />}
+      {!isNoteRoute && (
+        <MobileNav
+          unseenCount={unseenCount}
+          onOpenInbox={() => setInboxOpen(true)}
+        />
+      )}
       {!isNoteRoute && (
         <button
           type="button"

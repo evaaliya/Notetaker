@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
+  Bell,
   CalendarDays,
   Clock3,
   List,
@@ -14,7 +15,12 @@ import {
 
 const MORE_PATHS = ["/settings", "/tags", "/capture/call", "/capture/video"];
 
-export function MobileNav() {
+type Props = {
+  unseenCount?: number;
+  onOpenInbox?: () => void;
+};
+
+export function MobileNav({ unseenCount = 0, onOpenInbox }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -76,9 +82,31 @@ export function MobileNav() {
         >
           <MoreHorizontal aria-hidden="true" />
           Ещё
+          {unseenCount > 0 ? (
+            <span className="mobile-nav-badge" aria-label={`${unseenCount} непрочитанных`}>
+              {unseenCount > 9 ? "9+" : unseenCount}
+            </span>
+          ) : null}
         </button>
         {moreOpen ? (
           <ul className="mobile-nav-more-menu" role="menu" data-testid="mobile-nav-more-menu">
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="mobile-nav-notifications"
+                onClick={() => {
+                  setMoreOpen(false);
+                  onOpenInbox?.();
+                }}
+              >
+                <Bell aria-hidden="true" size={18} />
+                Уведомления
+                {unseenCount > 0 ? (
+                  <span className="mobile-nav-menu-count">{unseenCount}</span>
+                ) : null}
+              </button>
+            </li>
             <li role="none">
               <button type="button" role="menuitem" onClick={() => go("/tags")}>
                 <Tags aria-hidden="true" size={18} />

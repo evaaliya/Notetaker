@@ -19,8 +19,12 @@ type Props = {
   note: Note;
   /** When editing a series occurrence from calendar/upcoming. */
   occurrenceOriginalStart?: string | null;
+  /** Mobile calendar: full-screen sheet instead of sticky aside. */
+  presentation?: "aside" | "sheet";
   onClose: () => void;
   onSaved: (note: Note) => void;
+  /** Move note / series to trash (calendar mobile — no drag zone). */
+  onTrash?: () => void;
 };
 
 function formFromNote(note: Note, timeZone: string) {
@@ -39,8 +43,10 @@ export function NoteSidePanel({
   tags,
   note,
   occurrenceOriginalStart = null,
+  presentation = "aside",
   onClose,
   onSaved,
+  onTrash,
 }: Props) {
   const isSeriesOcc = Boolean(note.rec_freq && occurrenceOriginalStart);
   const initial = formFromNote(note, user.timezone);
@@ -204,8 +210,13 @@ export function NoteSidePanel({
     onSaved(server);
   }
 
-  return (
-    <aside className="side-panel card">
+  const panel = (
+    <aside
+      className={`side-panel card${presentation === "sheet" ? " side-panel-sheet" : ""}`}
+      data-testid="note-side-panel"
+      role={presentation === "sheet" ? "dialog" : undefined}
+      aria-modal={presentation === "sheet" ? true : undefined}
+    >
       <form className="form-grid" onSubmit={submit}>
         <div className="list-toolbar">
           <h3>{isSeriesOcc ? "Вхождение" : "Заметка"}</h3>
@@ -289,6 +300,17 @@ export function NoteSidePanel({
         <button type="submit" disabled={busy} data-testid="note-save">
           Сохранить
         </button>
+        {onTrash && note.role !== "editor" && !isSeriesOcc && (
+          <button
+            type="button"
+            className="secondary"
+            data-testid="note-panel-trash"
+            disabled={busy}
+            onClick={() => onTrash()}
+          >
+            В корзину
+          </button>
+        )}
         {isSeriesOcc && note.role !== "editor" && (
           <button
             type="button"
@@ -298,6 +320,17 @@ export function NoteSidePanel({
             onClick={() => setPendingScope("delete")}
           >
             Удалить это вхождение
+          </button>
+        )}
+        {onTrash && isSeriesOcc && note.role !== "editor" && (
+          <button
+            type="button"
+            className="link"
+            data-testid="note-panel-trash-series"
+            disabled={busy}
+            onClick={() => onTrash()}
+          >
+            В корзину…
           </button>
         )}
       </form>
@@ -338,4 +371,21 @@ export function NoteSidePanel({
       )}
     </aside>
   );
+
+  if (presentation === "sheet") {
+    return createPortal(
+      <div
+        className="side-panel-sheet-backdrop"
+        data-testid="note-panel-sheet-backdrop"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        {panel}
+      </div>,
+      document.body,
+    );
+  }
+
+  return panel;
 }

@@ -1876,10 +1876,6 @@ button.note-main,
     display: none;
   }
 
-  .app-main {
-    padding: 16px 16px calc(96px + env(safe-area-inset-bottom, 0));
-  }
-
   .search-input {
     width: 100%;
   }
@@ -1961,6 +1957,256 @@ button.note-main,
 
   .hero-title {
     font-size: 28px;
+  }
+
+  .page-head h1 {
+    font-size: 28px;
+  }
+
+  .app-main {
+    padding: var(--space-4) var(--space-3) calc(96px + env(safe-area-inset-bottom, 0));
+  }
+
+  /* —— Mobile calendar (dedicated layout, not shrunk desktop) —— */
+  .calendar-page-mobile {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100dvh - 96px - env(safe-area-inset-bottom, 0));
+  }
+
+  .calendar-page-mobile .page-head {
+    margin-bottom: var(--space-3);
+  }
+
+  .calendar-page-mobile .calendar-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .calendar-main-mobile {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-2);
+    overflow: hidden;
+  }
+
+  .calendar-main-mobile .fc {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .cal-mobile-chrome {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    flex: none;
+  }
+
+  .cal-mobile-nav {
+    display: grid;
+    grid-template-columns: 44px 1fr 44px auto;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .cal-mobile-nav-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+
+  .cal-mobile-title {
+    font: 700 15px/1.25 var(--font-display);
+    text-align: center;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .cal-mobile-today {
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    white-space: nowrap;
+  }
+
+  .cal-mobile-views {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-1);
+    padding: var(--space-1);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+  }
+
+  .cal-mobile-views button {
+    min-height: 40px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: 600 13px var(--font-sans);
+    border-radius: calc(var(--radius-sm) - 2px);
+    padding: 0 var(--space-2);
+  }
+
+  .cal-mobile-views button.on {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .cal-mobile-views button:hover:not(:disabled) {
+    background: var(--surface);
+    border: 0;
+    color: var(--ink);
+  }
+
+  .cal-event-compact {
+    gap: var(--space-1);
+    padding: 4px 6px;
+    align-items: stretch;
+  }
+
+  .cal-event-compact .cal-event-body {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .cal-event-compact .cal-event-time {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .cal-event-compact b {
+    font-size: 12px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .calendar-main-mobile .fc .fc-toolbar {
+    display: none;
+  }
+
+  .calendar-main-mobile .fc-timegrid-slot {
+    height: 2.4em !important;
+  }
+
+  .calendar-main-mobile .fc-col-header-cell-cushion {
+    padding: 6px 2px;
+    font-size: 12px;
+  }
+
+  .side-panel-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: color-mix(in srgb, var(--ink) 40%, transparent);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .side-panel.side-panel-sheet {
+    position: relative;
+    top: auto;
+    width: 100%;
+    max-width: 100%;
+    max-height: min(92dvh, 920px);
+    margin: 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    overflow: auto;
+    padding: var(--space-4);
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0));
+    box-shadow: var(--shadow-lg);
+  }
+
+  .notif-popover {
+    position: fixed;
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: calc(72px + env(safe-area-inset-bottom, 0));
+    top: auto;
+    width: auto;
+    max-width: none;
+    max-height: min(60dvh, 420px);
+  }
+
+  .list-toolbar-bar {
+    padding: var(--space-3);
+  }
+
+  .list-toolbar-filters select {
+    min-width: 0;
+    flex: 1 1 calc(50% - var(--space-2));
+  }
+
+  .mobile-nav-badge {
+    position: absolute;
+    top: 2px;
+    right: calc(50% - 22px);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--danger);
+    color: #fff;
+    font: 700 10px/16px var(--font-sans);
+    text-align: center;
+  }
+
+  .mobile-nav-more > button {
+    position: relative;
+  }
+
+  .mobile-nav-menu-count {
+    margin-left: auto;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    background: var(--danger-soft);
+    color: var(--danger);
+    font: 700 12px/22px var(--font-sans);
+    text-align: center;
+  }
+
+  .share-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .share-form button {
+    width: 100%;
+  }
+
+  .capture-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .capture-actions .btn-accent,
+  .capture-actions button {
+    width: 100%;
+  }
+
+  .tags-layout .tag-create {
+    position: static;
+  }
+
+  .settings-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 
