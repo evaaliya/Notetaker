@@ -35,6 +35,7 @@ export function WeekTimelineView({
           occs={byDay.get(dayKey) ?? []}
           tags={tags}
           timeZone={timeZone}
+          variant="week"
           onSelect={onSelect}
         />
       ))}

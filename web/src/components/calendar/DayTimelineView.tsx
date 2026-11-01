@@ -28,6 +28,7 @@ export function DayTimelineView({ dayKey, items, tags, timeZone, onSelect }: Pro
         occs={occs}
         tags={tags}
         timeZone={timeZone}
+        variant="day"
         onSelect={onSelect}
       />
     </div>
