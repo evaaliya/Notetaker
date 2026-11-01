@@ -116,6 +116,9 @@ class Note(Base):
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_ts: Mapped[float | None] = mapped_column(Float, nullable=True)
     ai_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    show_in_calendar: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
 
 
 class NoteMember(Base):
@@ -138,11 +141,21 @@ class NoteMember(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class NoteTag(Base):
-    __tablename__ = "note_tags"
+class NoteUserTag(Base):
+    """Per-user tag assignment on a note (M16). Owner and member keep separate tags."""
+
+    __tablename__ = "note_user_tags"
+    __table_args__ = (
+        UniqueConstraint("note_id", "user_id", "tag_id", name="uq_note_user_tags_note_user_tag"),
+        Index("ix_note_user_tags_user_id", "user_id"),
+        Index("ix_note_user_tags_tag_id", "tag_id"),
+    )
 
     note_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("notes.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     tag_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True

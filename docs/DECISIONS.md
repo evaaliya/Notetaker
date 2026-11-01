@@ -677,3 +677,30 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** тонкий полупрозрачный thumb на `--sidebar`; кастомный overlay.
 **Причина:** системный grey/white track контрастировал с тёмным `--sidebar` (#16202B).
 **Последствия:** визуально «невидимый» скролл в блоке тегов; содержимое по-прежнему прокручивается.
+
+### D-095 · 2026-11-02 00:17 +06 · M16 · Персональные теги на общих заметках
+**Решение:** таблица `note_user_tags(note_id, user_id, tag_id)` с PK/unique; `NoteOut.tag_ids` и фильтры списка — только строки текущего пользователя. Миграция копирует `note_tags` → `note_user_tags` с `user_id = notes.user_id`, затем drop `note_tags`. Чужой `tag_id` при assign → **404**. PATCH/create пишут теги актёра, не владельца заметки. Split серии копирует все персональные строки, затем при наличии `tag_ids` в patch заменяет только теги актёра.
+**Альтернативы:** общие теги владельца, видимые участнику (read-only); shared tag namespace на note; копирование тегов владельца участнику при share.
+**Причина:** у участника свои теги и классификация; теги владельца не имеют смысла в чужом словаре имён/цветов; ACL «чужой → 404» как у вложений.
+**Последствия:** один note_id → разные `tag_ids` у owner/member; WS `note.changed` не должен `setQueryData` чужими tag_ids (см. D-097).
+
+### D-096 · 2026-11-02 00:17 +06 · M16 · show_in_calendar
+**Решение:** `notes.show_in_calendar boolean not null default true`. `/calendar` фильтрует `show_in_calendar IS TRUE`; list/upcoming/search/reminders — нет. Create/PATCH принимают поле; в `ExtractDraftsModal` для видео — чекбокс «Показать в календаре» (default **false**). `CallCapturePage` (своё окно подтверждения) не меняем.
+**Альтернативы:** отдельный статус «только список»; скрывать и из upcoming.
+**Причина:** конспекты к видео часто не нужны на сетке календаря, но нужны в списке и с напоминаниями; звонки — отдельный UX, не трогаем.
+**Последствия:** UI редактора может не показывать чекбокс (API достаточно); e2e проверяет путь видео.
+
+### D-097 · 2026-11-02 00:19 +06 · M16 · Аудит кэша/WS под нагрузкой
+**Решение:** coalesce WS-инвалидации (`InvalidateCoalescer`, окно 75 мс) + единый `invalidateNoteCaches` для мутаций. Не `setQueryData` note из WS (теги viewer-specific). 409: ConflictDialog сохраняет черновик — без изменений.
+
+| Область | Находка | Фикс |
+|---|---|---|
+| WS `note.changed` ×N | Каждое событие → 4–5 `invalidateQueries` → лавина refetch при серии правок / 2 вкладках | `InvalidateCoalescer` merge ключей, 1 flush/окно |
+| Кэш note vs list/calendar | После PATCH местами инвалидировали неполный набор → рассинхрон | `invalidateNoteCaches` (notes+calendar+upcoming+trash+note) |
+| Участник + personal tags | `setQueryData` чужой NoteOut затёр бы `tag_ids` viewer | WS только invalidate; нет setQueryData note |
+| 409 / черновик | ConflictDialog + local state; draft не стирается | OK, без правок |
+| WS close | полный `invalidateQueries()` по спеке | OK |
+
+**Альтернативы:** per-event `setQueryData` merge; React Query `queryClient.isMutating` gate; debounce 300 мс (слишком заметно).
+**Причина:** при 10k заметок и нескольких вкладках лавина refetch дороже 75 мс задержки UI.
+**Последствия:** тест `test_ws_invalidate_coalesce` на coalescer; e2e не гоняет 10k WS.

@@ -333,6 +333,7 @@ docker compose up --build     # postgres, mailhog, api, worker, web
 | M9 | Вложения в заметках (§15) | upload/413/415/404/purge + e2e миниатюра |
 | M10 | Общие заметки между пользователями (§15) | share/leave + ACL + realtime + e2e два контекста |
 | M11 | Заметки из звонков и обучающих видео (§15) | stub/openrouter extract, импорт транскрипта, Web Speech, видео+таймкоды |
+| M16 | Персональные теги + show_in_calendar (§15) | note_user_tags, calendar flag, cache/WS audit + тесты |
 
 ---
 
@@ -486,3 +487,32 @@ note_members(
 - Внешние плееры требуют сеть (фиксируется в STATUS).
 
 **Тесты:** stub на 5 фразах; `test_extract_api`; `test_parse_vtt` / `test_parse_srt`; `test_youtube_captions_xml_to_text`; `test_extract_youtube_uses_captions`; e2e (`e2e_call_transcript_extract`, `e2e_video_player_in_extract_panel`, `e2e_video_captions_button_visible`).
+
+### M16 · Персональные теги и показ в календаре
+
+**Персональные теги (D-095)**
+
+```sql
+note_user_tags(
+  note_id uuid references notes(id) on delete cascade,
+  user_id uuid references users(id) on delete cascade,
+  tag_id uuid references tags(id) on delete cascade,
+  primary key (note_id, user_id, tag_id),
+  unique(note_id, user_id, tag_id)
+)
+-- replaces note_tags; migration copies owner rows without data loss
+```
+
+Каждый пользователь назначает на заметку (в т.ч. общую) **свои** теги. `NoteOut.tag_ids`, фильтры списка/поиска, календарь, «Ближайшее», панель — теги текущего пользователя. Теги владельца участнику не видны и наоборот. Чужой `tag_id` → **404**.
+
+**`show_in_calendar` (D-096)**
+
+```sql
+-- notes.show_in_calendar bool not null default true
+```
+
+`GET /calendar` возвращает только `show_in_calendar = true`. Список, поиск, «Ближайшее», напоминания — без этого фильтра. В окне подтверждения черновиков **видео** — чекбокс «Показать в календаре» (default off). Окно звонков не меняется.
+
+**Состояние под нагрузкой:** ключи TanStack Query и WS-инвалидация не должны расходиться или вызывать лавину (D-097).
+
+**Тесты:** `test_member_personal_tags_isolated`, `test_owner_tags_not_visible_to_member`, `test_show_in_calendar_false_hidden_from_calendar_but_in_list`; e2e `e2e_shared_note_personal_tags`, `e2e_video_draft_show_in_calendar_checkbox`; тест лавины WS.
