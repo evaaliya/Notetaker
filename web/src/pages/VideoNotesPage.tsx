@@ -1,14 +1,16 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, Note, User } from "../api";
+import { api, ExtractDraft, Note, User } from "../api";
 import {
   AiThinkingPanel,
   VIDEO_EXTRACT_STEPS,
 } from "../components/AiThinkingPanel";
 import {
+  applySummaryLang,
   draftsFromExtract,
   ExtractDraftsModal,
   PendingDraft,
+  SummaryLang,
 } from "../components/ExtractDraftsModal";
 import { formatTimecode, parseVideoUrl, VideoSource } from "../lib/videoUrl";
 
@@ -64,6 +66,9 @@ export function VideoNotesPage({ user }: { user: User }) {
   const [pending, setPending] = useState<PendingDraft[]>([]);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [summaryEn, setSummaryEn] = useState<ExtractDraft | null>(null);
+  const [summaryRu, setSummaryRu] = useState<ExtractDraft | null>(null);
+  const [summaryLang, setSummaryLang] = useState<SummaryLang>("en");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const ytHostRef = useRef<HTMLDivElement | null>(null);
   const ytPlayerRef = useRef<YTPlayer | null>(null);
@@ -179,8 +184,19 @@ export function VideoNotesPage({ user }: { user: User }) {
     try {
       const result = await api.extractYoutube(parsed.url, user.timezone);
       setTranscript(result.transcript ?? null);
+      const en = result.summary;
+      const ru =
+        result.source_lang === "en" && result.summary_ru?.title && result.summary_ru?.body
+          ? result.summary_ru
+          : null;
+      setSummaryEn(en);
+      setSummaryRu(ru);
+      // Prefer original language for English sources; RU-only talks stay on Russian summary.
+      const initialLang: SummaryLang = en && result.source_lang === "en" ? "en" : "ru";
+      setSummaryLang(initialLang);
+      const activeSummary = initialLang === "ru" && ru ? ru : en;
       // Video: one lecture → one note by default; task/decision splinters stay unchecked (D-069).
-      const rows = draftsFromExtract(result.summary, result.drafts, {
+      const rows = draftsFromExtract(activeSummary, result.drafts, {
         selectKinds: ["summary"],
       });
       if (!rows.length) {
@@ -223,11 +239,20 @@ export function VideoNotesPage({ user }: { user: User }) {
       setConfirmOpen(false);
       setPending([]);
       setTranscript(null);
+      setSummaryEn(null);
+      setSummaryRu(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось создать");
     } finally {
       setBusy(false);
     }
+  }
+
+  function changeSummaryLang(lang: SummaryLang) {
+    setSummaryLang(lang);
+    const next = lang === "ru" ? summaryRu : summaryEn;
+    if (!next) return;
+    setPending((prev) => applySummaryLang(prev, next));
   }
 
   return (
@@ -352,9 +377,16 @@ export function VideoNotesPage({ user }: { user: User }) {
         transcript={transcript}
         busy={busy}
         onChange={setPending}
-        onCancel={() => setConfirmOpen(false)}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setSummaryEn(null);
+          setSummaryRu(null);
+        }}
         onConfirm={() => void confirmSelected()}
         testId="video-drafts-modal"
+        bilingual={!!(summaryEn && summaryRu)}
+        summaryLang={summaryLang}
+        onSummaryLangChange={changeSummaryLang}
       />
     </div>
   );

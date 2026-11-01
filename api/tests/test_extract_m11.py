@@ -66,6 +66,19 @@ def test_stub_phrase_decision():
     assert "## Главная мысль" in r.summary.body
     assert "## Заметки" in r.summary.body
     assert "\n" in r.summary.body
+    assert r.source_lang == "ru"
+    assert r.summary_ru is None
+
+
+def test_stub_english_offers_summary_ru():
+    r = _stub(
+        "A lifelong Democrat explains why she voted Trump. Friends reacted with surprise."
+    )
+    assert r.source_lang == "en"
+    assert r.summary is not None
+    assert "## Main idea" in r.summary.body
+    assert r.summary_ru is not None
+    assert "## Главная мысль" in r.summary_ru.body
 
 
 def test_parse_vtt():

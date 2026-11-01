@@ -121,8 +121,30 @@ class StubProvider:
                 )
             )
 
-        summary = _build_summary(raw, starts, drafts)
-        return ExtractResult(summary=summary, drafts=drafts)
+        source_lang = _detect_lang(raw)
+        summary = _build_summary(raw, starts, drafts, lang=source_lang)
+        summary_ru = None
+        if source_lang == "en" and summary is not None:
+            # Deterministic stand-in translation for tests / offline — not a real MT.
+            summary_ru = DraftNote(
+                title=f"[RU] {summary.title}",
+                body=(
+                    "## Главная мысль\n"
+                    "(stub) Русская версия конспекта для выбора языка.\n\n"
+                    "## Заметки\n"
+                    f"- Оригинал: {summary.title}"
+                ),
+                starts_at=summary.starts_at,
+                reminder_offsets=list(summary.reminder_offsets),
+                tag_names=list(summary.tag_names),
+                kind="summary",
+            )
+        return ExtractResult(
+            summary=summary,
+            drafts=drafts,
+            source_lang=source_lang,
+            summary_ru=summary_ru,
+        )
 
 
 def _infer_starts_at(text: str, local_now: datetime) -> datetime | None:
@@ -170,48 +192,79 @@ def _infer_starts_at(text: str, local_now: datetime) -> datetime | None:
     return None
 
 
-def _build_summary(text: str, starts: datetime | None, drafts: list[DraftNote]) -> DraftNote:
+def _detect_lang(text: str) -> str:
+    letters = re.findall(r"[A-Za-zА-Яа-яЁё]", text or "")
+    if not letters:
+        return "other"
+    cyr = sum(1 for ch in letters if "А" <= ch <= "я" or ch in "Ёё")
+    if cyr / len(letters) >= 0.35:
+        return "ru"
+    latin = sum(1 for ch in letters if ("A" <= ch <= "Z") or ("a" <= ch <= "z"))
+    if latin / len(letters) >= 0.5:
+        return "en"
+    return "other"
+
+
+def _build_summary(
+    text: str, starts: datetime | None, drafts: list[DraftNote], *, lang: str = "ru"
+) -> DraftNote:
     participants = _extract_participants(text)
     decisions = [d.body for d in drafts if d.kind == "decision"]
     tasks = [d.body for d in drafts if d.kind == "task"]
     # Structured stub layout (mirrors OpenRouter prompt): thesis + bullets, not a wall of text.
-    thesis = _first_sentence(text) or "Краткий конспект по транскрипту."
+    default_thesis = (
+        "Brief notes from the transcript." if lang == "en" else "Краткий конспект по транскрипту."
+    )
+    thesis = _first_sentence(text) or default_thesis
     note_bullets: list[str] = []
     if participants:
-        note_bullets.append(f"Участники: {', '.join(participants)}")
+        label = "Participants" if lang == "en" else "Участники"
+        note_bullets.append(f"{label}: {', '.join(participants)}")
     if starts is not None:
-        note_bullets.append(f"Время: {starts.isoformat()}")
+        label = "Time" if lang == "en" else "Время"
+        note_bullets.append(f"{label}: {starts.isoformat()}")
     for d in decisions:
         note_bullets.append(d)
     if not note_bullets:
         for chunk in _snippet_bullets(text, limit=5):
             note_bullets.append(chunk)
 
+    if lang == "en":
+        h_idea, h_notes, h_out = "## Main idea", "## Notes", "## Takeaways"
+        title_prefix = "Notes"
+        tag_call, tag_note = "call", "notes"
+        out_dec, out_task = "Decision", "Task"
+    else:
+        h_idea, h_notes, h_out = "## Главная мысль", "## Заметки", "## Выводы"
+        title_prefix = "Конспект"
+        tag_call, tag_note = "звонок", "конспект"
+        out_dec, out_task = "Решение", "Задача"
+
     sections = [
-        "## Главная мысль",
+        h_idea,
         thesis,
         "",
-        "## Заметки",
+        h_notes,
         *[f"- {b}" for b in note_bullets],
     ]
     if tasks or decisions:
-        sections.extend(["", "## Выводы"])
+        sections.extend(["", h_out])
         for d in decisions:
-            sections.append(f"- Решение: {d}")
+            sections.append(f"- {out_dec}: {d}")
         for t in tasks:
-            sections.append(f"- Задача: {t}")
+            sections.append(f"- {out_task}: {t}")
 
-    title = "Конспект"
+    title = title_prefix
     first = text.strip().split("\n")[0].strip()
     if first and len(first) < 80 and not first.lower().startswith("webvtt"):
-        title = f"Конспект: {_short_title(first)}"
+        title = f"{title_prefix}: {_short_title(first)}"
 
     return DraftNote(
         title=title,
         body="\n".join(sections).strip(),
         starts_at=starts,
         reminder_offsets=[],
-        tag_names=["звонок"] if participants or decisions else ["конспект"],
+        tag_names=[tag_call] if participants or decisions else [tag_note],
         kind="summary",
     )
 

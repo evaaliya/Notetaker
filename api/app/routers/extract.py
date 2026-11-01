@@ -58,11 +58,19 @@ def _run_extract(
     except Exception as exc:  # noqa: BLE001 — surface provider failures cleanly
         raise AppError("extract_failed", str(exc), status_code=502) from exc
 
+    lang = (result.source_lang or "").strip().lower() or None
+    if lang not in ("en", "ru", "other"):
+        lang = None
+    summary_ru = result.summary_ru
+    if summary_ru is not None and not summary_ru.title.strip() and not summary_ru.body.strip():
+        summary_ru = None
     return ExtractOut(
         summary=_draft_out(result.summary) if result.summary else None,
         drafts=[_draft_out(d) for d in result.drafts],
         provider=provider_name,
         transcript=transcript,
+        source_lang=lang,  # type: ignore[arg-type]
+        summary_ru=_draft_out(summary_ru) if summary_ru else None,
     )
 
 

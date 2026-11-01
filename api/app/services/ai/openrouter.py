@@ -20,32 +20,39 @@ from app.services.ai.base import DraftNote, ExtractResult
 
 _SYSTEM = """You turn a transcript (meeting, lecture, talk, or educational video) into structured notes as JSON only.
 
-Language: write title/body/tag_names in the same language as the source text (Russian source → Russian notes).
+source_lang: set to "en", "ru", or "other" for the dominant language of the transcript.
 
-summary is the main note the user will keep. summary.body MUST be multi-line Markdown-lite — never a single dense paragraph. Use real newline characters between sections:
+summary is the main note in the SOURCE language (keep English if the talk is English — do not translate summary itself).
+summary.body MUST be multi-line Markdown-lite with real newlines — never one dense paragraph.
 
+If source_lang is "ru", use headings:
 ## Главная мысль
-1–3 sentences: the core thesis the speaker/author wants the audience to take away (not a list of topics, the message itself).
-
 ## Заметки
-- short bullets: key facts, numbers, claims, examples, definitions
-- one idea per bullet; group related points; skip filler, ads, greetings
-
 ## Выводы
-- optional: takeaways, caveats, or what to remember
 
-Formatting rules for every body field:
-- Headings with ##, bullets with "- ", blank line between sections.
+If source_lang is "en" (or other non-Russian), use headings:
+## Main idea
+## Notes
+## Takeaways
+
+Content rules for summary:
+- Main idea / Главная мысль: 1–3 sentences — the thesis the speaker wants the audience to take away.
+- Notes / Заметки: short bullets (facts, numbers, claims, examples); one idea per bullet; skip filler.
+- Takeaways / Выводы: optional.
 - Prefer clarity over completeness; compress aggressively.
-- Do not wrap the whole note in one run-on sentence.
+
+summary_ru: same shape as summary.
+- If source_lang is "en": fill with a careful Russian translation of summary (use Russian headings Главная мысль / Заметки / Выводы). Keep names, numbers, and key terms accurate; do not invent facts.
+- If source_lang is "ru" or "other": set summary_ru.title and summary_ru.body to empty strings.
 
 drafts[] — rare extras, not a second copy of the note:
-- Lectures / talks / educational videos: drafts MUST be []. Put recommendations into summary "## Выводы". Never invent separate task notes from the speaker's advice.
-- Meetings / calls only: kind=task for concrete assigned actions; kind=decision for explicit "we decided…". Do not duplicate the summary into drafts.
+- Lectures / talks / educational videos: drafts MUST be []. Put recommendations into summary Takeaways/Выводы. Never invent separate task notes from the speaker's advice.
+- Meetings / calls only: kind=task for concrete assigned actions; kind=decision for explicit decisions. Do not duplicate the summary into drafts.
+- Draft bodies stay in the source language (no separate RU copies for tasks).
 
-Timezone: interpret relative phrases (завтра, в пятницу, через N часов) in the user's timezone.
+Timezone: interpret relative phrases in the user's timezone.
 starts_at must be timezone-aware ISO-8601, or null if unknown.
-If nothing useful, set summary.title and summary.body to empty strings and drafts=[].
+If nothing useful, set summary.title and summary.body to empty strings, summary_ru empty, drafts=[], source_lang as detected.
 """
 
 # JSON Schema for OpenRouter structured outputs (strict).
@@ -63,26 +70,30 @@ _DRAFT_OBJECT: dict = {
     "required": ["title", "body", "starts_at", "reminder_offsets", "tag_names", "kind"],
 }
 
+_SUMMARY_OBJECT: dict = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "title": {"type": "string"},
+        "body": {"type": "string"},
+        "starts_at": {"type": ["string", "null"]},
+        "reminder_offsets": {"type": "array", "items": {"type": "integer"}},
+        "tag_names": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["title", "body", "starts_at", "reminder_offsets", "tag_names"],
+}
+
 _EXTRACT_SCHEMA: dict = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
+        "source_lang": {"type": "string", "enum": ["en", "ru", "other"]},
         # Always an object: empty title means «no summary» (strict mode dislikes anyOf/null).
-        "summary": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "title": {"type": "string"},
-                "body": {"type": "string"},
-                "starts_at": {"type": ["string", "null"]},
-                "reminder_offsets": {"type": "array", "items": {"type": "integer"}},
-                "tag_names": {"type": "array", "items": {"type": "string"}},
-            },
-            "required": ["title", "body", "starts_at", "reminder_offsets", "tag_names"],
-        },
+        "summary": _SUMMARY_OBJECT,
+        "summary_ru": _SUMMARY_OBJECT,
         "drafts": {"type": "array", "items": _DRAFT_OBJECT},
     },
-    "required": ["summary", "drafts"],
+    "required": ["source_lang", "summary", "summary_ru", "drafts"],
 }
 
 
@@ -168,16 +179,33 @@ def _parse_payload(content: str, *, default_tz: str) -> ExtractResult:
     except json.JSONDecodeError as exc:
         raise AppError("upstream_error", "OpenRouter вернул не-JSON", status_code=502) from exc
 
+    source_lang = str(obj.get("source_lang") or "other").strip().lower()
+    if source_lang not in ("en", "ru", "other"):
+        source_lang = "other"
+
     summary_raw = obj.get("summary")
     summary = _draft_from_obj(summary_raw, default_tz=default_tz, kind="summary")
     if summary is not None and not summary.title.strip() and not summary.body.strip():
         summary = None
+
+    summary_ru = _draft_from_obj(obj.get("summary_ru"), default_tz=default_tz, kind="summary")
+    if summary_ru is not None and not summary_ru.title.strip() and not summary_ru.body.strip():
+        summary_ru = None
+    # Only keep RU twin when source is English (UI language choice).
+    if source_lang != "en":
+        summary_ru = None
+
     drafts: list[DraftNote] = []
     for item in obj.get("drafts") or []:
         d = _draft_from_obj(item, default_tz=default_tz, kind=str(item.get("kind") or "task"))
         if d is not None:
             drafts.append(d)
-    return ExtractResult(summary=summary, drafts=drafts)
+    return ExtractResult(
+        summary=summary,
+        drafts=drafts,
+        source_lang=source_lang,
+        summary_ru=summary_ru,
+    )
 
 
 def _draft_from_obj(obj: object, *, default_tz: str, kind: str) -> DraftNote | None:

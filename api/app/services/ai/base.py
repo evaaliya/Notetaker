@@ -21,6 +21,8 @@ class DraftNote:
 class ExtractResult:
     summary: DraftNote | None
     drafts: list[DraftNote]
+    source_lang: str | None = None  # en | ru | other
+    summary_ru: DraftNote | None = None  # Russian twin when source is English
 
 
 class ExtractProvider(Protocol):

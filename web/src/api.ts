@@ -51,6 +51,9 @@ export type ExtractResult = {
   drafts: ExtractDraft[];
   provider: string;
   transcript?: string | null;
+  source_lang?: "en" | "ru" | "other" | null;
+  /** Russian twin of summary when source_lang is en (language choice in UI). */
+  summary_ru?: ExtractDraft | null;
 };
 
 export type NoteMember = {

@@ -185,7 +185,11 @@ export function CallCapturePage({ user }: { user: User }) {
       <div className="page-head">
         <div>
           <h1>Конспект звонка</h1>
-          <p className="mut">Импорт транскрипта или живое распознавание — без постоянной записи на сервер.</p>
+          <p className="mut">
+            Импорт транскрипта (.txt / .vtt / .srt) или живое распознавание в браузере — без записи на
+            сервер. Zoom сами не подключаемся: если у звонка есть captions/transcript, экспортируйте
+            файл в Zoom и загрузите сюда.
+          </p>
         </div>
       </div>
 

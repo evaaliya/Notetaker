@@ -59,3 +59,5 @@ class ExtractOut(BaseModel):
     drafts: list[DraftOut]
     provider: str
     transcript: str | None = None
+    source_lang: Literal["en", "ru", "other"] | None = None
+    summary_ru: DraftOut | None = None

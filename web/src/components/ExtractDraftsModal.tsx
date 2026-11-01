@@ -2,6 +2,8 @@ import { ExtractDraft } from "../api";
 
 export type PendingDraft = ExtractDraft & { selected: boolean; key: string };
 
+export type SummaryLang = "en" | "ru";
+
 type Props = {
   open: boolean;
   pending: PendingDraft[];
@@ -11,6 +13,10 @@ type Props = {
   onCancel: () => void;
   onConfirm: () => void;
   testId?: string;
+  /** When both EN summary and RU twin exist — show language radios. */
+  summaryLang?: SummaryLang;
+  onSummaryLangChange?: (lang: SummaryLang) => void;
+  bilingual?: boolean;
 };
 
 export function ExtractDraftsModal({
@@ -22,6 +28,9 @@ export function ExtractDraftsModal({
   onCancel,
   onConfirm,
   testId = "extract-drafts-modal",
+  summaryLang,
+  onSummaryLangChange,
+  bilingual,
 }: Props) {
   if (!open) return null;
   return (
@@ -32,6 +41,37 @@ export function ExtractDraftsModal({
           Ничего не создаётся, пока вы не подтвердите. У заметок будет метка «создано ИИ».
           Конспект — основная заметка; задачи/решения создаются отдельно, только если отмечены.
         </p>
+        {bilingual && onSummaryLangChange && summaryLang ? (
+          <fieldset className="extract-lang" data-testid="extract-summary-lang">
+            <legend className="lab">Язык конспекта</legend>
+            <p className="muted small">
+              Источник на английском — можно сохранить оригинал или перевод. Перевод может чуть
+              исказить формулировки.
+            </p>
+            <div className="capture-actions">
+              <label className="extract-lang-option">
+                <input
+                  type="radio"
+                  name="summary-lang"
+                  value="en"
+                  checked={summaryLang === "en"}
+                  onChange={() => onSummaryLangChange("en")}
+                />
+                English (оригинал)
+              </label>
+              <label className="extract-lang-option">
+                <input
+                  type="radio"
+                  name="summary-lang"
+                  value="ru"
+                  checked={summaryLang === "ru"}
+                  onChange={() => onSummaryLangChange("ru")}
+                />
+                Русский (перевод)
+              </label>
+            </div>
+          </fieldset>
+        ) : null}
         {transcript ? (
           <details className="transcript-preview" data-testid="extract-transcript">
             <summary>Распознанный текст</summary>
@@ -103,7 +143,7 @@ export function draftsFromExtract(
       ...summary,
       kind: "summary",
       selected: selectedFor("summary"),
-      key: `summary-${summary.title}`,
+      key: "summary-main",
     });
   }
   drafts.forEach((d, i) => {
@@ -116,4 +156,23 @@ export function draftsFromExtract(
     });
   });
   return rows;
+}
+
+/** Swap the summary row body/title when user picks EN/RU; keep checkbox state. */
+export function applySummaryLang(
+  pending: PendingDraft[],
+  summary: ExtractDraft,
+): PendingDraft[] {
+  return pending.map((row) =>
+    row.kind === "summary" && row.key === "summary-main"
+      ? {
+          ...row,
+          title: summary.title,
+          body: summary.body,
+          starts_at: summary.starts_at,
+          reminder_offsets: summary.reminder_offsets,
+          tag_names: summary.tag_names,
+        }
+      : row,
+  );
 }
