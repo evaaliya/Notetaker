@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 16:19 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 19:45 +06.
 
 ## Этапы
 
@@ -21,6 +21,7 @@
 | M11 Звонки и видео | готов | stub 5 фраз + `test_extract_api` + parse vtt/srt; `e2e_call_transcript_extract` / `e2e_video_player_in_extract_panel`; UI D-072 |
 | M11.1 Стабилизация e2e | готов | 5 упавших e2e: календарные даты → «сегодня» (D-074); call extract → stub в `docker-compose.e2e.yml` (D-075) |
 | M12 Тесты/доки YouTube | готов | `test_youtube_*` (15) + `e2e_youtube_*` (3); README/CREDITS/D-076–077; `make test` 86; `make e2e` 46 |
+| M13 UI Polish | готов | токены/контроли (D-079); mid-width + OverflowMenu + мобильное «Ещё» (D-080); без уменьшения hit-target; `make test` 86; `make e2e`/`verify` 47 (вкл. `m13_390_no_hscroll_and_more_menu`); отчёт `reports/verify-20261101-194344.md` |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -34,7 +35,8 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 86 passed на реальном Postgres (testcontainers); Playwright e2e → 46 passed (вкл. M12 `e2e_youtube_*`).
+- Тесты: `make test` → 86 passed на реальном Postgres (testcontainers); Playwright e2e → 47 passed (вкл. M12 `e2e_youtube_*` + M13 `m13_390_no_hscroll_and_more_menu`).
+- **M13 UI Polish:** токены `--control-h` / `--accent-hover` / холодные `--shadow-*`; единые hover/focus кнопок и полей (высота ≥44px); FullCalendar hover на бирюзу; `switch.off` нейтральный; адаптив mid-width (фильтры wrap, rail ≤900, строки → OverflowMenu «Действия»); на 390 «Ещё» → Теги/Звонок/Видео/Настройки; без горизонтального скролла (проверено e2e). Backend не меняли.
 - **Звонки/видео (M11):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`, `/youtube`); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` и `/capture/video`; **субтитры YouTube** → extract → при EN выбор языка EN/RU → одна заметка-конспект; бейдж «создано ИИ». Конспект (D-068): главная мысль + заметки markdown-lite. Видео (D-069): по умолчанию только конспект. Пока ждём ответ — `AiThinkingPanel` (D-070). EN-ролик → выбор языка конспекта EN/RU (D-071, стабилизация D-073). UI видео (D-072): плеер слева от «Разобрать». Zoom API нет: только вставка/файл транскрипта или Web Speech в браузере.
 - **M12 тесты YouTube:** фикстуры + fake fetch (D-076); e2e route-mock extract + stub IFrame (D-077); покрыто: id/XML, create note, ошибки по-русски, ACL, bilingual UI. Не покрыто: live Innertube, live LLM.
 - **Общие заметки (M10):** `note_members`; владелец добавляет/удаляет по логину; участник видит список/календарь/«Ближайшее» с бейджем «Общая · владелец: …», правит (version→409), не удаляет и не делится; «Покинуть»; realtime на всех участников; уведомление «Вам открыт доступ»; чужой → 404.
@@ -245,6 +247,15 @@
 - `make e2e` → **46 passed** (`e2e_youtube_save_english_summary`, `e2e_youtube_save_russian_translation`, `e2e_youtube_russian_source_no_lang_choice` — route-mock extract, по одной заметке).
 - Документы: README (сеть, лимиты, покрытие), CREDITS (Innertube/timedtext), D-076/D-077.
 **Не чинили продукт** — тесты зелёные без правок поведения.
+
+### Смоки M13 (2026-11-01)
+**Автоматически:**
+- `make test` → **86 passed**.
+- `make e2e` → **47 passed** (после фикса `button.note-main`; ранее падал `e2e_list_rows_aligned` из‑за глобального `inline-flex` у button).
+- `make verify` → pytest 86 + playwright 47; отчёт `reports/verify-20261101-194344.md` — T1–T21 закрыто.
+- `m13_390_no_hscroll_and_more_menu`: 390×844 — нет горизонтального скролла на list/upcoming/calendar/settings; меню «Ещё» и «Действия» полностью доступны.
+
+**Ограничения M13:** без редизайна и новых продуктовых фич; палитра тегов не менялась (D-078).
 
 ## Следующий заход
 - Web Push / Service Worker.
