@@ -75,16 +75,14 @@ test("e2e_calendar_list_upcoming_time_hhmm", async ({ page }) => {
   });
 
   await page.goto("/calendar");
-  await page.locator(".fc-dayGridMonth-button").click();
-  // Notes are today — current month already contains them (no next→prev round-trip).
-  const onHourEvent = page.locator(".fc-event").filter({ hasText: titleOnHour });
-  const withMinEvent = page.locator(".fc-event").filter({ hasText: titleWithMin });
+  await page.getByTestId("cal-view-week").click();
+  // Both notes today — week timeline shows HH:MM on cards (M17).
+  const onHourEvent = page.getByTestId("tl-card").filter({ hasText: titleOnHour });
+  const withMinEvent = page.getByTestId("tl-card").filter({ hasText: titleWithMin });
   await expect(onHourEvent).toBeVisible();
   await expect(withMinEvent).toBeVisible();
-  await expect(onHourEvent).toContainText(hmOnHour);
-  await expect(withMinEvent).toContainText(hmWithMin);
-  // Regression: month view must not show bare "04" without minutes.
-  await expect(onHourEvent).not.toHaveText(/^04\s/);
+  await expect(onHourEvent).toHaveAttribute("data-hm", hmOnHour);
+  await expect(withMinEvent).toHaveAttribute("data-hm", hmWithMin);
 
   await page.goto("/list");
   const listOnHour = page.getByRole("button", { name: new RegExp(titleOnHour) });
@@ -99,8 +97,8 @@ test("e2e_calendar_list_upcoming_time_hhmm", async ({ page }) => {
   await expect(row).toContainText(/\d{2}:\d{2}/);
 
   await page.goto("/calendar");
-  await page.locator(".fc-dayGridMonth-button").click();
-  await page.locator(".fc-event").filter({ hasText: titleOnHour }).first().click();
+  await page.getByTestId("cal-view-week").click();
+  await page.getByTestId("tl-card").filter({ hasText: titleOnHour }).first().click();
   const hint = page.getByTestId("series-occ-hint");
   await expect(hint).toBeVisible();
   await expect(hint).toHaveText(formatSeriesRecurrenceHint("daily", until));

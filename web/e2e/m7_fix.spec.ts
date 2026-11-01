@@ -17,42 +17,55 @@ test("e2e_calendar_slot_matches_label_timezone", async ({ page }) => {
   });
 
   await page.goto("/calendar");
-  await page.locator(".fc-timeGridWeek-button").click();
+  await page.getByTestId("cal-view-week").click();
   // Event is on a fixed past date — walk both directions from "today".
   for (let i = 0; i < 30; i++) {
-    if ((await page.locator(".fc-event").filter({ hasText: title }).count()) > 0) break;
-    await page.locator(".fc-prev-button").click();
+    if ((await page.getByTestId("tl-card").filter({ hasText: title }).count()) > 0) break;
+    await page.getByTestId("cal-prev").click();
     await page.waitForTimeout(80);
   }
   for (let i = 0; i < 60; i++) {
-    if ((await page.locator(".fc-event").filter({ hasText: title }).count()) > 0) break;
-    await page.locator(".fc-next-button").click();
+    if ((await page.getByTestId("tl-card").filter({ hasText: title }).count()) > 0) break;
+    await page.getByTestId("cal-next").click();
     await page.waitForTimeout(80);
   }
 
-  const event = page.locator(".fc-event").filter({ hasText: title });
+  const event = page.getByTestId("tl-card").filter({ hasText: title });
   await expect(event).toBeVisible();
-  await expect(event.locator(".cal-event-time")).toHaveText("11:41");
+  await expect(event).toHaveAttribute("data-hm", "11:41");
 
-  // Ensure mid-morning slots are in view for measurement.
-  await page.locator('.fc-timegrid-slot-lane[data-time="11:00:00"]').scrollIntoViewIfNeeded();
+  const day = page.locator('.tl-day[data-day="2026-10-29"]');
+  await expect(day).toBeVisible();
+  await day.locator(".tl-card-time").first().scrollIntoViewIfNeeded();
 
-  const eventBox = await event.boundingBox();
-  const slot11 = await page.locator('.fc-timegrid-slot-lane[data-time="11:00:00"]').boundingBox();
-  const slot12 = await page.locator('.fc-timegrid-slot-lane[data-time="12:00:00"]').boundingBox();
-  const slot05 = await page.locator('.fc-timegrid-slot-lane[data-time="05:00:00"]').boundingBox();
-  expect(eventBox).toBeTruthy();
-  expect(slot11).toBeTruthy();
-  expect(slot12).toBeTruthy();
-  expect(slot05).toBeTruthy();
+  const pos = await day.evaluate((el) => {
+    const card = el.querySelector('[data-testid="tl-card"]') as HTMLElement | null;
+    const hours = Array.from(el.querySelectorAll(".tl-hour")) as HTMLElement[];
+    const h11 = hours.find((h) => h.textContent?.trim() === "11:00");
+    const h12 = hours.find((h) => h.textContent?.trim() === "12:00");
+    const h05 = hours.find((h) => h.textContent?.trim() === "05:00");
+    // Hours may be only on first week column — fall back to absolute tops from style.
+    const rail = el.querySelector(".tl-rail-wrap") as HTMLElement | null;
+    const cardTop = card?.offsetTop ?? -1;
+    const parseTop = (n: HTMLElement | undefined) =>
+      n ? parseFloat(n.style.top || "0") : NaN;
+    return {
+      cardTop,
+      top11: h11 ? h11.offsetTop : parseTop(undefined),
+      top12: h12 ? h12.offsetTop : NaN,
+      top05: h05 ? h05.offsetTop : NaN,
+      railH: rail?.clientHeight ?? 0,
+      hm: card?.getAttribute("data-hm"),
+    };
+  });
 
-  const top = eventBox!.y;
-  // Event must sit in the 11:00–12:00 band, not near 05:00 UTC band.
-  expect(top).toBeGreaterThanOrEqual(slot11!.y - 4);
-  expect(top).toBeLessThan(slot12!.y);
-  const dist11 = Math.abs(top - slot11!.y);
-  const dist05 = Math.abs(top - slot05!.y);
-  expect(dist11).toBeLessThan(dist05);
+  expect(pos.hm).toBe("11:41");
+  // Card sits in the 11:00 band (~11/24 of day height), not near 05:00.
+  const expected11 = (11 / 24) * (pos.railH || 1152);
+  const expected05 = (5 / 24) * (pos.railH || 1152);
+  expect(Math.abs(pos.cardTop - expected11)).toBeLessThan(Math.abs(pos.cardTop - expected05));
+  expect(pos.cardTop).toBeGreaterThan(expected11 - 20);
+  expect(pos.cardTop).toBeLessThan(expected11 + 48);
 });
 
 test("e2e_sidebar_fits_viewport", async ({ page }) => {

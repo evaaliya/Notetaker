@@ -25,16 +25,17 @@ async function ensureTag(
 
 async function gotoWeekWithTitle(page: import("@playwright/test").Page, title: string) {
   await page.goto("/calendar");
-  await page.locator(".fc-timeGridWeek-button").click();
+  await page.getByTestId("cal-view-week").click();
+  const card = () => page.getByTestId("tl-card").filter({ hasText: title });
   // Past dates first: next→prev alone returns to "today" and never reaches last month.
   for (let i = 0; i < 12; i++) {
-    if ((await page.locator(".fc-event").filter({ hasText: title }).count()) > 0) return;
-    await page.locator(".fc-prev-button").click();
+    if ((await card().count()) > 0) return;
+    await page.getByTestId("cal-prev").click();
     await page.waitForTimeout(80);
   }
   for (let i = 0; i < 24; i++) {
-    if ((await page.locator(".fc-event").filter({ hasText: title }).count()) > 0) return;
-    await page.locator(".fc-next-button").click();
+    if ((await card().count()) > 0) return;
+    await page.getByTestId("cal-next").click();
     await page.waitForTimeout(80);
   }
 }
@@ -53,7 +54,9 @@ test("e2e_tags_visible_everywhere", async ({ page }) => {
     tag_ids: [tagId],
   });
 
-  await gotoWeekWithTitle(page, title);
+  // Month still shows TagPill on the main pill (week/day timeline does not — M17).
+  await page.goto("/calendar");
+  await page.getByTestId("cal-view-month").click();
   const calEvent = page.locator(".fc-event").filter({ hasText: title });
   await expect(calEvent).toBeVisible();
   await expect(calEvent.getByTestId("tag-pill")).toContainText("Работа");
@@ -92,8 +95,12 @@ test("e2e_week_many_notes_in_slot", async ({ page }) => {
     });
   }
   await gotoWeekWithTitle(page, titles[0]);
+  // M17: up to 4 visible cards + overflow for the rest.
+  await expect(page.getByTestId("tl-card")).toHaveCount(4);
+  await expect(page.getByTestId("tl-overflow-btn")).toContainText("+1 ещё");
+  await page.getByTestId("tl-overflow-btn").click();
   for (const t of titles) {
-    await expect(page.locator(".fc-event").filter({ hasText: t })).toBeVisible();
+    await expect(page.getByTestId("tl-overflow-item").filter({ hasText: t })).toBeVisible();
   }
 });
 
@@ -110,7 +117,9 @@ test("e2e_drag_to_trash", async ({ page }) => {
     tag_ids: [],
   });
 
-  await gotoWeekWithTitle(page, title);
+  // DnD trash is month-only (M17 / D-098).
+  await page.goto("/calendar");
+  await page.getByTestId("cal-view-month").click();
   const event = page.locator(".fc-event").filter({ hasText: title });
   await expect(event).toBeVisible();
   const zone = page.getByTestId("cal-trash-zone");

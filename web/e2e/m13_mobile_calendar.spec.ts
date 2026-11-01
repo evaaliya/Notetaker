@@ -30,9 +30,6 @@ test("m13_mobile_calendar_day_nav_and_sheet", async ({ page }) => {
     "true",
   );
 
-  // Desktop FC toolbar hidden; custom chrome drives navigation.
-  await expect(page.locator(".calendar-main-mobile .fc-toolbar")).toHaveCount(0);
-
   const titleBefore = await page.getByTestId("cal-mobile-title").innerText();
   await page.getByTestId("cal-mobile-next").click();
   await expect
@@ -47,7 +44,7 @@ test("m13_mobile_calendar_day_nav_and_sheet", async ({ page }) => {
   );
   await page.getByTestId("cal-mobile-view-timeGridDay").click();
 
-  const event = page.locator(".fc-event").filter({ hasText: title });
+  const event = page.getByTestId("tl-card").filter({ hasText: title });
   await expect(event).toBeVisible({ timeout: 10_000 });
   await event.click();
   await expect(page.getByTestId("note-panel-sheet-backdrop")).toBeVisible();

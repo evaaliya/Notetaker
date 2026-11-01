@@ -133,19 +133,18 @@ test("e2e_edit_in_tab_a_visible_in_tab_b", async ({ browser }) => {
 
     await a.goto("/calendar");
     await b.goto("/calendar");
-    await b.locator(".fc-timeGridWeek-button").click();
+    await b.getByTestId("cal-view-week").click();
     for (let i = 0; i < 8; i++) {
-      if ((await b.locator(".fc-event").filter({ hasText: title }).count()) > 0) break;
-      await b.locator(".fc-prev-button").click();
+      if ((await b.getByTestId("tl-card").filter({ hasText: title }).count()) > 0) break;
+      await b.getByTestId("cal-prev").click();
       await b.waitForTimeout(80);
     }
     for (let i = 0; i < 16; i++) {
-      if ((await b.locator(".fc-event").filter({ hasText: title }).count()) > 0) break;
-      await b.locator(".fc-next-button").click();
+      if ((await b.getByTestId("tl-card").filter({ hasText: title }).count()) > 0) break;
+      await b.getByTestId("cal-next").click();
       await b.waitForTimeout(80);
     }
-    // Match by unique prefix — FC may clip the suffix in the event chip.
-    await expect(b.locator(".fc-event").filter({ hasText: title }).first()).toBeVisible({
+    await expect(b.getByTestId("tl-card").filter({ hasText: title }).first()).toBeVisible({
       timeout: 10_000,
     });
     await expect(b.getByText(`${title} edited`).first()).toBeVisible();

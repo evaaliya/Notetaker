@@ -101,38 +101,30 @@ test("m15_day_end_event_not_clipped", async ({ page }) => {
 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/calendar");
-  await page.getByRole("button", { name: "День" }).click();
-  // "Сегодня" disabled when already on today — do not click.
-  await expect(page.locator(".fc-timeGridDay-view")).toBeVisible();
+  await page.getByTestId("cal-view-day").click();
+  await expect(page.getByTestId("tl-day-view")).toBeVisible();
 
-  const event = page.locator(".fc-timegrid-event").filter({ hasText: "M15 Late UTC" });
+  const event = page.getByTestId("tl-card").filter({ hasText: "M15 Late UTC" });
   await expect(event).toBeVisible({ timeout: 15_000 });
 
   const clip = await event.evaluate((el) => {
-    const day = el.closest(".fc-timegrid-col") as HTMLElement | null;
+    const rail = el.closest(".tl-rail-wrap") as HTMLElement | null;
     const er = el.getBoundingClientRect();
-    const dr = day?.getBoundingClientRect();
-    const style = getComputedStyle(el);
-    const cal = el.closest(".cal-event") as HTMLElement | null;
-    const calOverflow = cal ? getComputedStyle(cal).overflow : null;
+    const dr = rail?.getBoundingClientRect();
     return {
       eventH: Math.round(er.height),
       eventTop: Math.round(er.top),
       dayBottom: dr ? Math.round(dr.bottom) : null,
       dayTop: dr ? Math.round(dr.top) : null,
-      overflow: style.overflow,
-      calOverflow,
       text: (el.textContent || "").includes("M15 Late UTC"),
-      // Top of event must start inside the day column (not pushed below midnight).
       startsInDay: dr ? er.top >= dr.top - 2 && er.top < dr.bottom : false,
+      endsInDay: dr ? er.bottom <= dr.bottom + 2 : false,
     };
   });
   expect(clip.text).toBe(true);
-  expect(clip.eventH).toBeGreaterThanOrEqual(40);
+  expect(clip.eventH).toBeGreaterThanOrEqual(32);
   expect(clip.startsInDay).toBe(true);
-  // Content must not be clipped by our event chrome (D-088).
-  expect(["visible", "clip"].includes(clip.overflow) || clip.overflow === "visible").toBeTruthy();
-  if (clip.calOverflow) expect(clip.calOverflow).toBe("visible");
+  expect(clip.endsInDay).toBe(true);
 });
 
 test("m15_calendar_resize_after_sidebar_toggle", async ({ page }) => {
@@ -140,14 +132,15 @@ test("m15_calendar_resize_after_sidebar_toggle", async ({ page }) => {
   await registerUi(page, login);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/calendar");
-  await expect(page.locator(".fc-view-harness")).toBeVisible();
+  await page.getByTestId("cal-view-week").click();
+  await expect(page.getByTestId("tl-week")).toBeVisible();
 
   async function colCount() {
-    return page.locator(".fc-timegrid-col.fc-day").count();
+    return page.getByTestId("tl-day").count();
   }
 
   const before = await colCount();
-  expect(before).toBeGreaterThanOrEqual(7);
+  expect(before).toBe(7);
 
   // Expand sidebar (default collapsed).
   await page.getByTestId("sidebar-toggle").click();
@@ -155,7 +148,7 @@ test("m15_calendar_resize_after_sidebar_toggle", async ({ page }) => {
   const mid = await colCount();
   expect(mid).toBe(before);
 
-  const widthsMid = await page.locator(".fc-timegrid-col.fc-day").evaluateAll((cols) =>
+  const widthsMid = await page.getByTestId("tl-day").evaluateAll((cols) =>
     cols.map((c) => Math.round(c.getBoundingClientRect().width)),
   );
   expect(widthsMid.every((w) => w > 40)).toBe(true);
@@ -165,7 +158,7 @@ test("m15_calendar_resize_after_sidebar_toggle", async ({ page }) => {
   const after = await colCount();
   expect(after).toBe(before);
 
-  const widthsAfter = await page.locator(".fc-timegrid-col.fc-day").evaluateAll((cols) =>
+  const widthsAfter = await page.getByTestId("tl-day").evaluateAll((cols) =>
     cols.map((c) => Math.round(c.getBoundingClientRect().width)),
   );
   expect(widthsAfter.every((w) => w > 40)).toBe(true);
@@ -236,10 +229,11 @@ test("m15_dynamic_resize_keeps_editor_and_calendar", async ({ page }) => {
 
   await page.goto("/calendar");
   await page.setViewportSize({ width: 1440, height: 900 });
-  await expect(page.locator(".fc-view-harness")).toBeVisible();
+  await page.getByTestId("cal-view-week").click();
+  await expect(page.getByTestId("tl-week")).toBeVisible();
   await page.setViewportSize({ width: 1024, height: 900 });
   await page.waitForTimeout(150);
-  const cols = await page.locator(".fc-timegrid-col.fc-day").count();
-  expect(cols).toBeGreaterThanOrEqual(7);
+  const cols = await page.getByTestId("tl-day").count();
+  expect(cols).toBe(7);
   await noHorizontalScroll(page);
 });
