@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 14:50 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-01 15:34 +06.
 
 ## Этапы
 
@@ -19,6 +19,7 @@
 | M9 Вложения | готов | `test_attachment_*` + purge файлов; autosave+IndexedDB (D-057); `make test` → 52; e2e вкл. `e2e_attachment_*` / `e2e_autosave_*` |
 | M10 Общие заметки | готов | `test_share_*` / `test_realtime_event_reaches_member`; `e2e_two_users_shared_note`; `make test` → 57; `make e2e` → 40 |
 | M11 Звонки и видео | готов | stub 5 фраз + `test_extract_api` + parse vtt/srt; `e2e_call_transcript_extract` / `e2e_video_player_in_extract_panel`; UI D-072 |
+| M11.1 Стабилизация e2e | готов | 5 упавших e2e: календарные даты → «сегодня» (D-074); call extract → stub в `docker-compose.e2e.yml` (D-075) |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -32,7 +33,7 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 66 passed на реальном Postgres (testcontainers); Playwright e2e → 42 passed (вкл. M10 share + M11 capture).
+- Тесты: `make test` → 71 passed на реальном Postgres (testcontainers); Playwright e2e → 43 passed (вкл. M10 share + M11 capture; стабилизация M11.1).
 - **Звонки/видео (M11):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`, `/youtube`); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` и `/capture/video`; **субтитры YouTube** → extract → подтверждение; бейдж «создано ИИ». Конспект (D-068): главная мысль + заметки markdown-lite. Видео (D-069): по умолчанию только конспект. Пока ждём ответ — `AiThinkingPanel` (D-070). EN-ролик → выбор языка конспекта EN/RU (D-071, стабилизация D-073). UI видео (D-072): плеер слева от «Разобрать», без формы «к текущей секунде» и без таймкода в списке. Zoom API нет: только вставка/файл транскрипта или Web Speech в браузере.
 - **Общие заметки (M10):** `note_members`; владелец добавляет/удаляет по логину; участник видит список/календарь/«Ближайшее» с бейджем «Общая · владелец: …», правит (version→409), не удаляет и не делится; «Покинуть»; realtime на всех участников; уведомление «Вам открыт доступ»; чужой → 404.
 - **Вложения (M9):** `attachments` + том `uploads`; POST/GET/DELETE `/api/notes/{id}/attachments`; sniff типа; 10 МБ / 10 файлов; 413/415/404; soft-delete сохраняет файлы, purge 30д удаляет с диска; WS `attachment.added`/`deleted`; UI скрепка/DnD/превью; `NoteOut.has_attachments`.
@@ -226,6 +227,14 @@
 **Автоматически:**
 - Captions path: Innertube ANDROID (D-067); live smoke `Ok6QdZHCcI8` → ru/asr ~9k chars; `test_youtube_captions_xml_to_text`, `test_extract_youtube_uses_captions`; UI `e2e_video_captions_button_visible` / `e2e_video_player_in_extract_panel` (D-072).
 - Откат: захват вкладки / OpenRouter audio STT / Whisper в браузере (D-064/D-065) — заменено субтитрами (D-066).
+
+### Смоки M11.1 (2026-11-01)
+**Диагностика:** заметка `DiagToday` на `2026-11-01T12:00:00Z` → `/api/calendar` match 1; week view 1280×720 — `.fc-event` виден (`docs/design/screens/m11_1-diag-today-1280.png`). Продукт календаря ок; падения — устаревшие жёсткие даты октября + next→prev.
+**Исправлено:**
+- `format_hm` / `m7_ui`: `starts_at` = сегодня UTC; week nav prev-first (D-074).
+- `docker-compose.e2e.yml`: `AI_PROVIDER=stub`; `e2e_call_transcript_extract` ждёт `/api/extract` (D-075).
+- UI звонка не меняли.
+**Автоматически:** `make test` → **71 passed**; `make e2e` → **43 passed** (0 failed).
 
 ## Следующий заход
 - Web Push / Service Worker.
