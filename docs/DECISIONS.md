@@ -704,3 +704,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** per-event `setQueryData` merge; React Query `queryClient.isMutating` gate; debounce 300 мс (слишком заметно).
 **Причина:** при 10k заметок и нескольких вкладках лавина refetch дороже 75 мс задержки UI.
 **Последствия:** тест `test_ws_invalidate_coalesce` на coalescer; e2e не гоняет 10k WS.
+
+### D-098 · 2026-11-02 02:00 +06 · M17 · Календарь: FC только месяц; week/day — таймлайн
+**Решение:** вид «Месяц» остаётся на FullCalendar `dayGridMonth`: в ячейке одна главная пилюля (default = min `created_at`, tie-break `id`) + горизонтальная «колбаска» сегментов по заметкам дня; клик по сегменту — session-only смена главной + открытие `NoteSidePanel` (не пишется в БД). Виды «Неделя» и «День» — собственные React-компоненты (вертикальные дни + таймлайн точек/линии/пастельных карточек без иллюстраций и TagPill в сетке). DnD в корзину — только в месяце; week/day — «В корзину» из панели. Desktop default = неделя; mobile ≤640 default = день.
+**Альтернативы:** точки/счётчики в месяце; косметика поверх `timeGridWeek`; полный отказ от FC и в месяце; persist главной пилюли в localStorage/API.
+**Причина:** при многих заметках FC timeGrid сжимает/режет события; TickTick-таймлайн читается лучше; месяц уже понятен с пилюлями — достаточно переключения главной без смены модели данных.
+**Последствия:** e2e на `.fc-timegrid` переписываются на timeline/`data-testid`; D-041 `slotEventOverlap` не применяется к week/day; пакеты `@fullcalendar/timegrid` остаются в deps (можно удалить позже).
