@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { recordRender } from "../lib/renderProbe";
 
 /**
  * Live clock for bucket transitions (spec §5).
@@ -6,6 +7,10 @@ import { useEffect, useState } from "react";
  */
 export function useNow(nearestStartsAt: string | null | undefined): Date {
   const [now, setNow] = useState(() => new Date());
+  const t0 = typeof performance !== "undefined" ? performance.now() : 0;
+  useLayoutEffect(() => {
+    recordRender("useNow", performance.now() - t0);
+  });
 
   useEffect(() => {
     let timer: number | undefined;

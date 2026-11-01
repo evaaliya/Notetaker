@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, Note, Occurrence, Tag, Upcoming, User } from "../api";
 import { NoteIllustration } from "../components/NoteIllustration";
 import { NoteSidePanel } from "../components/NoteSidePanel";
 import { TagPill } from "../components/TagPill";
+import { recordRender } from "../lib/renderProbe";
 import { formatInZone } from "../format";
 import { useNow } from "../hooks/useNow";
 import { getAlarmLoop } from "../lib/alarmLoop";
@@ -62,6 +63,10 @@ function pluralMin(n: number): string {
 }
 
 export function UpcomingPage({ user }: { user: User }) {
+  const t0 = typeof performance !== "undefined" ? performance.now() : 0;
+  useLayoutEffect(() => {
+    recordRender("upcoming", performance.now() - t0);
+  });
   const qc = useQueryClient();
   const tagsQ = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
   const tags = tagsQ.data ?? [];
