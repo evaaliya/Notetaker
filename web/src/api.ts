@@ -134,46 +134,151 @@ export type NoteListParams = {
   limit?: number;
 };
 
-type ErrorBody = { error?: { code?: string; message?: string }; note?: Note };
+type ErrorBody = {
+  error?: { code?: string; message?: string; hint?: string };
+  hint?: string;
+  note?: Note;
+};
 
 export class ApiError extends Error {
   status: number;
   code?: string;
   note?: Note;
+  hint?: string;
 
-  constructor(status: number, message: string, code?: string, note?: Note) {
+  constructor(status: number, message: string, code?: string, note?: Note, hint?: string) {
     super(message);
     this.status = status;
     this.code = code;
     this.note = note;
+    this.hint = hint;
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
-    ...init,
-  });
-  if (!res.ok) {
-    let message = res.statusText;
-    let code: string | undefined;
-    let note: Note | undefined;
-    try {
-      const body = (await res.json()) as ErrorBody;
-      message = body.error?.message || message;
-      code = body.error?.code;
-      note = body.note;
-    } catch {
-      /* ignore */
-    }
-    throw new ApiError(res.status, message, code, note);
+export type RequestOpts = RequestInit & {
+  /** Wall-clock abort; default 30s. Pass 0 to disable. */
+  timeoutMs?: number;
+};
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+function mergeAbortSignals(
+  timeoutMs: number,
+  external?: AbortSignal | null,
+): { signal: AbortSignal; cancel: () => void } {
+  const ctrl = new AbortController();
+  const timer =
+    timeoutMs > 0
+      ? window.setTimeout(() => ctrl.abort(new DOMException("timeout", "AbortError")), timeoutMs)
+      : undefined;
+  const onExt = () => ctrl.abort(external?.reason);
+  if (external) {
+    if (external.aborted) ctrl.abort(external.reason);
+    else external.addEventListener("abort", onExt, { once: true });
   }
-  if (res.status === 204) {
-    return undefined as T;
-  }
-  return (await res.json()) as T;
+  return {
+    signal: ctrl.signal,
+    cancel: () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      if (external) external.removeEventListener("abort", onExt);
+    },
+  };
 }
+
+async function request<T>(path: string, init?: RequestOpts): Promise<T> {
+  const timeoutMs = init?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const { timeoutMs: _t, signal: outerSignal, ...rest } = init ?? {};
+  const { signal, cancel } = mergeAbortSignals(timeoutMs, outerSignal);
+  try {
+    const isForm = typeof FormData !== "undefined" && rest.body instanceof FormData;
+    const headers: HeadersInit = isForm
+      ? { ...(rest.headers || {}) }
+      : { "Content-Type": "application/json", ...(rest.headers || {}) };
+    const res = await fetch(path, {
+      credentials: "include",
+      ...rest,
+      headers,
+      signal,
+    });
+    if (!res.ok) {
+      let message = res.statusText;
+      let code: string | undefined;
+      let note: Note | undefined;
+      let hint: string | undefined;
+      try {
+        const body = (await res.json()) as ErrorBody;
+        message = body.error?.message || message;
+        code = body.error?.code;
+        note = body.note;
+        hint = body.hint || body.error?.hint;
+        if (res.status >= 500 && !code) code = "upstream_error";
+      } catch {
+        if (res.status >= 500) {
+          message = "Сервер временно недоступен";
+          code = "upstream_error";
+          hint = "Подождите и нажмите «Повторить».";
+        }
+      }
+      throw new ApiError(res.status, message, code, note, hint);
+    }
+    if (res.status === 204) {
+      return undefined as T;
+    }
+    return (await res.json()) as T;
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    const aborted =
+      (err instanceof DOMException && err.name === "AbortError") ||
+      (err instanceof Error && err.name === "AbortError");
+    if (aborted) {
+      const reason = String((err as { message?: string })?.message || "");
+      if (reason === "timeout" || outerSignal?.aborted !== true) {
+        throw new ApiError(
+          0,
+          "Превышено время ожидания ответа сервера",
+          "timeout",
+          undefined,
+          "Проверьте сеть и нажмите «Повторить».",
+        );
+      }
+      throw new ApiError(0, "Запрос отменён", "cancelled");
+    }
+    throw new ApiError(
+      0,
+      "Нет сети или сервер недоступен",
+      "network",
+      undefined,
+      "Проверьте интернет и повторите действие.",
+    );
+  } finally {
+    cancel();
+  }
+}
+
+export type ExtractJobStatus = "pending" | "running" | "done" | "error" | "cancelled";
+export type ExtractJobStep = "queued" | "captions" | "extract" | "done";
+
+export type ExtractJob = {
+  id: string;
+  status: ExtractJobStatus;
+  step: ExtractJobStep;
+  video_id: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  error_hint: string | null;
+  result: ExtractResult | null;
+  created_at: string;
+  updated_at: string;
+  finished_at: string | null;
+};
+
+export type ExtractJobCreated = {
+  id: string;
+  status: string;
+  step: string;
+  video_id: string | null;
+  reused: boolean;
+};
 
 function notesQuery(params: NoteListParams): string {
   const sp = new URLSearchParams();
@@ -278,6 +383,7 @@ export const api = {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", `/api/notes/${noteId}/attachments`);
       xhr.withCredentials = true;
+      xhr.timeout = 60_000;
       xhr.upload.onprogress = (ev) => {
         if (ev.lengthComputable && onProgress) {
           onProgress(Math.round((ev.loaded / ev.total) * 100));
@@ -299,7 +405,14 @@ export const api = {
         }
         reject(new ApiError(xhr.status, message, code));
       };
-      xhr.onerror = () => reject(new ApiError(0, "Сеть недоступна"));
+      xhr.onerror = () =>
+        reject(
+          new ApiError(0, "Нет сети или сервер недоступен", "network", undefined, "Проверьте интернет и повторите."),
+        );
+      xhr.ontimeout = () =>
+        reject(
+          new ApiError(0, "Превышено время ожидания загрузки файла", "timeout", undefined, "Повторите загрузку."),
+        );
       const fd = new FormData();
       fd.append("file", file);
       xhr.send(fd);
@@ -333,35 +446,50 @@ export const api = {
   e2eTickReminders: () =>
     request<{ claimed: number }>("/api/e2e/tick_reminders", { method: "POST" }),
 
-  extract: (text: string, timezone?: string) =>
+  extract: (text: string, timezone?: string, opts?: RequestOpts) =>
     request<ExtractResult>("/api/extract", {
       method: "POST",
       body: JSON.stringify({ text, ...(timezone ? { timezone } : {}) }),
+      timeoutMs: 90_000,
+      ...opts,
     }),
-  extractTranscriptFile: async (file: File, timezone?: string): Promise<ExtractResult> => {
+  extractTranscriptFile: async (
+    file: File,
+    timezone?: string,
+    opts?: RequestOpts,
+  ): Promise<ExtractResult> => {
     const fd = new FormData();
     fd.append("file", file);
     if (timezone) fd.append("timezone", timezone);
-    const res = await fetch("/api/extract/transcript", {
+    return request<ExtractResult>("/api/extract/transcript", {
       method: "POST",
-      credentials: "include",
       body: fd,
+      headers: {}, // let browser set multipart boundary
+      timeoutMs: 90_000,
+      ...opts,
     });
-    if (!res.ok) {
-      let message = res.statusText;
-      try {
-        const body = (await res.json()) as ErrorBody;
-        message = body.error?.message || message;
-      } catch {
-        /* ignore */
-      }
-      throw new ApiError(res.status, message);
-    }
-    return (await res.json()) as ExtractResult;
   },
-  extractYoutube: (url: string, timezone?: string) =>
+  /** Sync YouTube extract (compat / tests). Prefer startYoutubeExtractJob + poll. */
+  extractYoutube: (url: string, timezone?: string, opts?: RequestOpts) =>
     request<ExtractResult>("/api/extract/youtube", {
       method: "POST",
       body: JSON.stringify({ url, ...(timezone ? { timezone } : {}) }),
+      timeoutMs: 100_000,
+      ...opts,
+    }),
+  startYoutubeExtractJob: (url: string, timezone?: string, opts?: RequestOpts) =>
+    request<ExtractJobCreated>("/api/extract/youtube/jobs", {
+      method: "POST",
+      body: JSON.stringify({ url, ...(timezone ? { timezone } : {}) }),
+      timeoutMs: 15_000,
+      ...opts,
+    }),
+  getExtractJob: (jobId: string, opts?: RequestOpts) =>
+    request<ExtractJob>(`/api/extract/jobs/${jobId}`, { timeoutMs: 15_000, ...opts }),
+  cancelExtractJob: (jobId: string, opts?: RequestOpts) =>
+    request<ExtractJob>(`/api/extract/jobs/${jobId}/cancel`, {
+      method: "POST",
+      timeoutMs: 15_000,
+      ...opts,
     }),
 };

@@ -72,31 +72,40 @@ export function CallCapturePage({ user }: { user: User }) {
     setConfirmOpen(true);
   }
 
+  const extractGen = useRef(0);
+
   async function runExtract(e?: FormEvent) {
     e?.preventDefault();
+    if (aiBusy) return;
+    const gen = ++extractGen.current;
     setError(null);
     setAiBusy(true);
     try {
       const result = await api.extract(text, user.timezone);
+      if (gen !== extractGen.current) return; // stale response
       applyExtract(result);
     } catch (err) {
+      if (gen !== extractGen.current) return;
       setError(err instanceof Error ? err.message : "Ошибка extract");
     } finally {
-      setAiBusy(false);
+      if (gen === extractGen.current) setAiBusy(false);
     }
   }
 
   async function onFile(file: File | null) {
-    if (!file) return;
+    if (!file || aiBusy) return;
+    const gen = ++extractGen.current;
     setError(null);
     setAiBusy(true);
     try {
       const result = await api.extractTranscriptFile(file, user.timezone);
+      if (gen !== extractGen.current) return;
       applyExtract(result);
     } catch (err) {
+      if (gen !== extractGen.current) return;
       setError(err instanceof Error ? err.message : "Ошибка файла");
     } finally {
-      setAiBusy(false);
+      if (gen === extractGen.current) setAiBusy(false);
     }
   }
 
