@@ -30,8 +30,17 @@ async function ensureTag(
 async function gotoWeekWithTitle(page: import("@playwright/test").Page, title: string) {
   await page.goto("/calendar");
   await page.getByTestId("cal-view-week").click();
-  const card = () => page.getByTestId("tl-card").filter({ hasText: title });
-  await expect.poll(async () => card().count(), { timeout: 10_000 }).toBeGreaterThan(0);
+  // Cluster shows ≤4 cards; the sought title may live in "+N ещё" (D-102).
+  await expect
+    .poll(async () => page.getByTestId("tl-card").count(), { timeout: 10_000 })
+    .toBeGreaterThan(0);
+  const inCard = page.getByTestId("tl-card").filter({ hasText: title });
+  if ((await inCard.count()) > 0) return;
+  const overflow = page.getByTestId("tl-overflow-btn");
+  await expect(overflow).toBeVisible({ timeout: 5_000 });
+  await overflow.click();
+  await expect(page.getByTestId("tl-overflow-item").filter({ hasText: title })).toBeVisible();
+  await page.keyboard.press("Escape");
 }
 
 test("e2e_tags_visible_everywhere", async ({ page }) => {
