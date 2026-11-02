@@ -72,20 +72,37 @@ export function ListPage({ user }: { user: User }) {
     () => listQuery.data?.pages.flatMap((p) => p.items) ?? [],
     [listQuery.data],
   );
+  const tagList = tags.data ?? [];
+
+  // ≤900: actions wrap under the row → taller items (D-103).
+  const [narrowRows, setNarrowRows] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 900px)").matches : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const sync = () => setNarrowRows(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: notes.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 96,
+    estimateSize: () => (narrowRows ? 168 : 112),
     overscan: 8,
-    measureElement:
-      typeof window !== "undefined" && navigator.userAgent.indexOf("Firefox") === -1
-        ? (el) => el.getBoundingClientRect().height
-        : undefined,
+    // offsetHeight: stable for absolute rows (Safari); was disabled on Firefox → only estimate (D-103).
+    measureElement: (el) => (el as HTMLElement).offsetHeight,
   });
 
-  // Re-measure rows when the scrollport width changes (sidebar collapse / resize).
+  // Remeasure when data/layout changes (tags load, breakpoint). Avoid depending on
+  // `virtualizer` identity — measure() can churn and freeze the page (D-103).
+  useLayoutEffect(() => {
+    virtualizer.measure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable measure API
+  }, [notes.length, tagList.length, narrowRows, listQuery.dataUpdatedAt]);
+
   useEffect(() => {
     const el = parentRef.current;
     if (!el) return;
@@ -94,7 +111,8 @@ export function ListPage({ user }: { user: User }) {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [virtualizer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function applyFilters(e: FormEvent) {
     e.preventDefault();
@@ -114,8 +132,6 @@ export function ListPage({ user }: { user: User }) {
       n.status === "active" ? api.deactivateNote(n.id) : api.activateNote(n.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notes"] }),
   });
-
-  const tagList = tags.data ?? [];
 
   function openCreate() {
     if (window.matchMedia("(max-width: 640px)").matches) {

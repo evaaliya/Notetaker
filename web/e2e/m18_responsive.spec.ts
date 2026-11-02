@@ -222,6 +222,60 @@ test("e2e_sidebar_content_no_overlap", async ({ page }) => {
   }
 });
 
+test("e2e_list_rows_no_vertical_overlap", async ({ page }) => {
+  const login = uniqueLogin("m18vrow");
+  await registerUi(page, login);
+  await page.request.post("/api/tags", {
+    data: { name: `VRow_${Date.now().toString(36)}`, color: "#3E6FB0" },
+  });
+  const tags = await (await page.request.get("/api/tags")).json();
+  const tagId = tags[0].id as string;
+  for (let i = 0; i < 6; i++) {
+    await apiCreateNote(page.request, {
+      title: `VRow ${i} ${"заголовок ".repeat(6)}`,
+      body: `превью ${i} `.repeat(20),
+      starts_at: new Date(Date.now() + (i + 1) * 3600_000)
+        .toISOString()
+        .replace(/\.\d{3}Z$/, "Z"),
+      reminder_offsets: [10],
+      tag_ids: [tagId],
+    });
+  }
+  await page.evaluate(() => localStorage.setItem("notetaker.sidebarCollapsed", "1"));
+
+  for (const w of [900, 768] as const) {
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.goto("/list");
+    await expect(page.getByTestId("list-note-row").first()).toBeVisible({ timeout: 15_000 });
+    // Let virtualizer measure after tags/actions layout.
+    await page.waitForTimeout(200);
+
+    const gaps = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-testid="list-note-row"]')].slice(0, 5);
+      const boxes = rows.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { y: r.y, bottom: r.bottom, h: r.height };
+      });
+      const out: number[] = [];
+      for (let i = 0; i < boxes.length - 1; i++) {
+        out.push(boxes[i + 1].y - boxes[i].bottom);
+      }
+      return { boxes, gaps: out };
+    });
+
+    expect(gaps.boxes.length, `${w}: too few rows`).toBeGreaterThanOrEqual(3);
+    for (const b of gaps.boxes) {
+      expect(b.h, `${w}: row height`).toBeGreaterThan(100);
+    }
+    for (let i = 0; i < gaps.gaps.length; i++) {
+      expect(
+        gaps.gaps[i],
+        `${w}: rows ${i}/${i + 1} overlap gap=${gaps.gaps[i]}`,
+      ).toBeGreaterThanOrEqual(-1);
+    }
+  }
+});
+
 test("m18_list_screenshots_1200_768_390", async ({ page }) => {
   const login = uniqueLogin("m18shot");
   await registerUi(page, login);

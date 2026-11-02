@@ -739,3 +739,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Решение:** `gotoWeekWithTitle` ждёт любые `tl-card`, затем ищет title в карточке или в `tl-overflow-item` (после клика `+N ещё`).
 **Причина:** при 5 заметках в одном часе видны 4; первая созданная часто уходит в overflow → flaky `filter({hasText: titles[0]})` на `.tl-card`. К M18 CSS списка не относится.
 **Последствия:** стабильный M17-кластер без смены продукта.
+
+### D-103 · 2026-11-02 16:55 +06 · M18 · Virtualizer: высота рядов на mid-width
+**Решение:** `estimateSize` 168px при ≤900 (actions под строкой) / 112 иначе; `measureElement` через `offsetHeight` во всех браузерах (раньше Firefox был без measure → только estimate 96); `virtualizer.measure()` в `useLayoutEffect` по `notes.length` / `tagList.length` / breakpoint / `dataUpdatedAt` (не по identity `virtualizer` — иначе churn/freeze); ResizeObserver на scrollport без deps на virtualizer.
+**Причина:** скрин mid-width — соседние `list-note-row` с `position:absolute` наезжали («Действия» поверх чужих заголовков); estimate 96 ≪ реальных ~160px после wrap actions/тегов.
+**Альтернативы:** отказаться от virtual на ≤900; фиксированная min-height ряда в CSS.
+**Последствия:** e2e `e2e_list_rows_no_vertical_overlap` на 900/768.
