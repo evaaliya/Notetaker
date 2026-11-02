@@ -722,3 +722,20 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** абсолютная 24h-шкала в px; пустая неделя без spine.
 **Причина:** референс day-timeline + запрос автора «линия 24ч по дефолту / у недели кружки сразу».
 **Последствия:** e2e дня считает 24 `.tl-agenda-row` в `tl-hours`.
+
+### D-101 · 2026-11-02 15:51 +06 · M18 · Диагностика overlap списка на узких ширинах
+**Решение:** причина перекрытий — не «конфликт sidebar/main» (на 1440…390 `sideMain=0`, при ≤640 сайдбар → нижние вкладки), а **несжимаемый контент строки**:
+1. `.note-main` = `display:grid; justify-items:start` → дочерние `strong`/preview считаются по max-content (~1424px при длинном заголовке), `width:100%` замыкается на эту же intrinsic-ширину трека.
+2. `.note-row` колонка `1fr` без `minmax(0,1fr)` усиливает min-content вклад.
+3. `.list-note-title` без truncate (`overflow:visible`, `white-space:normal`).
+4. `.list-body-preview` имел ellipsis+nowrap, но из‑за (1) растягивался до max-content; `app-main { overflow-x:hidden }` маскировал горизонтальный вылет (row.scrollWidth ≫ clientWidth при hScroll=0).
+**Фикс:** `justify-items:stretch` у `.note-main`; колонки `48px minmax(0,1fr) auto`; title — ellipsis/nowrap + `min-width:0; max-width:100%`; preview — `-webkit-line-clamp:2` (вместо одной строки FRONTEND §6); meta/tags `min-width:0; max-width:100%`. Без `overflow:hidden` на row/actions (меню OverflowMenu/popover не режем). Те же селекторы для upcoming/trash/notif `.note-main > strong` / body.
+**Аудит других экранов:** Upcoming/Trash — те же `.note-row` + `.note-main` (та же дыра у `<strong>` без truncate). Notif-popover — flex + `min-width:0` уже был; title/body без ellipsis — добавлено. Week-cards/`minmax(160px)` на 390 не давали h-scroll в диагностике списка; не трогаем без симптома.
+**Альтернативы:** только `overflow:hidden` на `.note-row` (скрывает, режет меню); Tailwind truncate-классы (в проекте CSS+токены).
+**Причина:** Playwright-метрики 768px — title.right − row.right ≈ +1047px при clientWidth строки 454.
+**Последствия:** e2e `e2e_list_no_overlap_narrow` / `e2e_list_text_truncates` / `e2e_sidebar_content_no_overlap`; превью до 2 строк (обновление FRONTEND §6).
+
+### D-102 · 2026-11-02 16:09 +06 · M18 · e2e_week_many_notes_in_slot: title может быть в +N
+**Решение:** `gotoWeekWithTitle` ждёт любые `tl-card`, затем ищет title в карточке или в `tl-overflow-item` (после клика `+N ещё`).
+**Причина:** при 5 заметках в одном часе видны 4; первая созданная часто уходит в overflow → flaky `filter({hasText: titles[0]})` на `.tl-card`. К M18 CSS списка не относится.
+**Последствия:** стабильный M17-кластер без смены продукта.
