@@ -11,6 +11,22 @@ export function localDayKey(iso: string, timeZone: string): string {
   return DateTime.fromISO(iso, { zone: "utc" }).setZone(timeZone).toFormat("yyyy-MM-dd");
 }
 
+/** Month FC pill: timed start + end clamped to the same local day (D-104). */
+export function monthPillRange(
+  occurrenceStart: string,
+  timeZone: string,
+  durationMin = 30,
+): { start: string; end: string } {
+  const start = DateTime.fromISO(occurrenceStart, { zone: "utc" }).setZone(timeZone);
+  const dayEnd = start.endOf("day");
+  let end = start.plus({ minutes: durationMin });
+  if (end > dayEnd) end = dayEnd;
+  if (end <= start) end = DateTime.min(start.plus({ minutes: 1 }), dayEnd);
+  const toZ = (dt: DateTime) =>
+    dt.toUTC().toISO({ suppressMilliseconds: true })!.replace(/\+00:00$/, "Z");
+  return { start: toZ(start), end: toZ(end) };
+}
+
 /** Earliest created_at, then note id — stable default main pill. */
 export function compareCreated(a: Occurrence, b: Occurrence): number {
   const ca = a.note.created_at;

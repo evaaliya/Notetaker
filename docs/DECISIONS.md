@@ -745,3 +745,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Причина:** скрин mid-width — соседние `list-note-row` с `position:absolute` наезжали («Действия» поверх чужих заголовков); estimate 96 ≪ реальных ~160px после wrap actions/тегов.
 **Альтернативы:** отказаться от virtual на ≤900; фиксированная min-height ряда в CSS.
 **Последствия:** e2e `e2e_list_rows_no_vertical_overlap` на 900/768.
+
+### D-104 · 2026-11-03 02:01 +06 · M17/M18 · Month pills: end clamped to local day
+**Решение:** `monthPillRange(start, tz)` — timed FC event с `end = min(start+30м, endOfLocalDay)`; `nextDayThreshold="00:00:00"`, `displayEventEnd=false`. Главная по-прежнему одна на день (`dayMaxEvents=1` + колбаска).
+**Причина:** без `end` FC ставит ~1ч → 23:29 spill на завтра; хвост + сегодняшняя главная → `+1 ещё` и reflow дорожек (серия «склеивает» соседние дни при смене сегмента).
+**Альтернативы:** `allDay: true` для месяца; убрать `dayMaxEvents`.
+**Последствия:** e2e `e2e_month_late_series_no_midnight_spill`.

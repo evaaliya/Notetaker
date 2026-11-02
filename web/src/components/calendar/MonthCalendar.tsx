@@ -29,6 +29,7 @@ import { formatTimeHm, relocateKeepWallTime } from "../../format";
 import {
   groupByLocalDay,
   localDayKey,
+  monthPillRange,
   occKey,
   pickMainOcc,
 } from "../../lib/calendar/groupByLocalDay";
@@ -94,6 +95,7 @@ export function MonthCalendar({
       id: string;
       title: string;
       start: string;
+      end: string;
       allDay: boolean;
       backgroundColor: string;
       borderColor: string;
@@ -105,10 +107,13 @@ export function MonthCalendar({
       if (!main) continue;
       const tag = firstTag(main.note, tags);
       const colors = tagColors(tag?.color);
+      // Clamp end to local day so late starts (e.g. 23:29) do not spill into tomorrow (D-104).
+      const { start, end } = monthPillRange(main.occurrence_start, timeZone);
       out.push({
         id: occKey(main),
         title: main.note.title || "Без названия",
-        start: main.occurrence_start,
+        start,
+        end,
         allDay: false,
         backgroundColor: colors.fill,
         borderColor: colors.ink,
@@ -117,7 +122,7 @@ export function MonthCalendar({
       });
     }
     return out;
-  }, [byDay, mainByDay, tags]);
+  }, [byDay, mainByDay, tags, timeZone]);
 
   const refreshHosts = useCallback(() => {
     const next: Record<string, HTMLElement> = {};
@@ -336,6 +341,9 @@ export function MonthCalendar({
         eventDurationEditable={false}
         dayMaxEvents={1}
         moreLinkText="ещё"
+        // Midnights: timed pills must not continue into the next day cell (D-104).
+        nextDayThreshold="00:00:00"
+        displayEventEnd={false}
         eventTimeFormat={{
           hour: "2-digit",
           minute: "2-digit",

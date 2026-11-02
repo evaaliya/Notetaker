@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-02 17:12 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-03 02:05 +06.
 
 ## Этапы
 
@@ -26,7 +26,7 @@
 | M15 Вёрстка/рендеринг | готов | D-085–091; клики/ширина/день/resize; Profiler без memo; `make test` 94; `make e2e` 69 (chromium+m15×ff/wk) |
 | M16 Общие теги и состояние | готов | `note_user_tags` + `show_in_calendar`; D-095–097; `make test` 97; `make e2e` 87 |
 | M17 Календарь плотность | готов | D-098; месяц пилюля+колбаска; week/day таймлайн; `make test` 97; `make e2e` 93 |
-| M18 Адаптивность списка | готов | D-101–103; truncate+line-clamp-2; virtualizer mid-width; `make test` 97; e2e M18×5; скрины list-{1200,768,390} |
+| M18 Адаптивность списка | готов | D-101–104; truncate+line-clamp-2; virtualizer; month midnight clamp; e2e M18 + `e2e_month_late_series_no_midnight_spill` |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -41,7 +41,7 @@
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
 - Тесты: `make test` → 97 passed на реальном Postgres (testcontainers); Playwright e2e → 97 passed (chromium suite + m15 firefox/webkit + M16–M18).
-- **M18 адаптивность списка:** причина overlap — `justify-items:start` + `1fr` без `minmax(0,…)` (D-101); title ellipsis, preview line-clamp-2; sidebar/main без пересечений на 1440…390; те же truncate на Upcoming/Trash/notif; virtualizer mid-width: estimate 168/112 + `offsetHeight` + remeasure (D-103); e2e `e2e_list_no_overlap_narrow` / `e2e_list_text_truncates` / `e2e_sidebar_content_no_overlap` / `e2e_list_rows_no_vertical_overlap`; скрины `list-{1200,768,390}.png`.
+- **M18 адаптивность списка:** причина overlap — `justify-items:start` + `1fr` без `minmax(0,…)` (D-101); title ellipsis, preview line-clamp-2; sidebar/main без пересечений на 1440…390; те же truncate на Upcoming/Trash/notif; virtualizer mid-width: estimate 168/112 + `offsetHeight` + remeasure (D-103); month pills `end` clamp к локальным суткам — нет spill 23:29→завтра (D-104); e2e list overlap/trunc/sidebar/vertical + `e2e_month_late_series_no_midnight_spill`; скрины `list-{1200,768,390}.png`.
 - **M17 календарь:** месяц — одна главная пилюля + сегмент-«колбаска» (session switch + панель); неделя/день — TickTick-таймлайн вне FC (D-098); DnD trash только в месяце; скрины `calendar-{1440,390,month-1440,day-1440}.png`.
 - **M16 персональные теги / календарь:** `note_user_tags` (viewer-specific); чужой tag → 404; `show_in_calendar` скрывает из `/calendar`, не из list/upcoming/reminders; видео-модалка — чекбокс default off; звонки не меняли. WS coalesce 75 мс + `invalidateNoteCaches` (D-097).
 - **M14 сеть/гонки:** `POST /api/extract/youtube/jobs` + poll/cancel; captions cache; wall-clock 15s/60s + retry; ошибки по-русски + hint + «Повторить»; `api.ts` timeout/Abort; double-click/stale guard. Sync `/youtube` сохранён.
@@ -243,11 +243,11 @@
 | M17 | Вид календаря при многих заметках (месяц+таймлайн) | готов |
 | M18 | Адаптивность UI / overflow списка | готов |
 
-### Смоки M18 (2026-11-02 17:12 +06)
+### Смоки M18 (2026-11-03 02:05 +06)
 **Автоматически:**
-- `make test` → **97 passed**.
-- M18 e2e → **5 passed** (вкл. `e2e_list_rows_no_vertical_overlap`); полный `make e2e` ранее 97 + D-102/D-103.
-**Работает:** длинные заголовки/превью не ломают сетку; sidebar и main не пересекаются; mid-width virtual rows без вертикального наложения (D-103); ≤640 — нижние вкладки; OverflowMenu сохранён.
+- M17 calendar e2e → **6 passed** (вкл. `e2e_month_late_series_no_midnight_spill`, D-104).
+- Ранее: `make test` 97; M18 list e2e ×5; полный `make e2e` 97.
+**Работает:** длинные заголовки/превью не ломают сетку; sidebar/main без пересечений; mid-width virtual rows (D-103); month late series без midnight spill / ложной склейки дней (D-104); ≤640 — нижние вкладки.
 **Скрины:** `docs/design/screens/list-{1200,768,390}.png`.
 
 ### Смоки M17 (2026-11-02 02:14 +06)

@@ -187,3 +187,71 @@ test("e2e_timeline_overflow_plus_n", async ({ page }) => {
     titles[5],
   );
 });
+
+/** Late timed series must not spill into the next day cell (D-104). */
+test("e2e_month_late_series_no_midnight_spill", async ({ page }) => {
+  const login = uniqueLogin("m17spill");
+  await registerUi(page, login);
+  await page.request.patch("/api/me", { data: { timezone: "UTC" } });
+
+  const sport = await ensureTag(page, "sport", "#3E6FB0");
+  const work = await ensureTag(page, "work", "#B4402F");
+
+  // Three consecutive UTC midnights: base day, +1, +2 at 23:29 (would spill +1h without clamp).
+  const base = new Date();
+  base.setUTCHours(0, 0, 0, 0);
+  // Use a fixed mid-month day so month view always shows the cluster.
+  const y = base.getUTCFullYear();
+  const m = base.getUTCMonth();
+  const day = 10;
+  const at = (d: number, hh: number, mm: number) =>
+    new Date(Date.UTC(y, m, d, hh, mm, 0)).toISOString().replace(/\.\d{3}Z$/, "Z");
+
+  const seriesTitle = `JogSpill_${Date.now()}`;
+  const otherTitle = `OtherSpill_${Date.now()}`;
+  const until = `${y}-${String(m + 1).padStart(2, "0")}-${String(day + 2).padStart(2, "0")}`;
+
+  await apiCreateNote(page.request, {
+    title: seriesTitle,
+    body: "run",
+    starts_at: at(day, 23, 29),
+    reminder_offsets: [],
+    tag_ids: [sport],
+    recurrence: { freq: "daily", until, tz: "UTC" },
+  });
+  await apiCreateNote(page.request, {
+    title: otherTitle,
+    body: "alt",
+    starts_at: at(day + 1, 0, 46),
+    reminder_offsets: [],
+    tag_ids: [work],
+  });
+
+  await page.goto("/calendar");
+  await page.getByTestId("cal-view-month").click();
+  await expect(page.getByTestId("calendar-main")).toHaveAttribute("data-cal-view", "month");
+
+  const midDate = `${y}-${String(m + 1).padStart(2, "0")}-${String(day + 1).padStart(2, "0")}`;
+  const nextDate = `${y}-${String(m + 1).padStart(2, "0")}-${String(day + 2).padStart(2, "0")}`;
+  const midCell = page.locator(`.fc-daygrid-day[data-date="${midDate}"]`);
+  const nextCell = page.locator(`.fc-daygrid-day[data-date="${nextDate}"]`);
+  await expect(midCell).toBeVisible();
+
+  // Switch main on middle day to the non-series note.
+  await midCell.locator(`[data-testid="month-day-seg"][aria-label="${otherTitle}"]`).click();
+  await expect(page.getByTestId("note-side-panel")).toBeVisible();
+  await expect(midCell.getByTestId("month-main-pill").filter({ hasText: otherTitle })).toBeVisible();
+
+  // No FC "+N ещё" from a spilled previous-day timed event.
+  await expect(midCell.locator(".fc-daygrid-more-link")).toHaveCount(0);
+
+  // Next day keeps its own series pill — not a multi-day continuation from mid day.
+  await expect(nextCell.getByTestId("month-main-pill").filter({ hasText: seriesTitle })).toBeVisible();
+  await expect(nextCell.locator(".fc-event.fc-event-end:not(.fc-event-start)")).toHaveCount(0);
+
+  // Switch back to series on middle day — still no spill artifacts.
+  await midCell.locator(`[data-testid="month-day-seg"][aria-label="${seriesTitle}"]`).click();
+  await expect(midCell.getByTestId("month-main-pill").filter({ hasText: seriesTitle })).toBeVisible();
+  await expect(midCell.locator(".fc-daygrid-more-link")).toHaveCount(0);
+  await expect(nextCell.getByTestId("month-main-pill").filter({ hasText: seriesTitle })).toBeVisible();
+});
