@@ -104,7 +104,9 @@ export function NotificationsPopover({
                   onClose();
                 }}
               >
-                <strong>{n.title}</strong>
+                <strong className="list-note-title">
+                  <span className="list-note-title-text">{n.title}</span>
+                </strong>
                 <span className="muted small">{n.body}</span>
               </NoteLink>
             ) : (
@@ -116,7 +118,9 @@ export function NotificationsPopover({
                   onClose();
                 }}
               >
-                <strong>{n.title}</strong>
+                <strong className="list-note-title">
+                  <span className="list-note-title-text">{n.title}</span>
+                </strong>
                 <span className="muted small">{n.body}</span>
               </button>
             )}

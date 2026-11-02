@@ -273,7 +273,9 @@ export function ListPage({ user }: { user: User }) {
                   onClick={() => navigate(`/notes/${n.id}`)}
                 >
                   <strong className="list-note-title" data-testid="list-note-title">
-                    {n.title || "Без названия"}
+                    <span className="list-note-title-text">
+                      {n.title || "Без названия"}
+                    </span>
                     {n.has_attachments ? <AttachmentClipIcon /> : null}
                   </strong>
                   {n.role === "editor" && n.owner_login ? (
@@ -282,8 +284,11 @@ export function ListPage({ user }: { user: User }) {
                     </span>
                   ) : null}
                   {n.body ? (
-                    <span className="muted small list-body-preview">
-                      {n.body.split("\n")[0]}
+                    <span
+                      className="muted small list-body-preview"
+                      data-testid="list-note-preview"
+                    >
+                      {n.body}
                     </span>
                   ) : null}
                   <span

@@ -473,7 +473,9 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
+  align-self: start;
   flex: none;
+  flex-shrink: 0;
   border-radius: var(--radius-sm);
   background: var(--tag-bg, #e8eef0);
   color: var(--tag-fg, var(--muted));
@@ -724,11 +726,19 @@ button:focus-visible {
 }
 
 .search-input {
-  width: 220px;
+  width: 100%;
+  max-width: 220px;
+  min-width: 0;
   min-height: var(--control-h);
   height: var(--control-h);
   padding: 0 var(--space-3);
   box-sizing: border-box;
+}
+
+.list-toolbar-search {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 220px;
 }
 
 .list-toolbar-bar select {
@@ -1444,10 +1454,6 @@ button:focus-visible {
   padding: var(--space-3) var(--space-4);
 }
 
-.list-toolbar-search {
-  flex: 0 0 auto;
-}
-
 .list-toolbar-filters {
   display: flex;
   flex-wrap: wrap;
@@ -1479,10 +1485,12 @@ button:focus-visible {
 @media (max-width: 899px) {
   .list-toolbar-search {
     flex: 1 1 100%;
+    max-width: none;
   }
 
   .search-input {
     width: 100%;
+    max-width: none;
   }
 
   .list-toolbar-filters {
@@ -1506,12 +1514,15 @@ button:focus-visible {
 
 .note-row {
   display: grid;
-  grid-template-columns: 48px 1fr auto;
+  /* minmax(0,1fr): middle column may shrink below max-content (D-101) */
+  grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: start;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--line);
   box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .virtual-row {
@@ -1528,7 +1539,8 @@ button.note-main,
   gap: var(--space-1);
   text-align: left;
   justify-content: stretch;
-  justify-items: start;
+  /* stretch (not start): children take column width; start + width:100% → max-content loop (D-101) */
+  justify-items: stretch;
   align-items: start;
   background: none;
   border: none;
@@ -1539,15 +1551,39 @@ button.note-main,
   min-height: 0;
   width: 100%;
   min-width: 0;
+  max-width: 100%;
   font-weight: 400;
   font-size: inherit;
   line-height: inherit;
   filter: none;
 }
 
-.list-note-title {
-  display: block;
+.list-note-title,
+.note-main > strong {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.list-note-title-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-note-meta {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .note-actions {
@@ -2008,15 +2044,33 @@ button.note-main,
   flex-wrap: wrap;
   gap: var(--space-1);
   margin-top: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .list-body-preview {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
   max-width: 100%;
   width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Notif body: same 2-line clamp (title uses .note-main > strong). */
+.notif-popover-row .note-main > .muted.small {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .tags-layout {
@@ -2121,6 +2175,7 @@ button.note-main,
 
   .note-row {
     grid-template-columns: 48px minmax(0, 1fr);
+    /* actions already span full row — keep middle column shrinkable */
   }
 
   .note-actions {
@@ -3210,6 +3265,7 @@ button.note-main,
 .attachment-clip {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   margin-left: var(--space-2);
   color: var(--muted);
   vertical-align: middle;

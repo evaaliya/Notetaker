@@ -369,7 +369,9 @@ function Bucket({
                   size={44}
                 />
                 <button type="button" className="note-main linkish" onClick={() => onPick(it)}>
-                  <strong>{it.note.title || "Без названия"}</strong>
+                  <strong className="list-note-title">
+                    <span className="list-note-title-text">{it.note.title || "Без названия"}</span>
+                  </strong>
                   {it.note.role === "editor" && it.note.owner_login ? (
                     <span className="muted small" data-testid="shared-note-badge">
                       Общая · владелец: {it.note.owner_login}

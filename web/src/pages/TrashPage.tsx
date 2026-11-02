@@ -100,7 +100,9 @@ function TrashRow({
         size={44}
       />
       <div className="note-main" style={{ cursor: "default" }}>
-        <strong>{note.title || "Без названия"}</strong>
+        <strong className="list-note-title">
+          <span className="list-note-title-text">{note.title || "Без названия"}</span>
+        </strong>
         <div className="muted small">
           исчезнет через {left} дн.
           {note.deleted_at
