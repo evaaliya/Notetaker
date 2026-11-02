@@ -793,3 +793,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** оставить EN как на референс-скрине TickTick; locale из настроек пользователя.
 **Причина:** FRONTEND §1 — язык UI русский; Annotate на Mon/Tue в неделе; аудит — ещё `active`/`inactive` в select.
 **Последствия:** при английском браузере даты в списке/корзине больше не «Nov»; `en-GB` у `formatTimeHm` оставлен (только цифры ЧЧ:ММ); имена IANA-поясов остаются английскими (стандарт).
+
+### D-112 · 2026-11-03 05:40 +06 · M19 · Popover +N в месяце шире ячейки
+**Решение:** список overflow (`month-day-seg-popover`) рендерится в `document.body` через portal, `position:fixed`, ширина `min(320, max(240, vw−16))`, clamp left/top к viewport, max-height по месту снизу/сверху. Строки — grid `время | title` с переносом, не `left:0;right:0` внутри day cell.
+**Альтернативы:** `min-width` внутри ячейки (режется `overflow` FC); всегда 100vw sheet на mobile.
+**Причина:** Annotate — popover ~87×200, текст «лесенкой»; при любом масштабе должен читаться.
+**Последствия:** e2e `e2e_month_overflow_popover_readable_width` (1280 и 390).

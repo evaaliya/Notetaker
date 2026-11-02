@@ -258,3 +258,57 @@ test("e2e_month_late_series_no_midnight_spill", async ({ page }) => {
   await expect(midCell.locator(".fc-daygrid-more-link")).toHaveCount(0);
   await expect(nextCell.getByTestId("month-main-pill").filter({ hasText: seriesTitle })).toBeVisible();
 });
+
+/** +N popover is a fixed portal ≥240px wide, not the day-cell width (D-112). */
+test("e2e_month_overflow_popover_readable_width", async ({ page }) => {
+  const login = uniqueLogin("m17pop");
+  await registerUi(page, login);
+  await page.request.patch("/api/me", { data: { timezone: "UTC" } });
+
+  const longTitle =
+    "Team sync: notification incident, migration, and v2.4 release planning";
+  for (let i = 0; i < 10; i++) {
+    await apiCreateNote(page.request, {
+      title: i === 0 ? longTitle : `Overflow note ${i} ${Date.now()}`,
+      body: "",
+      starts_at: todayAtUtc(5, 30 + i),
+      reminder_offsets: [],
+      tag_ids: [],
+    });
+  }
+
+  async function assertPopoverWidth(mobile: boolean) {
+    const monthBtn = page.getByTestId(
+      mobile ? "cal-mobile-view-dayGridMonth" : "cal-view-month",
+    );
+    await monthBtn.click();
+    await expect(page.getByTestId("month-day-seg-more").first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByTestId("month-day-seg-more").first().click();
+    const pop = page.getByTestId("month-day-seg-popover");
+    await expect(pop).toBeVisible();
+    const box = await pop.boundingBox();
+    expect(box).toBeTruthy();
+    expect(box!.width).toBeGreaterThanOrEqual(240);
+    // Must not be a skinny column like a day cell (~80–100px).
+    expect(box!.width).toBeGreaterThan(120);
+    const item = pop.getByTestId("month-day-seg-popover-item").filter({ hasText: longTitle });
+    await expect(item).toBeVisible();
+    const itemBox = await item.boundingBox();
+    expect(itemBox!.width).toBeGreaterThanOrEqual(200);
+    // Stays inside the viewport horizontally.
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual((await page.viewportSize())!.width + 1);
+    await page.keyboard.press("Escape");
+    await expect(pop).toHaveCount(0);
+  }
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/calendar");
+  await assertPopoverWidth(false);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/calendar");
+  await assertPopoverWidth(true);
+});
