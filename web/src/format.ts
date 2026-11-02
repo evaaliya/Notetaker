@@ -1,5 +1,11 @@
 /** Format UTC ISO timestamps in the user's IANA timezone (spec §4.5). */
 
+/**
+ * Short weekday labels Mon→Пн … Sun→Вс (luxon weekday 1–7).
+ * UI language is Russian (FRONTEND §1); do not use English Mon/Tue.
+ */
+export const WEEKDAY_SHORT_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"] as const;
+
 /** Wall-clock time always as HH:MM (24h) in ``timeZone`` — calendar / list / upcoming. */
 export function formatTimeHm(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -38,9 +44,9 @@ export function formatInZone(
   options?: Intl.DateTimeFormatOptions,
 ): string {
   if (options) {
-    return new Intl.DateTimeFormat(undefined, { ...options, timeZone }).format(new Date(iso));
+    return new Intl.DateTimeFormat("ru-RU", { ...options, timeZone }).format(new Date(iso));
   }
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("ru-RU", {
     timeZone,
     year: "numeric",
     month: "short",

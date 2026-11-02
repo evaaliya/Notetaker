@@ -787,3 +787,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** navigate на `/notes/:id` отовсюду; косметика старого `form-grid` без смены контролов.
 **Причина:** Annotate — дизайн полей (время/теги/вложения) отличался от списка; размер панели не проблема.
 **Последствия:** e2e по `note-side-panel` / `.side-panel input` сохраняются; popover meta в узкой панели открываются `right:0`.
+
+### D-111 · 2026-11-03 05:20 +06 · M19 · Дни недели в agenda на русском
+**Решение:** `WEEKDAY_SHORT_RU` = `Пн…Вс` в `format.ts`; week/day timeline берут его вместо `Mon…Sun`. `formatInZone` форматирует через `ru-RU` (не `undefined`/locale браузера). Месяц FC уже `locale="ru"`; заголовки chrome — luxon `setLocale("ru")`; «Ближайшее» — `ru-RU`. Фильтр списка: подписи опций `активные`/`неактивные` (value API `active`/`inactive` без смены).
+**Альтернативы:** оставить EN как на референс-скрине TickTick; locale из настроек пользователя.
+**Причина:** FRONTEND §1 — язык UI русский; Annotate на Mon/Tue в неделе; аудит — ещё `active`/`inactive` в select.
+**Последствия:** при английском браузере даты в списке/корзине больше не «Nov»; `en-GB` у `formatTimeHm` оставлен (только цифры ЧЧ:ММ); имена IANA-поясов остаются английскими (стандарт).

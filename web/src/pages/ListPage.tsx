@@ -202,8 +202,8 @@ export function ListPage({ user }: { user: User }) {
             onChange={(e) => setDraft({ ...draft, status: e.target.value })}
           >
             <option value="">Все статусы</option>
-            <option value="active">active</option>
-            <option value="inactive">inactive</option>
+            <option value="active">активные</option>
+            <option value="inactive">неактивные</option>
           </select>
           <select
             aria-label="Сортировка"

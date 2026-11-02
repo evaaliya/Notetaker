@@ -117,6 +117,9 @@ test("e2e_week_timeline_layout", async ({ page }) => {
   // Empty days still show default spine (line + circles).
   await expect(page.getByTestId("tl-week-spine").first()).toBeVisible();
   await expect(page.locator(".tl-agenda-dot").first()).toBeVisible();
+  // Weekday labels are Russian short forms (not Mon/Tue).
+  await expect(page.locator(".tl-agenda-wd").first()).toHaveText(/^(Пн|Вт|Ср|Чт|Пт|Сб|Вс)$/);
+  await expect(page.locator(".tl-agenda-wd").filter({ hasText: /^(Mon|Tue|Wed)$/ })).toHaveCount(0);
   const card = page.getByTestId("tl-card").filter({ hasText: title });
   await expect(card).toBeVisible();
   await expect(card).toHaveAttribute("data-hm", "14:30");

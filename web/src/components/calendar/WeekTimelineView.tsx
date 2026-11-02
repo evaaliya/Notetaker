@@ -1,4 +1,5 @@
 import type { Occurrence, Tag } from "../../api";
+import { WEEKDAY_SHORT_RU } from "../../format";
 import { groupByLocalDay, weekDays } from "../../lib/calendar/groupByLocalDay";
 import { AgendaDaySection } from "./AgendaDaySection";
 
@@ -11,9 +12,6 @@ type Props = {
   stacked?: boolean;
   onSelect: (occ: Occurrence) => void;
 };
-
-/** English short weekdays as on the reference screenshot (layout exact). */
-const WEEKDAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export function WeekTimelineView({
   anchorIsoDay,
@@ -31,7 +29,7 @@ export function WeekTimelineView({
         <AgendaDaySection
           key={dayKey}
           dayKey={dayKey}
-          weekdayLabel={WEEKDAYS_SHORT[idx]}
+          weekdayLabel={WEEKDAY_SHORT_RU[idx]}
           occs={byDay.get(dayKey) ?? []}
           tags={tags}
           timeZone={timeZone}
