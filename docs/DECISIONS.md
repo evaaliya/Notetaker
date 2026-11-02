@@ -757,3 +757,10 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Причина:** запрос UX — 0.8 с легко не заметить; колокольчик только в сайдбаре.
 **Последствия:** FRONTEND §8; тот же класс `.shake` у иллюстраций, если кто-то передаст prop.
 
+### D-106 · 2026-11-03 02:52 +06 · M19 · Extract YouTube живёт в module store
+**Решение:** клиентский start/poll/cancel вынесен в `web/src/lib/videoExtractSession.ts` (subscribe + `useSyncExternalStore`). Уход с `/capture/video` не останавливает poll (GET без AbortSignal; cancel — через `pollGen`). Результат в `ready` до dismiss модалки; `ExtractDraftsModal` только на VideoNotesPage — на других вкладках диалога нет; по возврату эффект открывает модалку. Без ухода — как раньше.
+**Альтернативы:** React Context/Provider (обрывался при remount/`abort` на signal); sessionStorage + resume; скрытый mount страницы.
+**Причина:** cleanup страницы и AbortSignal на poll рвали цикл при смене сайдбара, хотя job в БД продолжал работу (D-083).
+**Последствия:** e2e `e2e_youtube_extract_survives_sidebar_nav`; cancel/late-response M14 сохранена.
+
+

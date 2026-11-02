@@ -160,3 +160,93 @@ test("e2e_youtube_late_response_ignored_after_cancel", async ({ page }) => {
   await expect(page.getByTestId("video-drafts-modal")).toHaveCount(0);
   await expect(page.getByText("SHOULD NOT APPEAR")).toHaveCount(0);
 });
+
+test("e2e_youtube_extract_survives_sidebar_nav", async ({ page }) => {
+  const login = uniqueLogin("m19nav");
+  const JOB = "00000000-0000-4000-8000-0000000000c3";
+  let polls = 0;
+  let releaseDone: (() => void) | null = null;
+  const doneGate = new Promise<void>((r) => {
+    releaseDone = r;
+  });
+
+  await stubYtPlayer(page);
+  await page.route("**/api/extract/youtube/jobs", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: JOB,
+        status: "running",
+        step: "captions",
+        video_id: "dQw4w9WgXcQ",
+        reused: false,
+      }),
+    });
+  });
+  await page.route(`**/api/extract/jobs/${JOB}`, async (route) => {
+    if (route.request().method() === "POST") return route.continue();
+    polls += 1;
+    if (polls < 2) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: JOB,
+          status: "running",
+          step: "extract",
+          video_id: "dQw4w9WgXcQ",
+          error_code: null,
+          error_message: null,
+          error_hint: null,
+          result: null,
+          created_at: "2026-11-01T00:00:00Z",
+          updated_at: "2026-11-01T00:00:00Z",
+          finished_at: null,
+        }),
+      });
+      return;
+    }
+    await doneGate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: JOB,
+        status: "done",
+        step: "done",
+        video_id: "dQw4w9WgXcQ",
+        error_code: null,
+        error_message: null,
+        error_hint: null,
+        result: {
+          ...RESULT,
+          summary: { ...RESULT.summary, title: "M19 survived nav" },
+        },
+        created_at: "2026-11-01T00:00:00Z",
+        updated_at: "2026-11-01T00:00:00Z",
+        finished_at: "2026-11-01T00:00:00Z",
+      }),
+    });
+  });
+
+  await registerUi(page, login);
+  await page.getByTestId("nav-video").click();
+  await page.getByTestId("video-url-input").fill(YT_URL);
+  await page.getByTestId("video-open").click();
+  await page.getByTestId("video-extract-captions").click();
+  await expect(page.getByTestId("video-ai-thinking")).toBeVisible();
+
+  await page.locator('.app-sidebar a[aria-label="Календарь"]').click();
+  await expect(page.getByTestId("video-notes-page")).toHaveCount(0);
+  await expect(page.getByTestId("video-drafts-modal")).toHaveCount(0);
+
+  releaseDone?.();
+  await page.waitForTimeout(1200);
+  await expect(page.getByTestId("video-drafts-modal")).toHaveCount(0);
+
+  await page.getByTestId("nav-video").click();
+  await expect(page.getByTestId("video-drafts-modal")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("M19 survived nav")).toBeVisible();
+});

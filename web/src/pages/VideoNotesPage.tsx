@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ExtractDraft, ExtractJob, ExtractResult, Note, User } from "../api";
+import { api, ExtractDraft, ExtractResult, Note, User } from "../api";
 import { NoteLink } from "../components/NoteLink";
 import {
   AiThinkingPanel,
@@ -13,7 +13,8 @@ import {
   PendingDraft,
   SummaryLang,
 } from "../components/ExtractDraftsModal";
-import { extractErrorFromJob, extractErrorFromUnknown, ExtractUiError } from "../lib/extractErrors";
+import { useVideoExtractSession } from "../hooks/useVideoExtractSession";
+import { extractErrorFromUnknown, ExtractUiError } from "../lib/extractErrors";
 import { parseVideoUrl, VideoSource } from "../lib/videoUrl";
 
 type YTPlayer = {
@@ -54,32 +55,87 @@ function loadYouTubeApi(): Promise<void> {
   });
 }
 
-function applyJobResult(result: ExtractResult, setters: {
-  setTranscript: (t: string | null) => void;
-  setSummaryEn: (d: ExtractDraft | null) => void;
-  setSummaryRu: (d: ExtractDraft | null) => void;
-  setSummaryLang: (l: SummaryLang) => void;
-  setPending: (p: PendingDraft[]) => void;
-  setConfirmOpen: (v: boolean) => void;
-  setUiError: (e: ExtractUiError | null) => void;
-  setShowInCalendar?: (v: boolean) => void;
-}) {
+function draftHasText(d: ExtractDraft | null | undefined): d is ExtractDraft {
+  return !!(d?.title?.trim() && d?.body?.trim());
+}
+
+/** Placeholder when the chosen language was not returned by the model (D-107). */
+function missingLangDraft(lang: SummaryLang): ExtractDraft {
+  if (lang === "ru") {
+    return {
+      title: "Русский вариант не получен",
+      body: "Модель не вернула перевод. Выберите English или нажмите «Повторить».",
+      starts_at: null,
+      reminder_offsets: [],
+      tag_names: [],
+      kind: "summary",
+    };
+  }
+  return {
+    title: "English version not available",
+    body: "The model did not return an English summary. Choose Русский or tap Retry.",
+    starts_at: null,
+    reminder_offsets: [],
+    tag_names: [],
+    kind: "summary",
+  };
+}
+
+function applyJobResult(
+  result: ExtractResult,
+  setters: {
+    setTranscript: (t: string | null) => void;
+    setSummaryEn: (d: ExtractDraft | null) => void;
+    setSummaryRu: (d: ExtractDraft | null) => void;
+    setSummaryLang: (l: SummaryLang) => void;
+    setSourceLang: (l: "en" | "ru" | "other") => void;
+    setPending: (p: PendingDraft[]) => void;
+    setConfirmOpen: (v: boolean) => void;
+    setLocalError: (e: ExtractUiError | null) => void;
+    setShowInCalendar?: (v: boolean) => void;
+  },
+) {
   setters.setTranscript(result.transcript ?? null);
-  const en = result.summary;
-  const ru =
-    result.summary_ru?.title?.trim() && result.summary_ru?.body?.trim()
-      ? result.summary_ru
-      : null;
-  setters.setSummaryEn(en ?? null);
+  const sourceLang = result.source_lang === "ru" || result.source_lang === "en"
+    ? result.source_lang
+    : "other";
+  setters.setSourceLang(sourceLang);
+
+  // Map API fields → EN/RU slots by source language (not by “both present”).
+  let en: ExtractDraft | null = null;
+  let ru: ExtractDraft | null = null;
+  if (sourceLang === "ru") {
+    ru = draftHasText(result.summary)
+      ? result.summary
+      : draftHasText(result.summary_ru)
+        ? result.summary_ru
+        : null;
+    en = null;
+  } else {
+    en = draftHasText(result.summary) ? result.summary : null;
+    ru = draftHasText(result.summary_ru) ? result.summary_ru : null;
+  }
+  setters.setSummaryEn(en);
   setters.setSummaryRu(ru);
-  const initialLang: SummaryLang = en && ru ? "en" : "ru";
+
+  // Default selection: RU source → ru; EN/other → en if present else ru.
+  const initialLang: SummaryLang =
+    sourceLang === "ru" ? "ru" : en ? "en" : "ru";
   setters.setSummaryLang(initialLang);
-  const activeSummary = initialLang === "ru" && ru ? ru : en;
-  const rows = draftsFromExtract(activeSummary, result.drafts, {
+
+  const active =
+    initialLang === "ru"
+      ? ru ?? missingLangDraft("ru")
+      : en ?? missingLangDraft("en");
+  const rows = draftsFromExtract(active, result.drafts, {
     selectKinds: ["summary"],
-  });
+  }).map((row) =>
+    row.key === "summary-main" && !draftHasText(initialLang === "ru" ? ru : en)
+      ? { ...row, selected: false }
+      : row,
+  );
   if (!rows.length) {
-    setters.setUiError({
+    setters.setLocalError({
       code: "model_no_response",
       message: "Субтитры получены, но черновиков не вышло.",
       hint: "Попробуйте другой ролик или нажмите «Повторить».",
@@ -93,26 +149,25 @@ function applyJobResult(result: ExtractResult, setters: {
 
 export function VideoNotesPage({ user }: { user: User }) {
   const qc = useQueryClient();
+  const extract = useVideoExtractSession();
   const [urlInput, setUrlInput] = useState("");
   const [source, setSource] = useState<VideoSource | null>(null);
-  const [uiError, setUiError] = useState<ExtractUiError | null>(null);
+  const [localError, setLocalError] = useState<ExtractUiError | null>(null);
   const [busy, setBusy] = useState(false);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [jobStep, setJobStep] = useState<string | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingDraft[]>([]);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [summaryEn, setSummaryEn] = useState<ExtractDraft | null>(null);
   const [summaryRu, setSummaryRu] = useState<ExtractDraft | null>(null);
   const [summaryLang, setSummaryLang] = useState<SummaryLang>("en");
+  const [sourceLang, setSourceLang] = useState<"en" | "ru" | "other">("other");
   /** Video drafts: hide from calendar by default (M16 / D-096). */
   const [showInCalendar, setShowInCalendar] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const ytHostRef = useRef<HTMLDivElement | null>(null);
   const ytPlayerRef = useRef<YTPlayer | null>(null);
-  const pollGen = useRef(0);
-  const abortRef = useRef<AbortController | null>(null);
+
+  const uiError = localError ?? extract.error;
 
   const notes = useQuery({
     queryKey: ["notes", "video", source?.url],
@@ -123,6 +178,39 @@ export function VideoNotesPage({ user }: { user: User }) {
   const videoNotes = (notes.data?.items ?? []).filter(
     (n) => n.source === "video" && n.source_url === source?.url,
   );
+
+  // Restore URL / player after navigating away mid-job (D-106).
+  useEffect(() => {
+    if (source || !extract.url) return;
+    const parsed = parseVideoUrl(extract.url);
+    if (!parsed) return;
+    setSource(parsed);
+    setUrlInput(extract.url);
+  }, [extract.url, source]);
+
+  // Open drafts modal only while this page is mounted. Keep session.ready until
+  // the user dismisses/confirms so remount (nav away→back, Strict Mode) still shows it.
+  useEffect(() => {
+    if (!extract.ready) return;
+    const { result, url } = extract.ready;
+    const parsed = parseVideoUrl(url);
+    if (parsed) {
+      setSource(parsed);
+      setUrlInput(url);
+    }
+    setLocalError(null);
+    applyJobResult(result, {
+      setTranscript,
+      setSummaryEn,
+      setSummaryRu,
+      setSummaryLang,
+      setSourceLang,
+      setPending,
+      setConfirmOpen,
+      setLocalError,
+      setShowInCalendar,
+    });
+  }, [extract.ready]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,7 +228,7 @@ export function VideoNotesPage({ user }: { user: User }) {
           playerVars: { rel: 0, modestbranding: 1 },
         });
       } catch (err) {
-        if (!cancelled) setUiError(extractErrorFromUnknown(err));
+        if (!cancelled) setLocalError(extractErrorFromUnknown(err));
       }
     }
     void mountYt();
@@ -155,18 +243,13 @@ export function VideoNotesPage({ user }: { user: User }) {
     };
   }, [source]);
 
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-    };
-  }, []);
-
   function openUrl(e: FormEvent) {
     e.preventDefault();
-    setUiError(null);
+    setLocalError(null);
+    extract.clearError();
     const parsed = parseVideoUrl(urlInput);
     if (!parsed) {
-      setUiError({
+      setLocalError({
         code: "validation_error",
         message: "Некорректная ссылка",
         hint: "Вставьте ссылку YouTube вида youtube.com/watch?v=…",
@@ -176,55 +259,11 @@ export function VideoNotesPage({ user }: { user: User }) {
     setSource(parsed);
   }
 
-  async function pollUntilDone(id: string, gen: number, signal: AbortSignal) {
-    for (;;) {
-      if (gen !== pollGen.current || signal.aborted) return;
-      try {
-        const job: ExtractJob = await api.getExtractJob(id, { signal, timeoutMs: 15_000 });
-        if (gen !== pollGen.current) return;
-        setJobStep(job.step);
-        if (job.status === "done" && job.result) {
-          applyJobResult(job.result, {
-            setTranscript,
-            setSummaryEn,
-            setSummaryRu,
-            setSummaryLang,
-            setPending,
-            setConfirmOpen,
-            setUiError,
-            setShowInCalendar,
-          });
-          setAiBusy(false);
-          setJobId(null);
-          return;
-        }
-        if (job.status === "error" || job.status === "cancelled") {
-          setUiError(extractErrorFromJob(job));
-          setAiBusy(false);
-          setJobId(null);
-          return;
-        }
-      } catch (err) {
-        if (gen !== pollGen.current || signal.aborted) return;
-        // Network blip — keep polling; job state lives in DB (M14).
-        const ui = extractErrorFromUnknown(err);
-        if (ui.code !== "network" && ui.code !== "timeout") {
-          setUiError(ui);
-          setAiBusy(false);
-          setJobId(null);
-          return;
-        }
-      }
-      await new Promise((r) => window.setTimeout(r, 700));
-    }
-  }
-
   async function extractCaptions() {
-    if (aiBusy) return; // double-click guard (server also idempotent)
     const url = source?.kind === "youtube" ? source.url : urlInput.trim();
     const parsed = parseVideoUrl(url);
     if (!parsed || parsed.kind !== "youtube") {
-      setUiError({
+      setLocalError({
         code: "validation_error",
         message: "Субтитры доступны только для ссылок YouTube",
         hint: "Откройте ролик YouTube и нажмите «Разобрать субтитры».",
@@ -232,48 +271,8 @@ export function VideoNotesPage({ user }: { user: User }) {
       return;
     }
     if (!source) setSource(parsed);
-    abortRef.current?.abort();
-    const ac = new AbortController();
-    abortRef.current = ac;
-    const gen = ++pollGen.current;
-    setAiBusy(true);
-    setUiError(null);
-    setJobStep("queued");
-    try {
-      const created = await api.startYoutubeExtractJob(parsed.url, user.timezone, {
-        signal: ac.signal,
-      });
-      if (gen !== pollGen.current) return;
-      setJobId(created.id);
-      setJobStep(created.step);
-      await pollUntilDone(created.id, gen, ac.signal);
-    } catch (err) {
-      if (gen !== pollGen.current) return;
-      setUiError(extractErrorFromUnknown(err));
-      setAiBusy(false);
-      setJobId(null);
-    }
-  }
-
-  async function cancelJob() {
-    const id = jobId;
-    pollGen.current += 1;
-    abortRef.current?.abort();
-    setAiBusy(false);
-    setJobStep(null);
-    if (id) {
-      try {
-        await api.cancelExtractJob(id);
-      } catch {
-        /* ignore — UI already stopped */
-      }
-    }
-    setJobId(null);
-    setUiError({
-      code: "cancelled",
-      message: "Разбор отменён.",
-      hint: "Нажмите «Разобрать субтитры», чтобы начать заново.",
-    });
+    setLocalError(null);
+    await extract.start(parsed.url, user.timezone);
   }
 
   async function confirmSelected() {
@@ -283,7 +282,7 @@ export function VideoNotesPage({ user }: { user: User }) {
       return;
     }
     setBusy(true);
-    setUiError(null);
+    setLocalError(null);
     try {
       const fallbackStarts = new Date().toISOString();
       for (const d of chosen) {
@@ -307,20 +306,38 @@ export function VideoNotesPage({ user }: { user: User }) {
       setSummaryEn(null);
       setSummaryRu(null);
       setShowInCalendar(false);
+      extract.clearReady();
     } catch (err) {
-      setUiError(extractErrorFromUnknown(err));
+      setLocalError(extractErrorFromUnknown(err));
     } finally {
       setBusy(false);
     }
   }
 
   function changeSummaryLang(lang: SummaryLang) {
+    if (lang === "en" && sourceLang === "ru") return;
     setSummaryLang(lang);
-    const next = lang === "ru" ? summaryRu : summaryEn;
-    if (!next) return;
-    setPending((prev) => applySummaryLang(prev, next));
+    const real = lang === "ru" ? summaryRu : summaryEn;
+    const next = real ?? missingLangDraft(lang);
+    setPending((prev) => {
+      const swapped = applySummaryLang(prev, next);
+      if (real) return swapped;
+      return swapped.map((row) =>
+        row.key === "summary-main" ? { ...row, selected: false } : row,
+      );
+    });
   }
 
+  const enDisabled = sourceLang === "ru";
+  const activeHasText =
+    summaryLang === "ru" ? draftHasText(summaryRu) : draftHasText(summaryEn);
+  const langMissingHint = activeHasText
+    ? null
+    : summaryLang === "ru"
+      ? "Русский вариант модель не вернула — создание этого конспекта отключено, пока не нажмёте «Повторить»."
+      : "English-вариант модель не вернула — создание этого конспекта отключено, пока не нажмёте «Повторить».";
+
+  const aiBusy = extract.running;
   const canExtract =
     (source?.kind === "youtube" || parseVideoUrl(urlInput)?.kind === "youtube") && !aiBusy && !busy;
 
@@ -393,7 +410,7 @@ export function VideoNotesPage({ user }: { user: User }) {
                 type="button"
                 className="btn-ghost"
                 data-testid="video-extract-cancel"
-                onClick={() => void cancelJob()}
+                onClick={() => void extract.cancel()}
               >
                 Отменить
               </button>
@@ -403,7 +420,7 @@ export function VideoNotesPage({ user }: { user: User }) {
         <AiThinkingPanel
           active={aiBusy}
           steps={VIDEO_EXTRACT_STEPS}
-          currentStepId={jobStep}
+          currentStepId={extract.jobStep}
           title="Разбор субтитров"
           testId="video-ai-thinking"
         />
@@ -453,10 +470,13 @@ export function VideoNotesPage({ user }: { user: User }) {
           setSummaryEn(null);
           setSummaryRu(null);
           setShowInCalendar(false);
+          extract.clearReady();
         }}
         onConfirm={() => void confirmSelected()}
         testId="video-drafts-modal"
-        bilingual={!!(summaryEn && summaryRu)}
+        showLangChoice
+        enDisabled={enDisabled}
+        langMissingHint={langMissingHint}
         summaryLang={summaryLang}
         onSummaryLangChange={changeSummaryLang}
         showInCalendar={showInCalendar}
