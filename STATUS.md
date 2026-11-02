@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-03 02:05 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-03 04:36 +06.
 
 ## Этапы
 
@@ -27,6 +27,7 @@
 | M16 Общие теги и состояние | готов | `note_user_tags` + `show_in_calendar`; D-095–097; `make test` 97; `make e2e` 87 |
 | M17 Календарь плотность | готов | D-098; месяц пилюля+колбаска; week/day таймлайн; `make test` 97; `make e2e` 93 |
 | M18 Адаптивность списка | готов | D-101–104; truncate+line-clamp-2; virtualizer; month midnight clamp; e2e M18 + `e2e_month_late_series_no_midnight_spill` |
+| M19 Annotate-driven UI | в работе | D-105–109: bell 3с; SquarePlay; extract session store; lang radios; exact caption lang + audioTracks; кэш captions `v3:` |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -41,12 +42,13 @@
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
 - Тесты: `make test` → 97 passed на реальном Postgres (testcontainers); Playwright e2e → 97 passed (chromium suite + m15 firefox/webkit + M16–M18).
+- **M19 (частично):** тряска колокольчика 3 с (D-105); YouTube extract переживает уход с Video через `videoExtractSession` (D-106); радио EN/RU всегда в модалке, EN disabled при `source_lang=ru` (D-107); `source_lang` = `languageCode` скачанной дорожки (D-108), preference аудио из `audioTracks[defaultAudioTrackIndex]` + кэш `v3:` (D-109); live smoke Lyusik → `ru/asr`. Этап не закрыт — полный `make test`/`make e2e` отчёт M19 ещё не сведён.
 - **M18 адаптивность списка:** причина overlap — `justify-items:start` + `1fr` без `minmax(0,…)` (D-101); title ellipsis, preview line-clamp-2; sidebar/main без пересечений на 1440…390; те же truncate на Upcoming/Trash/notif; virtualizer mid-width: estimate 168/112 + `offsetHeight` + remeasure (D-103); month pills `end` clamp к локальным суткам — нет spill 23:29→завтра (D-104); e2e list overlap/trunc/sidebar/vertical + `e2e_month_late_series_no_midnight_spill`; скрины `list-{1200,768,390}.png`.
 - **M17 календарь:** месяц — одна главная пилюля + сегмент-«колбаска» (session switch + панель); неделя/день — TickTick-таймлайн вне FC (D-098); DnD trash только в месяце; скрины `calendar-{1440,390,month-1440,day-1440}.png`.
 - **M16 персональные теги / календарь:** `note_user_tags` (viewer-specific); чужой tag → 404; `show_in_calendar` скрывает из `/calendar`, не из list/upcoming/reminders; видео-модалка — чекбокс default off; звонки не меняли. WS coalesce 75 мс + `invalidateNoteCaches` (D-097).
 - **M14 сеть/гонки:** `POST /api/extract/youtube/jobs` + poll/cancel; captions cache; wall-clock 15s/60s + retry; ошибки по-русски + hint + «Повторить»; `api.ts` timeout/Abort; double-click/stale guard. Sync `/youtube` сохранён.
 - **M13 UI Polish:** токены `--control-h` / `--accent-hover` / холодные `--shadow-*`; единые hover/focus кнопок и полей (высота ≥44px); FullCalendar hover на бирюзу; `switch.off` нейтральный; адаптив mid-width (фильтры wrap, rail ≤900, строки → OverflowMenu «Действия»); на 390 «Ещё» → Уведомления/Теги/Звонок/Видео/Настройки; **отдельный мобильный календарь** (день по умолчанию, chrome, sheet-панель, «В корзину» без DnD); без горизонтального скролла. Backend не меняли.
-- **Звонки/видео (M11):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`, `/youtube`); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` и `/capture/video`; **субтитры YouTube** → extract → при EN выбор языка EN/RU → одна заметка-конспект; бейдж «создано ИИ». Конспект (D-068): главная мысль + заметки markdown-lite. Видео (D-069): по умолчанию только конспект. Пока ждём ответ — `AiThinkingPanel` (D-070). EN-ролик → выбор языка конспекта EN/RU (D-071, стабилизация D-073). UI видео (D-072): плеер слева от «Разобрать». Zoom API нет: только вставка/файл транскрипта или Web Speech в браузере.
+- **Звонки/видео (M11+M19):** `AI_PROVIDER=stub|openrouter`; `POST /api/extract` (+ `/transcript`, `/youtube` jobs); поля `source`/`source_url`/`source_ts`/`ai_generated`; UI `/capture/call` и `/capture/video`; **субтитры YouTube** → extract → радио EN/RU всегда (D-107), `source_lang` с дорожки (D-108/D-109); бейдж «создано ИИ». Конспект (D-068); видео только конспект по умолчанию (D-069); `AiThinkingPanel` (D-070); плеер слева (D-072). Zoom API нет: только вставка/файл транскрипта или Web Speech в браузере.
 - **M12 тесты YouTube:** фикстуры + fake fetch (D-076); e2e route-mock extract + stub IFrame (D-077); покрыто: id/XML, create note, ошибки по-русски, ACL, bilingual UI. Не покрыто: live Innertube, live LLM.
 - **Общие заметки (M10):** `note_members`; владелец добавляет/удаляет по логину; участник видит список/календарь/«Ближайшее» с бейджем «Общая · владелец: …», правит (version→409), не удаляет и не делится; «Покинуть»; realtime на всех участников; уведомление «Вам открыт доступ»; чужой → 404.
 - **Вложения (M9):** `attachments` + том `uploads`; POST/GET/DELETE `/api/notes/{id}/attachments`; sniff типа; 10 МБ / 10 файлов; 413/415/404; soft-delete сохраняет файлы, purge 30д удаляет с диска; WS `attachment.added`/`deleted`; UI скрепка/DnD/превью; `NoteOut.has_attachments`.
@@ -187,7 +189,7 @@
 - Purge: `deleted_at < now − 30d` (ровно 30д0ч ещё не удаляется; D-022).
 - E2E_HOOKS — только на время `make e2e` / `make verify` (D-034); в обычном `make up` выключен.
 - **M11 видео:** YouTube IFrame API и произвольные внешние URL грузятся с сети браузера; без сети плеер недоступен (локальный e2e-фикстура `web/public/m11-sample.mp4`).
-- **M11 субтитры:** без captions у ролика разбор невозможен; не-YouTube URL — кнопка разбора недоступна (только плеер). Список дорожек — Innertube ANDROID (D-067); id YouTube регистрозависим (`I` ≠ `l`). Длинные ролики → большой transcript и дольше extract.
+- **M11/M19 субтитры:** без captions у ролика разбор невозможен; не-YouTube URL — кнопка разбора недоступна (только плеер). Список дорожек — Innertube ANDROID (D-067/D-109); preference языка — `audioTracks[…]`, не letter-heuristic (D-108); кэш `v3:{video_id}`; id YouTube регистрозависим (`I` ≠ `l`). Длинные ролики → большой transcript и дольше extract. Если в Studio «оригинал» = EN при русской речи, YouTube может отдать `en.4` — preference уйдёт в EN (метаданные, не UI).
 
 ### Смоки M7 (2026-10-28)
 **Автоматически:**
@@ -328,6 +330,7 @@
 **Дополнение (2026-11-02 00:01 +06, D-094):** у `.side-tags-scroll` скрыт системный скроллбар на тёмном сайдбаре; `make e2e` → **84 passed**.
 
 ## Следующий заход
+- Дожать M19: сводный `make test` / `make e2e`, экспорт сессии в `docs/sessions/`, закрытие этапа в таблице.
 - Web Push / Service Worker.
 - Интервал повтора и сложные правила («каждый второй вторник»).
 - ICS-экспорт/импорт и подписка на календарь.
