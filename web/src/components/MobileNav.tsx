@@ -10,7 +10,7 @@ import {
   Settings2,
   Tags,
   Trash2,
-  Video,
+  SquarePlay,
 } from "lucide-react";
 
 const MORE_PATHS = ["/settings", "/tags", "/capture/call", "/capture/video"];
@@ -121,7 +121,7 @@ export function MobileNav({ unseenCount = 0, onOpenInbox }: Props) {
             </li>
             <li role="none">
               <button type="button" role="menuitem" onClick={() => go("/capture/video")}>
-                <Video aria-hidden="true" size={18} />
+                <SquarePlay aria-hidden="true" size={18} />
                 Видео
               </button>
             </li>

@@ -12,7 +12,7 @@ import {
   Settings2,
   Tags,
   Trash2,
-  Video,
+  SquarePlay,
 } from "lucide-react";
 import logoNt from "../assets/logo-nt.jpg";
 import { api } from "../api";
@@ -146,7 +146,7 @@ export function AppSidebar({
           title="Видео"
           data-testid="nav-video"
         >
-          <Video aria-hidden="true" />
+          <SquarePlay aria-hidden="true" />
           {!collapsed && <span>Видео</span>}
         </NavLink>
         <NavLink
