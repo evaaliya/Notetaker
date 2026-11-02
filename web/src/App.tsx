@@ -206,7 +206,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
         window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (prefs.bellAnim && !reduceMotion) {
         setBellShake(true);
-        window.setTimeout(() => setBellShake(false), 800);
+        window.setTimeout(() => setBellShake(false), 3000);
       }
       if (prefs.sound) tryStartAlarm();
     },
