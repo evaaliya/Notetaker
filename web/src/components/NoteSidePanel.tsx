@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Bell, CalendarClock, Paperclip, Tag as TagIcon, X } from "lucide-react";
 import { ApiError, EditScope, api, Note, Tag, User } from "../api";
 import {
   formatSeriesRecurrenceHint,
@@ -10,8 +10,11 @@ import {
 import { AttachmentsPanel } from "./AttachmentsPanel";
 import { ConflictDialog } from "./ConflictDialog";
 import { EditScopeDialog } from "./EditScopeDialog";
-import { ReminderOffsetsField, offsetsEqual } from "./ReminderOffsetsField";
+import { EditorMetaDisclosure } from "./EditorMetaDisclosure";
+import { ReminderOffsetsField, REMINDER_OPTIONS, offsetsEqual } from "./ReminderOffsetsField";
 import { SharePanel } from "./SharePanel";
+import { TagMultiSelect } from "./TagMultiSelect";
+import { TagPill } from "./TagPill";
 
 type Props = {
   user: User;
@@ -26,6 +29,8 @@ type Props = {
   /** Move note / series to trash (calendar mobile — no drag zone). */
   onTrash?: () => void;
 };
+
+type MetaKey = "when" | "reminders" | "tags";
 
 function formFromNote(note: Note, timeZone: string) {
   return {
@@ -62,6 +67,15 @@ export function NoteSidePanel({
   const [remoteBanner, setRemoteBanner] = useState(false);
   const [conflictNote, setConflictNote] = useState<Note | null>(null);
   const [pendingScope, setPendingScope] = useState<"save" | "delete" | null>(null);
+  const [metaOpen, setMetaOpen] = useState<Record<MetaKey, boolean>>({
+    when: false,
+    reminders: false,
+    tags: false,
+  });
+  const [bodyDragOver, setBodyDragOver] = useState(false);
+  const [hasAttachments, setHasAttachments] = useState(Boolean(note.has_attachments));
+  const attachmentIngestRef = useRef<((files: FileList | File[]) => void) | null>(null);
+  const attachFileInputRef = useRef<HTMLInputElement>(null);
 
   const dirty = useMemo(() => {
     const starts = localInputToUtcIso(startsLocal, user.timezone);
@@ -88,6 +102,7 @@ export function NoteSidePanel({
       setReminderOffsets(f.reminderOffsets);
       setVersion(f.version);
       setBaseline(note);
+      setHasAttachments(Boolean(note.has_attachments));
       setRemoteBanner(false);
       setConflictNote(null);
       setError(null);
@@ -104,11 +119,20 @@ export function NoteSidePanel({
       setReminderOffsets(f.reminderOffsets);
       setVersion(f.version);
       setBaseline(note);
+      setHasAttachments(Boolean(note.has_attachments));
       setRemoteBanner(false);
     } else {
       setRemoteBanner(true);
     }
   }, [note, baseline.id, baseline.starts_at, baseline.version, dirty, user.timezone]);
+
+  function openMeta(key: MetaKey, open: boolean) {
+    setMetaOpen(
+      open
+        ? { when: false, reminders: false, tags: false, [key]: true }
+        : { when: false, reminders: false, tags: false },
+    );
+  }
 
   function tagsDirtyAgainst(base: Note) {
     return !(
@@ -150,6 +174,7 @@ export function NoteSidePanel({
       setBaseline(updated);
       setTagIds([...(updated.tag_ids ?? [])]);
       setReminderOffsets([...(updated.reminder_offsets ?? [])]);
+      setHasAttachments(Boolean(updated.has_attachments));
       setConflictNote(null);
       setRemoteBanner(false);
       onSaved(updated);
@@ -192,10 +217,6 @@ export function NoteSidePanel({
     }
   }
 
-  function toggleTag(id: string) {
-    setTagIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }
-
   function acceptServer(server: Note) {
     const f = formFromNote(server, user.timezone);
     setTitle(f.title);
@@ -205,134 +226,276 @@ export function NoteSidePanel({
     setReminderOffsets(f.reminderOffsets);
     setVersion(f.version);
     setBaseline(server);
+    setHasAttachments(Boolean(server.has_attachments));
     setConflictNote(null);
     setRemoteBanner(false);
     onSaved(server);
   }
 
+  function onBodyDragOver(e: DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes("Files")) setBodyDragOver(true);
+  }
+
+  function onBodyDragLeave(e: DragEvent) {
+    e.preventDefault();
+    if (e.currentTarget === e.target) setBodyDragOver(false);
+  }
+
+  function onBodyDrop(e: DragEvent) {
+    e.preventDefault();
+    setBodyDragOver(false);
+    const files = e.dataTransfer.files;
+    if (files?.length) attachmentIngestRef.current?.(files);
+  }
+
+  const selectedTags = tags.filter((t) => tagIds.includes(t.id));
+
   const panel = (
     <aside
-      className={`side-panel card${presentation === "sheet" ? " side-panel-sheet" : ""}`}
+      className={`side-panel card side-panel-editor${presentation === "sheet" ? " side-panel-sheet" : ""}`}
       data-testid="note-side-panel"
       role={presentation === "sheet" ? "dialog" : undefined}
       aria-modal={presentation === "sheet" ? true : undefined}
     >
-      <form className="form-grid" onSubmit={submit}>
-        <div className="list-toolbar">
-          <h3>{isSeriesOcc ? "Вхождение" : "Заметка"}</h3>
-          <button
-            type="button"
-            className="side-panel-close"
-            onClick={onClose}
-            aria-label="Закрыть"
-            data-testid="note-panel-close"
-          >
-            <X size={20} aria-hidden="true" strokeWidth={2} />
-          </button>
-        </div>
-        {isSeriesOcc && (
-          <p className="muted small" data-testid="series-occ-hint">
-            {formatSeriesRecurrenceHint(note.rec_freq, note.rec_until)}
-          </p>
-        )}
+      <form className="note-editor-form side-panel-form" onSubmit={submit}>
+        <header className="note-editor-bar side-panel-bar">
+          <div className="note-editor-bar-inner">
+            <div className="note-editor-heading-wrap">
+              <span className="note-editor-chrome-label muted small">
+                {isSeriesOcc ? "Вхождение" : "Заметка"}
+              </span>
+              {isSeriesOcc && (
+                <p className="muted small" data-testid="series-occ-hint">
+                  {formatSeriesRecurrenceHint(note.rec_freq, note.rec_until)}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              className="side-panel-close"
+              onClick={onClose}
+              aria-label="Закрыть"
+              data-testid="note-panel-close"
+            >
+              <X size={20} aria-hidden="true" strokeWidth={2} />
+            </button>
+          </div>
+        </header>
+
         {remoteBanner && (
           <p className="banner" data-testid="remote-edit-banner">
             Заметка изменена на другом устройстве. При сохранении возможен конфликт.
           </p>
         )}
-        <label>
-          Заголовок
-          <input value={title} onChange={(e) => setTitle(e.target.value)} />
-        </label>
-        <label>
-          Текст
-          <textarea
-            data-testid="note-body"
-            className="note-body-textarea"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={12}
-          />
-        </label>
-        <label>
-          Время
-          <span className="muted small" data-testid="note-tz-hint">
-            {" "}
-            (ввод в поясе {user.timezone})
-          </span>
-          <input
-            type="datetime-local"
-            value={startsLocal}
-            onChange={(e) => setStartsLocal(e.target.value)}
-            required
-          />
-        </label>
-        {!isSeriesOcc && (
-          <ReminderOffsetsField
-            value={reminderOffsets}
-            onChange={setReminderOffsets}
-            startsLocal={startsLocal}
-            timeZone={user.timezone}
-          />
-        )}
-        <fieldset className="tag-pick">
-          <legend>Теги</legend>
-          {isSeriesOcc && (
-            <p className="muted small" data-testid="series-tags-hint">
-              Теги общие для серии
-            </p>
-          )}
-          {tags.map((t) => (
-            <label key={t.id} className="inline">
+
+        <div className="note-editor-body">
+          <div
+            className={`note-writing-surface${bodyDragOver ? " is-dragover" : ""}`}
+            data-testid="note-body-dropzone"
+            onDragEnter={onBodyDragOver}
+            onDragOver={onBodyDragOver}
+            onDragLeave={onBodyDragLeave}
+            onDrop={onBodyDrop}
+          >
+            <label className="note-title-field">
+              <span className="visually-hidden">Название</span>
               <input
-                type="checkbox"
-                checked={tagIds.includes(t.id)}
-                onChange={() => toggleTag(t.id)}
+                data-testid="note-title"
+                className="note-title-input"
+                value={title}
+                placeholder="Название"
+                onChange={(e) => setTitle(e.target.value)}
               />
-              <span className="tag-swatch tiny" style={{ background: t.color }} />
-              {t.name}
             </label>
-          ))}
-        </fieldset>
-        <AttachmentsPanel noteId={note.id} compact />
-        <SharePanel note={{ ...note, role: note.role ?? "owner" }} />
-        {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy} data-testid="note-save">
-          Сохранить
-        </button>
-        {onTrash && note.role !== "editor" && !isSeriesOcc && (
-          <button
-            type="button"
-            className="secondary"
-            data-testid="note-panel-trash"
-            disabled={busy}
-            onClick={() => onTrash()}
+            {selectedTags.length > 0 ? (
+              <div className="note-selected-tags" data-testid="note-selected-tags">
+                {selectedTags.map((t) => (
+                  <TagPill key={t.id} name={t.name} color={t.color} />
+                ))}
+              </div>
+            ) : null}
+            <label className="note-body-field">
+              <span className="visually-hidden">Текст</span>
+              <textarea
+                data-testid="note-body"
+                className="note-body-textarea"
+                value={body}
+                placeholder="Текст"
+                onChange={(e) => setBody(e.target.value)}
+                rows={8}
+              />
+            </label>
+            {bodyDragOver ? (
+              <div className="note-body-drop-hint" aria-hidden>
+                Отпустите, чтобы прикрепить
+              </div>
+            ) : null}
+          </div>
+
+          <div
+            className="note-action-bar"
+            data-testid="note-meta-bar"
+            role="toolbar"
+            aria-label="Параметры заметки"
           >
-            В корзину
-          </button>
-        )}
-        {isSeriesOcc && note.role !== "editor" && (
-          <button
-            type="button"
-            className="link"
-            data-testid="delete-occurrence"
-            disabled={busy}
-            onClick={() => setPendingScope("delete")}
-          >
-            Удалить это вхождение
-          </button>
-        )}
-        {onTrash && isSeriesOcc && note.role !== "editor" && (
-          <button
-            type="button"
-            className="link"
-            data-testid="note-panel-trash-series"
-            disabled={busy}
-            onClick={() => onTrash()}
-          >
-            В корзину…
-          </button>
-        )}
+            <EditorMetaDisclosure
+              testId="meta-when"
+              label="Дата"
+              summary={startsLocal ? startsLocal.replace("T", " ") : ""}
+              icon={<CalendarClock size={18} strokeWidth={2} />}
+              open={metaOpen.when}
+              onOpenChange={(o) => openMeta("when", o)}
+            >
+              <label className="editor-tool-field">
+                Время
+                <span className="muted small" data-testid="note-tz-hint">
+                  {" "}
+                  (пояс {user.timezone})
+                </span>
+                <input
+                  type="datetime-local"
+                  data-testid="note-starts"
+                  value={startsLocal}
+                  onChange={(e) => setStartsLocal(e.target.value)}
+                  required
+                />
+              </label>
+            </EditorMetaDisclosure>
+
+            {!isSeriesOcc && (
+              <EditorMetaDisclosure
+                testId="meta-reminders"
+                label="Напоминания"
+                summary={
+                  reminderOffsets.length === 0
+                    ? ""
+                    : REMINDER_OPTIONS.filter((o) => reminderOffsets.includes(o.minutes))
+                        .map((o) => o.label)
+                        .join(", ")
+                }
+                icon={<Bell size={18} strokeWidth={2} />}
+                open={metaOpen.reminders}
+                onOpenChange={(o) => openMeta("reminders", o)}
+              >
+                <ReminderOffsetsField
+                  embedded
+                  value={reminderOffsets}
+                  onChange={setReminderOffsets}
+                  startsLocal={startsLocal}
+                  timeZone={user.timezone}
+                />
+              </EditorMetaDisclosure>
+            )}
+
+            <EditorMetaDisclosure
+              testId="meta-tags"
+              label="Теги"
+              summary={
+                tagIds.length === 0
+                  ? ""
+                  : selectedTags.map((t) => t.name).join(", ") || String(tagIds.length)
+              }
+              icon={<TagIcon size={18} strokeWidth={2} />}
+              open={metaOpen.tags}
+              onOpenChange={(o) => openMeta("tags", o)}
+            >
+              {isSeriesOcc && (
+                <p className="muted small" data-testid="series-tags-hint">
+                  Теги общие для серии
+                </p>
+              )}
+              <TagMultiSelect tags={tags} value={tagIds} onChange={setTagIds} />
+            </EditorMetaDisclosure>
+
+            <div className="editor-tool editor-tool-attach">
+              <button
+                type="button"
+                className="editor-tool-btn"
+                data-testid="note-attach-btn"
+                aria-label="Прикрепить файл"
+                title="Прикрепить файл"
+                onClick={() => attachFileInputRef.current?.click()}
+              >
+                <span className="editor-tool-icon" aria-hidden="true">
+                  <Paperclip size={18} strokeWidth={2} />
+                </span>
+                <span className="editor-tool-label">Файл</span>
+                {hasAttachments ? (
+                  <span className="editor-tool-summary muted" data-testid="note-attach-count">
+                    есть
+                  </span>
+                ) : null}
+              </button>
+              <input
+                ref={attachFileInputRef}
+                type="file"
+                hidden
+                data-testid="note-attach-file-input"
+                accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.docx,image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                multiple
+                onChange={(e) => {
+                  const files = e.target.files;
+                  if (files?.length) {
+                    attachmentIngestRef.current?.(files);
+                    setHasAttachments(true);
+                  }
+                  e.target.value = "";
+                }}
+              />
+            </div>
+          </div>
+
+          <AttachmentsPanel
+            chrome="editor"
+            noteId={note.id}
+            ingestRef={attachmentIngestRef}
+          />
+
+          <SharePanel note={{ ...note, role: note.role ?? "owner" }} />
+
+          {error && <p className="error">{error}</p>}
+
+          <div className="side-panel-footer">
+            <button type="submit" disabled={busy} data-testid="note-save">
+              Сохранить
+            </button>
+            {onTrash && note.role !== "editor" && !isSeriesOcc && (
+              <button
+                type="button"
+                className="secondary"
+                data-testid="note-panel-trash"
+                disabled={busy}
+                onClick={() => onTrash()}
+              >
+                В корзину
+              </button>
+            )}
+            {isSeriesOcc && note.role !== "editor" && (
+              <button
+                type="button"
+                className="link"
+                data-testid="delete-occurrence"
+                disabled={busy}
+                onClick={() => setPendingScope("delete")}
+              >
+                Удалить это вхождение
+              </button>
+            )}
+            {onTrash && isSeriesOcc && note.role !== "editor" && (
+              <button
+                type="button"
+                className="link"
+                data-testid="note-panel-trash-series"
+                disabled={busy}
+                onClick={() => onTrash()}
+              >
+                В корзину…
+              </button>
+            )}
+          </div>
+        </div>
       </form>
       {pendingScope === "save" && (
         <EditScopeDialog

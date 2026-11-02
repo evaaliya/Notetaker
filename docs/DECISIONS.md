@@ -781,3 +781,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** снова `ru`-first в `_PREF_LANGS`; letter-detect по сэмплу дорожек; title keywords.
 **Причина:** у RU-роликов (Lyusik `T7QGdafxkBo`) YouTube отдаёт и `en/asr`, и `ru/asr`; без audioTracks мы брали en-first → английский автоперевод и `source_lang=en` в UI. Живая проверка после фикса: `lang=ru/asr`, текст «Театр начинается с вешалки…».
 **Последствия:** `source_lang` = languageCode скачанной дорожки; при `ru.4` качается `ru/asr`; старые `v2:` строки кэша не читаются.
+
+### D-110 · 2026-11-03 05:11 +06 · M19 · NoteSidePanel = Apple Notes chrome (как /notes)
+**Решение:** календарь/«Ближайшее» оставляют боковую панель (не маршрут `/notes/:id`), но `NoteSidePanel` переведён на тот же UI, что `NoteEditorPage` (D-093): writing surface (title/body без рамок), горизонтальный `note-action-bar` + `EditorMetaDisclosure` (дата/напоминания/теги), `TagPill`/`TagMultiSelect`, одна скрепка + `AttachmentsPanel chrome=editor`, DnD на текст. Явное «Сохранить», scope серий, trash/sheet — без изменений.
+**Альтернативы:** navigate на `/notes/:id` отовсюду; косметика старого `form-grid` без смены контролов.
+**Причина:** Annotate — дизайн полей (время/теги/вложения) отличался от списка; размер панели не проблема.
+**Последствия:** e2e по `note-side-panel` / `.side-panel input` сохраняются; popover meta в узкой панели открываются `right:0`.
