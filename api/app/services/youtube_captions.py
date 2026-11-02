@@ -21,9 +21,26 @@ _UA = (
 )
 
 _YT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
-_PREF_LANGS = ("ru", "en", "uk", "kk", "de", "fr", "es")
+# Fallback preference when default audio lang is absent (en before ru — not the reverse).
+_PREF_LANGS = ("en", "ru", "uk", "kk", "de", "fr", "es")
+# Bump when track-picking algorithm changes so caption cache keys miss old rows.
+# v3: prefer audioTracks[defaultAudioTrackIndex] (e.g. ru.4) over bare en>ru fallback.
+CAPTION_TRACK_ALGO_VERSION = "v3"
 _INNERTUBE_CONTEXT = {"client": {"clientName": "ANDROID", "clientVersion": "20.10.38"}}
 _INNERTUBE_KEY_RE = re.compile(r'"INNERTUBE_API_KEY"\s*:\s*"([a-zA-Z0-9_-]+)"')
+
+
+def caption_cache_key(video_id: str) -> str:
+    """PK for youtube_caption_cache: includes track-pick algo version."""
+    return f"{CAPTION_TRACK_ALGO_VERSION}:{video_id}"
+
+
+def track_language_code(track: dict) -> str:
+    return str(track.get("languageCode") or track.get("language_code") or "").strip().lower()
+
+
+def track_is_asr(track: dict) -> bool:
+    return str(track.get("kind") or "") == "asr"
 
 
 def extract_youtube_id(url_or_id: str) -> str:
@@ -87,13 +104,15 @@ def fetch_youtube_captions(
 
 
 def _fetch_captions_once(video_id: str, *, wall_timeout: float) -> tuple[str, str]:
-    headers = {"User-Agent": _UA, "Accept-Language": "ru,en;q=0.8"}
+    headers = {"User-Agent": _UA, "Accept-Language": "en,ru;q=0.8"}
     deadline = time.monotonic() + max(0.5, wall_timeout)
     # Per-request cap shares the wall budget; connect stays short.
     per = min(wall_timeout, 10.0)
     timeout = httpx.Timeout(connect=5.0, read=per, write=per, pool=5.0)
     with httpx.Client(timeout=timeout, follow_redirects=True, headers=headers) as client:
-        tracks, playability = _caption_tracks(client, video_id, deadline=deadline)
+        tracks, playability, preferred_audio = _caption_tracks(
+            client, video_id, deadline=deadline
+        )
         if not tracks:
             status = (playability or {}).get("status")
             reason = (playability or {}).get("reason") or ""
@@ -106,7 +125,7 @@ def _fetch_captions_once(video_id: str, *, wall_timeout: float) -> tuple[str, st
                     ),
                 )
             raise_extract("no_captions")
-        ordered = _order_tracks(tracks)
+        ordered = _order_tracks(tracks, preferred_audio=preferred_audio)
         last_empty = False
         for track in ordered:
             remaining_timeout(deadline)
@@ -122,8 +141,9 @@ def _fetch_captions_once(video_id: str, *, wall_timeout: float) -> tuple[str, st
             if not text.strip():
                 last_empty = True
                 continue
-            lang = str(track.get("languageCode") or track.get("language_code") or "?")
-            kind = "asr" if track.get("kind") == "asr" else "manual"
+            # source_lang must follow THIS track's languageCode — not defaultAudioLanguage.
+            lang = track_language_code(track) or "?"
+            kind = "asr" if track_is_asr(track) else "manual"
             return text, f"{lang}/{kind}"
         if last_empty:
             raise_extract("no_captions", detail="Дорожка субтитров пустая")
@@ -188,38 +208,62 @@ def _strip_tags(raw: str) -> str:
 
 def _caption_tracks(
     client: httpx.Client, video_id: str, *, deadline: float | None = None
-) -> tuple[list[dict], dict | None]:
-    """Return (tracks, playabilityStatus). Prefer Innertube ANDROID — watch-page baseUrl often empty."""
+) -> tuple[list[dict], dict | None, str | None]:
+    """Return (tracks, playabilityStatus, preferred_audio_lang).
+
+    ``preferred_audio`` comes from captions.audioTracks[defaultAudioTrackIndex]
+    (e.g. ``ru.4``) or legacy defaultAudioLanguage — used only to prefer a matching
+    caption track, never as the language of fetched text.
+    """
     if deadline is not None:
         remaining_timeout(deadline)
+    playability: dict | None = None
+    preferred_audio: str | None = None
+
+    # Prefer ANDROID player JSON (no watch HTML) — survives watch 429 and exposes
+    # audioTracks[defaultAudioTrackIndex] for bilingual ASR videos.
+    tracks, playability, preferred_audio = _tracks_from_innertube(client, video_id, api_key=None)
+    if tracks:
+        return tracks, playability, preferred_audio
+
     watch = client.get(f"https://www.youtube.com/watch?v={video_id}")
     if watch.status_code >= 400:
+        # Last resort: timedtext list (often empty for modern videos).
+        if deadline is not None:
+            remaining_timeout(deadline)
+        listed = client.get(
+            "https://www.youtube.com/api/timedtext",
+            params={"type": "list", "v": video_id},
+        )
+        if listed.status_code < 400 and listed.text.strip():
+            parsed = _parse_track_list_xml(listed.text)
+            if parsed:
+                return parsed, playability, preferred_audio
         raise_extract("upstream_error", detail=f"YouTube watch HTTP {watch.status_code}")
     html = unescape(watch.text)
-    playability: dict | None = None
 
     api_key_m = _INNERTUBE_KEY_RE.search(html)
     if api_key_m:
         if deadline is not None:
             remaining_timeout(deadline)
-        tracks, playability = _tracks_from_innertube(client, video_id, api_key_m.group(1))
+        tracks, playability, preferred_audio = _tracks_from_innertube(
+            client, video_id, api_key=api_key_m.group(1)
+        )
         if tracks:
-            return tracks, playability
+            return tracks, playability, preferred_audio
 
     player = _extract_player_response(html)
     if player:
-        playability = player.get("playabilityStatus") if isinstance(player.get("playabilityStatus"), dict) else playability
-        try:
-            tracks = (
-                player.get("captions", {})
-                .get("playerCaptionsTracklistRenderer", {})
-                .get("captionTracks", [])
-                or []
-            )
-        except AttributeError:
-            tracks = []
-        if tracks:
-            return [t for t in tracks if isinstance(t, dict)], playability
+        playability = (
+            player.get("playabilityStatus")
+            if isinstance(player.get("playabilityStatus"), dict)
+            else playability
+        )
+        preferred_audio = preferred_audio or _audio_lang_from_player(player)
+        cap_renderer = _captions_renderer(player)
+        tracks = (cap_renderer or {}).get("captionTracks") or []
+        if isinstance(tracks, list) and tracks:
+            return [t for t in tracks if isinstance(t, dict)], playability, preferred_audio
 
     if deadline is not None:
         remaining_timeout(deadline)
@@ -230,34 +274,101 @@ def _caption_tracks(
     if listed.status_code < 400 and listed.text.strip():
         parsed = _parse_track_list_xml(listed.text)
         if parsed:
-            return parsed, playability
-    return [], playability
+            return parsed, playability, preferred_audio
+    return [], playability, preferred_audio
+
+
+def _captions_renderer(player: dict) -> dict | None:
+    try:
+        renderer = (
+            player.get("captions", {})
+            .get("playerCaptionsTracklistRenderer")
+        )
+    except AttributeError:
+        return None
+    return renderer if isinstance(renderer, dict) else None
+
+
+def _audio_lang_from_track_id(audio_track_id: str | None) -> str | None:
+    """``ru.4`` / ``en-US.10`` → ``ru`` / ``en-us`` (base matched by _track_score)."""
+    raw = (audio_track_id or "").strip().lower()
+    if not raw:
+        return None
+    # Drop YouTube quality/role suffix (``.4`` original, ``.10`` dubbed, …).
+    lang = raw.rsplit(".", 1)[0] if "." in raw else raw
+    return lang or None
+
+
+def _audio_lang_from_captions_renderer(renderer: dict | None) -> str | None:
+    """Prefer language of audioTracks[defaultAudioTrackIndex] (Innertube).
+
+    Many bilingual videos omit defaultAudioLanguage but still expose e.g. ``ru.4``
+    as the default audio while listing both ``en/asr`` and ``ru/asr`` — without this
+    we incorrectly fall back to en-first and download the English auto-track.
+    """
+    if not isinstance(renderer, dict):
+        return None
+    tracks = renderer.get("audioTracks")
+    if not isinstance(tracks, list) or not tracks:
+        return None
+    idx = renderer.get("defaultAudioTrackIndex")
+    if not isinstance(idx, int) or idx < 0 or idx >= len(tracks):
+        idx = 0
+    chosen = tracks[idx]
+    if not isinstance(chosen, dict):
+        return None
+    return _audio_lang_from_track_id(
+        chosen.get("audioTrackId") if isinstance(chosen.get("audioTrackId"), str) else None
+    )
+
+
+def _audio_lang_from_player(player: dict) -> str | None:
+    """Extract default audio language for track preference only."""
+    from_cap = _audio_lang_from_captions_renderer(_captions_renderer(player))
+    if from_cap:
+        return from_cap
+    for key in ("defaultAudioLanguage", "defaultLanguage"):
+        val = player.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip().lower()
+    micro = player.get("microformat")
+    if isinstance(micro, dict):
+        renderer = micro.get("playerMicroformatRenderer")
+        if isinstance(renderer, dict):
+            for key in ("defaultAudioLanguage", "defaultLanguage"):
+                val = renderer.get(key)
+                if isinstance(val, str) and val.strip():
+                    return val.strip().lower()
+    return None
 
 
 def _tracks_from_innertube(
-    client: httpx.Client, video_id: str, api_key: str
-) -> tuple[list[dict], dict | None]:
+    client: httpx.Client, video_id: str, api_key: str | None = None
+) -> tuple[list[dict], dict | None, str | None]:
+    url = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false"
+    if api_key:
+        url = f"https://www.youtube.com/youtubei/v1/player?key={api_key}"
     res = client.post(
-        f"https://www.youtube.com/youtubei/v1/player?key={api_key}",
+        url,
         json={"context": _INNERTUBE_CONTEXT, "videoId": video_id},
     )
     if res.status_code >= 400:
-        return [], None
+        return [], None, None
     try:
         data = res.json()
     except json.JSONDecodeError:
-        return [], None
-    playability = data.get("playabilityStatus") if isinstance(data.get("playabilityStatus"), dict) else None
-    try:
-        tracks = (
-            data.get("captions", {})
-            .get("playerCaptionsTracklistRenderer", {})
-            .get("captionTracks", [])
-            or []
-        )
-    except AttributeError:
+        return [], None, None
+    playability = (
+        data.get("playabilityStatus")
+        if isinstance(data.get("playabilityStatus"), dict)
+        else None
+    )
+    preferred = _audio_lang_from_player(data)
+    cap_renderer = _captions_renderer(data)
+    tracks = (cap_renderer or {}).get("captionTracks") or []
+    if not isinstance(tracks, list):
         tracks = []
-    return [t for t in tracks if isinstance(t, dict)], playability
+    return [t for t in tracks if isinstance(t, dict)], playability, preferred
 
 
 def _extract_player_response(html: str) -> dict | None:
@@ -318,21 +429,45 @@ def _parse_track_list_xml(xml_text: str) -> list[dict]:
     return out
 
 
-def _track_score(t: dict) -> tuple[int, int]:
-    lang = str(t.get("languageCode") or t.get("language_code") or "").lower()
-    kind = str(t.get("kind") or "")
-    pref = 0
+def _lang_base(code: str) -> str:
+    return (code or "").strip().lower().split("-", 1)[0]
+
+
+def _track_score(t: dict, *, preferred_audio: str | None = None) -> tuple[int, int, int]:
+    """Higher is better: (1) match preferred audio lang, (2) lang pref, (3) manual > asr.
+
+    Language match outranks manual/asr so we never pick Russian manual over English ASR
+    when the preferred/original language is English.
+    """
+    lang = track_language_code(t)
+    lang_base = _lang_base(lang)
+    pref_base = _lang_base(preferred_audio or "")
+
+    audio_match = 0
+    if pref_base and lang_base and (
+        lang_base == pref_base or lang.startswith(pref_base) or pref_base.startswith(lang_base)
+    ):
+        audio_match = 1_000_000
+
+    lang_rank = 0
     for i, code in enumerate(_PREF_LANGS):
-        if lang.startswith(code):
-            pref = 100 - i
+        if lang_base == code or lang.startswith(code):
+            lang_rank = 10_000 - i * 100
             break
-    manual = 10 if kind != "asr" else 0
-    return (pref + manual, pref)
+
+    manual_bonus = 10 if not track_is_asr(t) else 0
+    return (audio_match, lang_rank, manual_bonus)
 
 
-def _order_tracks(tracks: list[dict]) -> list[dict]:
-    return sorted(tracks, key=_track_score, reverse=True)
+def _order_tracks(
+    tracks: list[dict], *, preferred_audio: str | None = None
+) -> list[dict]:
+    return sorted(
+        tracks,
+        key=lambda t: _track_score(t, preferred_audio=preferred_audio),
+        reverse=True,
+    )
 
 
-def _pick_track(tracks: list[dict]) -> dict:
-    return max(tracks, key=_track_score)
+def _pick_track(tracks: list[dict], *, preferred_audio: str | None = None) -> dict:
+    return max(tracks, key=lambda t: _track_score(t, preferred_audio=preferred_audio))

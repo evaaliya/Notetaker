@@ -34,12 +34,15 @@ def run_text_extract(
     clock: Clock,
     timezone_name: str | None,
     transcript: str | None = None,
+    caption_lang: str | None = None,
 ) -> ExtractOut:
     tz = timezone_name or user.timezone or "UTC"
     provider_name = (get_settings().ai_provider or "stub").strip().lower()
     try:
         provider = get_provider()
-        result = provider.extract(text, now=clock.now(), timezone=tz)
+        result = provider.extract(
+            text, now=clock.now(), timezone=tz, caption_lang=caption_lang
+        )
     except AppError:
         raise
     except ValueError as exc:

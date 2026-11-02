@@ -770,3 +770,14 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Причина:** модель часто отдаёт один вариант; UI выбора языка должен быть стабильным продуктовым контролом, а не отражением полноты LLM.
 **Последствия:** e2e `e2e_youtube_russian_source_en_lang_disabled`, `e2e_youtube_en_source_lang_choice_without_summary_ru`; FRONTEND §6/видео.
 
+### D-108 · 2026-11-03 04:18 +06 · M19 · Язык конспекта = languageCode дорожки субтитров
+**Решение:** (1) Выбор дорожки: audio-lang только preference; скор = match audio → lang (`en`>`ru`>…) → manual>asr. (2) `source_lang` / `ensure_en_pair` из `languageCode` скачанной дорожки (`normalize_caption_lang` / `resolve_source_lang`); эвристика букв — только если код неизвестен/`?`. (3) Кэш captions версионируется (`CAPTION_TRACK_ALGO_VERSION` в ключе); при смене алгоритма — bump (сначала `v2`, см. D-109 → `v3`).
+**Альтернативы:** langdetect/lingua; LLM «угадай язык»; считать defaultAudioLanguage языком текста.
+**Причина:** `_PREF_LANGS` начинался с `ru` + letter heuristic → EN-ролики с RU-автопереводом объявлялись русскими; метаданные YouTube уже были и выбрасывались.
+**Последствия:** тесты `test_caption_track_lang` / `test_detect_lang_order`; UI D-107 без смены контракта (`enDisabled` при `source_lang=ru`).
+
+### D-109 · 2026-11-03 04:31 +06 · M19 · preferred_audio из audioTracks[defaultAudioTrackIndex]
+**Решение:** (1) Preference для выбора дорожки — `playerCaptionsTracklistRenderer.audioTracks[defaultAudioTrackIndex].audioTrackId` (`ru.4` → `ru`); legacy `defaultAudioLanguage` — запасной. (2) Список дорожек сначала через Innertube ANDROID `youtubei/v1/player` (без watch HTML) — переживает watch 429 и отдаёт `audioTracks`. (3) Кэш captions → `v3:{video_id}`.
+**Альтернативы:** снова `ru`-first в `_PREF_LANGS`; letter-detect по сэмплу дорожек; title keywords.
+**Причина:** у RU-роликов (Lyusik `T7QGdafxkBo`) YouTube отдаёт и `en/asr`, и `ru/asr`; без audioTracks мы брали en-first → английский автоперевод и `source_lang=en` в UI. Живая проверка после фикса: `lang=ru/asr`, текст «Театр начинается с вешалки…».
+**Последствия:** `source_lang` = languageCode скачанной дорожки; при `ru.4` качается `ru/asr`; старые `v2:` строки кэша не читаются.

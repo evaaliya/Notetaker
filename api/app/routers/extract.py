@@ -148,7 +148,7 @@ async def extract_youtube(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ExtractOut:
     """Sync path (compat). Prefers caption cache; same timeouts as jobs."""
-    text, _lang = await _captions_with_cache(db, body.url, clock=clock)
+    text, caption_lang = await _captions_with_cache(db, body.url, clock=clock)
     await db.commit()
     return run_text_extract(
         text,
@@ -156,6 +156,7 @@ async def extract_youtube(
         clock=clock,
         timezone_name=body.timezone,
         transcript=text,
+        caption_lang=caption_lang,
     )
 
 

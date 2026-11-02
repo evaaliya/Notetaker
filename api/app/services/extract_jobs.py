@@ -65,7 +65,10 @@ def extract_out_to_dict(out: ExtractOut) -> dict[str, Any]:
 async def get_cached_captions(
     session: AsyncSession, video_id: str, *, now: datetime, ttl_hours: int
 ) -> tuple[str, str] | None:
-    row = await session.get(YoutubeCaptionCache, video_id)
+    from app.services.youtube_captions import caption_cache_key
+
+    key = caption_cache_key(video_id)
+    row = await session.get(YoutubeCaptionCache, key)
     if row is None:
         return None
     if _utc(now) - _utc(row.fetched_at) > timedelta(hours=ttl_hours):
@@ -76,11 +79,14 @@ async def get_cached_captions(
 async def put_cached_captions(
     session: AsyncSession, video_id: str, text: str, lang: str, *, now: datetime
 ) -> None:
-    row = await session.get(YoutubeCaptionCache, video_id)
+    from app.services.youtube_captions import caption_cache_key
+
+    key = caption_cache_key(video_id)
+    row = await session.get(YoutubeCaptionCache, key)
     if row is None:
         session.add(
             YoutubeCaptionCache(
-                video_id=video_id,
+                video_id=key,
                 body=text,
                 lang=lang,
                 fetched_at=_utc(now),
@@ -295,7 +301,13 @@ async def process_extract_job(
             )
         if cached:
             text, lang = cached
-            logger.info("job %s cache hit video=%s chars=%s", job_id, video_id, len(text))
+            logger.info(
+                "job %s cache hit video=%s caption_lang=%s chars=%s",
+                job_id,
+                video_id,
+                lang,
+                len(text),
+            )
         else:
             captions_budget = (
                 settings.youtube_captions_timeout_sec
@@ -316,8 +328,17 @@ async def process_extract_job(
             async with session_factory() as session:
                 await put_cached_captions(session, video_id, text, lang, now=now)
                 await session.commit()
+            from app.services.ai.lang import normalize_caption_lang
+
             logger.info(
-                "job %s captions ok video=%s lang=%s chars=%s", job_id, video_id, lang, len(text)
+                "job %s step=captions_ready video=%s youtube_track_lang=%s "
+                "source_lang_from_track=%s chars=%s sample=%r",
+                job_id,
+                video_id,
+                lang,
+                normalize_caption_lang(lang),
+                len(text),
+                (text or "").replace("\n", " ")[:120],
             )
     except Exception as exc:  # noqa: BLE001
         async with session_factory() as session:
@@ -350,6 +371,7 @@ async def process_extract_job(
                     clock=clock_obj,
                     timezone_name=tz_name,
                     transcript=text,
+                    caption_lang=lang,
                 )
             ),
             timeout=model_budget,

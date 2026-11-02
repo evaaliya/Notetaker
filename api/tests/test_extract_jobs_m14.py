@@ -74,7 +74,9 @@ async def test_extract_job_youtube_happy_path(client: AsyncClient, clock):
     def fake_fetch(url: str, **kwargs):
         return EN, "en/asr"
 
-    def fake_extract(text, *, user, clock, timezone_name, transcript=None):
+    def fake_extract(
+        text, *, user, clock, timezone_name, transcript=None, caption_lang=None
+    ):
         from app.schemas.extract import DraftOut, ExtractOut
 
         return ExtractOut(

@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from app.services.ai.base import DraftNote, ExtractResult
 from app.services.ai.bilingual import ensure_en_pair, stub_translate
-from app.services.ai.lang import detect_lang
+from app.services.ai.lang import resolve_source_lang
 
 _WEEKDAYS_RU = {
     "понедельник": 0,
@@ -58,7 +58,14 @@ _SPEAKER_LINE = re.compile(r"^\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s*([^:\n]{1,40})\s*
 class StubProvider:
     """Rule-based RU phrases; same input → same drafts."""
 
-    def extract(self, text: str, *, now: datetime, timezone: str) -> ExtractResult:
+    def extract(
+        self,
+        text: str,
+        *,
+        now: datetime,
+        timezone: str,
+        caption_lang: str | None = None,
+    ) -> ExtractResult:
         raw = (text or "").strip()
         if not raw:
             return ExtractResult(summary=None, drafts=[])
@@ -123,7 +130,7 @@ class StubProvider:
                 )
             )
 
-        source_lang = detect_lang(raw)
+        source_lang = resolve_source_lang(caption_lang=caption_lang, transcript=raw)
         summary = _build_summary(raw, starts, drafts, lang=source_lang)
         result = ExtractResult(
             summary=summary,
@@ -131,7 +138,12 @@ class StubProvider:
             source_lang=source_lang,
             summary_ru=None,
         )
-        return ensure_en_pair(result, transcript=raw, translate=stub_translate)
+        return ensure_en_pair(
+            result,
+            transcript=raw,
+            translate=stub_translate,
+            caption_lang=caption_lang,
+        )
 
 
 def _infer_starts_at(text: str, local_now: datetime) -> datetime | None:

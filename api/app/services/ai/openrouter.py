@@ -9,6 +9,7 @@ Aligned with current OpenRouter docs:
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from datetime import datetime, timezone as dt_timezone
@@ -16,11 +17,13 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+logger = logging.getLogger(__name__)
+
 from app.config import get_settings
 from app.errors import AppError
 from app.services.ai.base import DraftNote, ExtractResult
 from app.services.ai.bilingual import ensure_en_pair
-from app.services.ai.lang import detect_lang
+from app.services.ai.lang import resolve_source_lang
 from app.services.extract_errors import (
     failure_for,
     map_httpx_error,
@@ -113,14 +116,30 @@ class OpenRouterProvider:
         self._api_key = api_key
         self._model = model
 
-    def extract(self, text: str, *, now: datetime, timezone: str) -> ExtractResult:
+    def extract(
+        self,
+        text: str,
+        *,
+        now: datetime,
+        timezone: str,
+        caption_lang: str | None = None,
+    ) -> ExtractResult:
         if not self._api_key:
             raise AppError(
                 "config_error",
                 "OPENROUTER_API_KEY не задан (AI_PROVIDER=openrouter)",
                 status_code=503,
             )
-        detected = detect_lang(text)
+        # Prefer YouTube caption track languageCode; letter heuristic only if unknown.
+        detected = resolve_source_lang(caption_lang=caption_lang, transcript=text)
+        sample = (text or "").replace("\n", " ")[:120]
+        logger.info(
+            "extract step=resolve_source_lang lang=%s caption_lang=%r chars=%s sample=%r",
+            detected,
+            caption_lang,
+            len(text or ""),
+            sample,
+        )
         lang_hint = ""
         if detected == "en":
             lang_hint = (
@@ -161,9 +180,16 @@ class OpenRouterProvider:
             "plugins": [{"id": "response-healing"}],
             # Do not require_parameters: free pool often omits structured_outputs flags.
         }
+        logger.info("extract step=model_chat_start model=%s", self._model)
         content = self._chat(payload)
+        logger.info("extract step=model_chat_done chars=%s", len(content or ""))
         result = _parse_payload(content, default_tz=timezone)
-        return ensure_en_pair(result, transcript=text, translate=self.translate_summary)
+        return ensure_en_pair(
+            result,
+            transcript=text,
+            translate=self.translate_summary,
+            caption_lang=caption_lang,
+        )
 
     def translate_summary(self, note: DraftNote, target: str) -> DraftNote:
         """Translate a summary note to en or ru (second call when the first omit a twin)."""

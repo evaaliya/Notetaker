@@ -1,11 +1,11 @@
-"""Ensure English transcripts always expose EN + RU summary for UI choice (D-073)."""
+"""Ensure English transcripts always expose EN + RU summary for UI choice (D-073 / caption-lang)."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
 from app.services.ai.base import DraftNote, ExtractResult
-from app.services.ai.lang import detect_lang, is_mostly_cyrillic
+from app.services.ai.lang import is_mostly_cyrillic, resolve_source_lang
 
 TranslateFn = Callable[[DraftNote, str], DraftNote]  # (note, target_lang) -> note
 
@@ -19,14 +19,15 @@ def ensure_en_pair(
     *,
     transcript: str,
     translate: TranslateFn | None = None,
+    caption_lang: str | None = None,
 ) -> ExtractResult:
-    """Force bilingual pair when the source transcript is English.
+    """Force bilingual pair when the **caption track** language is English.
 
-    Models often set source_lang wrong or put Russian into ``summary`` and leave
-    ``summary_ru`` empty — then the UI shows only one language. We trust letter
-    heuristics on the transcript more than the model field.
+    ``caption_lang`` is YouTube track languageCode (e.g. ``en/asr``). Letter heuristics
+    apply only when that code is unknown — never override a known track language.
+    ``defaultAudioLanguage`` must not be passed here (preference only at track pick).
     """
-    detected = detect_lang(transcript)
+    detected = resolve_source_lang(caption_lang=caption_lang, transcript=transcript)
     summary = result.summary
     summary_ru = result.summary_ru
     drafts = list(result.drafts)

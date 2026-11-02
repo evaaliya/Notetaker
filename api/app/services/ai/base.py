@@ -26,7 +26,14 @@ class ExtractResult:
 
 
 class ExtractProvider(Protocol):
-    def extract(self, text: str, *, now: datetime, timezone: str) -> ExtractResult: ...
+    def extract(
+        self,
+        text: str,
+        *,
+        now: datetime,
+        timezone: str,
+        caption_lang: str | None = None,
+    ) -> ExtractResult: ...
 
 
 def get_provider() -> ExtractProvider:
