@@ -3514,6 +3514,12 @@ button.note-main,
   font: 500 14px var(--font-sans);
   cursor: pointer;
 }
+.extract-lang-option.is-disabled,
+.extract-lang-option:has(input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: var(--muted);
+}
 
 /* M11: visible AI “thinking” while extract request is in flight */
 .ai-thinking {

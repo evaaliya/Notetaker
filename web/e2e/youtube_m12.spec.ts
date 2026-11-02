@@ -179,7 +179,7 @@ test("e2e_youtube_save_russian_translation", async ({ page }) => {
   await expect(list.locator("li").first()).toContainText("[RU]");
 });
 
-test("e2e_youtube_russian_source_no_lang_choice", async ({ page }) => {
+test("e2e_youtube_russian_source_en_lang_disabled", async ({ page }) => {
   const login = uniqueLogin("yt_ruonly");
   await stubYouTubeIframeApi(page);
   await stubExtractYoutube(page, {
@@ -193,7 +193,11 @@ test("e2e_youtube_russian_source_no_lang_choice", async ({ page }) => {
   await registerUi(page, login);
   await openVideoAndExtract(page);
 
-  await expect(page.getByTestId("extract-summary-lang")).toHaveCount(0);
+  // D-107: radios always visible; EN grayed for RU source.
+  const lang = page.getByTestId("extract-summary-lang");
+  await expect(lang).toBeVisible();
+  await expect(page.getByTestId("extract-lang-en").locator("input")).toBeDisabled();
+  await expect(page.getByTestId("extract-lang-ru").locator("input")).toBeChecked();
   await expect(page.getByTestId("extract-draft-list")).toContainText(RU_ONLY_SUMMARY.title);
 
   await page.getByTestId("extract-confirm-drafts").click();
@@ -204,4 +208,33 @@ test("e2e_youtube_russian_source_no_lang_choice", async ({ page }) => {
   await expect(list.locator("li")).toHaveCount(1);
   await expect(list).toContainText(RU_ONLY_SUMMARY.title);
   await expect(list).toContainText("создано ИИ");
+});
+
+test("e2e_youtube_en_source_lang_choice_without_summary_ru", async ({ page }) => {
+  const login = uniqueLogin("yt_enonly");
+  await stubYouTubeIframeApi(page);
+  await stubExtractYoutube(page, {
+    summary: EN_SUMMARY,
+    summary_ru: null,
+    drafts: [],
+    provider: "stub",
+    transcript: "A lifelong Democrat explains why she voted for change.",
+    source_lang: "en",
+  });
+  await registerUi(page, login);
+  await openVideoAndExtract(page);
+
+  const lang = page.getByTestId("extract-summary-lang");
+  await expect(lang).toBeVisible();
+  await expect(page.getByTestId("extract-lang-en").locator("input")).toBeEnabled();
+  await expect(page.getByTestId("extract-lang-ru").locator("input")).toBeEnabled();
+  await expect(page.getByTestId("extract-draft-list")).toContainText(EN_SUMMARY.title);
+
+  await page.getByTestId("extract-lang-ru").locator("input").check();
+  await expect(page.getByTestId("extract-lang-missing-hint")).toBeVisible();
+  await expect(page.getByTestId("extract-draft-list")).toContainText("Русский вариант не получен");
+
+  await page.getByTestId("extract-lang-en").locator("input").check();
+  await expect(page.getByTestId("extract-lang-missing-hint")).toHaveCount(0);
+  await expect(page.getByTestId("extract-draft-list")).toContainText(EN_SUMMARY.title);
 });

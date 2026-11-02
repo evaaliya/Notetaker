@@ -13,10 +13,20 @@ type Props = {
   onCancel: () => void;
   onConfirm: () => void;
   testId?: string;
-  /** When both EN summary and RU twin exist — show language radios. */
+  /**
+   * Language radios for video extract (D-107): always shown when provided.
+   * Independent of whether the model returned both summaries.
+   */
   summaryLang?: SummaryLang;
   onSummaryLangChange?: (lang: SummaryLang) => void;
+  /** @deprecated Use showLangChoice; kept for call path (no radios). */
   bilingual?: boolean;
+  /** When true, render EN/RU radios (video modal). */
+  showLangChoice?: boolean;
+  /** RU source → English radio disabled (gray). */
+  enDisabled?: boolean;
+  /** Selected language has no model text — hint under radios. */
+  langMissingHint?: string | null;
   /** Video path: optional «Показать в календаре» (default off). Call modal omits this. */
   showInCalendar?: boolean;
   onShowInCalendarChange?: (value: boolean) => void;
@@ -34,10 +44,15 @@ export function ExtractDraftsModal({
   summaryLang,
   onSummaryLangChange,
   bilingual,
+  showLangChoice,
+  enDisabled = false,
+  langMissingHint = null,
   showInCalendar,
   onShowInCalendarChange,
 }: Props) {
   if (!open) return null;
+  const langVisible =
+    (showLangChoice ?? bilingual) && onSummaryLangChange && summaryLang;
   return (
     <div className="modal-backdrop" role="presentation" data-testid={testId}>
       <div className="modal-card modal-wide" role="dialog" aria-modal="true">
@@ -46,25 +61,30 @@ export function ExtractDraftsModal({
           Ничего не создаётся, пока вы не подтвердите. У заметок будет метка «создано ИИ».
           Конспект — основная заметка; задачи/решения создаются отдельно, только если отмечены.
         </p>
-        {bilingual && onSummaryLangChange && summaryLang ? (
+        {langVisible ? (
           <fieldset className="extract-lang" data-testid="extract-summary-lang">
             <legend className="lab">Язык конспекта</legend>
             <p className="muted small">
-              Источник на английском — можно сохранить оригинал или перевод. Перевод может чуть
-              исказить формулировки.
+              {enDisabled
+                ? "Источник на русском — сохраняется русский конспект."
+                : "Источник на английском — можно сохранить оригинал или перевод. Перевод может чуть исказить формулировки."}
             </p>
             <div className="capture-actions">
-              <label className="extract-lang-option">
+              <label
+                className={`extract-lang-option${enDisabled ? " is-disabled" : ""}`}
+                data-testid="extract-lang-en"
+              >
                 <input
                   type="radio"
                   name="summary-lang"
                   value="en"
                   checked={summaryLang === "en"}
+                  disabled={enDisabled}
                   onChange={() => onSummaryLangChange("en")}
                 />
                 English (оригинал)
               </label>
-              <label className="extract-lang-option">
+              <label className="extract-lang-option" data-testid="extract-lang-ru">
                 <input
                   type="radio"
                   name="summary-lang"
@@ -75,6 +95,11 @@ export function ExtractDraftsModal({
                 Русский (перевод)
               </label>
             </div>
+            {langMissingHint ? (
+              <p className="muted small" data-testid="extract-lang-missing-hint" role="status">
+                {langMissingHint}
+              </p>
+            ) : null}
           </fieldset>
         ) : null}
         {transcript ? (

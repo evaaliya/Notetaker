@@ -764,3 +764,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Последствия:** e2e `e2e_youtube_extract_survives_sidebar_nav`; cancel/late-response M14 сохранена.
 
 
+### D-107 · 2026-11-03 03:46 +06 · M19 · Язык конспекта в модалке не зависит от OpenRouter
+**Решение:** радио EN/RU в `ExtractDraftsModal` всегда показываются на видео-пути (`showLangChoice`). Включение ячеек от `source_lang` ответа (см. D-108/D-109, не от полноты LLM): `ru` → English `disabled`/серый; `en`/`other` → обе активны. Наличие `summary_ru` больше не условие показа. Нет текста выбранного языка → placeholder + hint, чекбокс конспекта снят (не создаём пустышку).
+**Альтернативы:** скрывать радио без пары (D-071); блокировать confirm; клиентский MT.
+**Причина:** модель часто отдаёт один вариант; UI выбора языка должен быть стабильным продуктовым контролом, а не отражением полноты LLM.
+**Последствия:** e2e `e2e_youtube_russian_source_en_lang_disabled`, `e2e_youtube_en_source_lang_choice_without_summary_ru`; FRONTEND §6/видео.
+
