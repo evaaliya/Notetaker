@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 02:53 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 03:19 +06.
 
 ## Этапы
 
@@ -30,6 +30,7 @@
 | M19 Annotate-driven UI | готов | D-105–114: bell, extract session, EN/RU, captions lang, side panel, share stack; M20 экспорт сессии |
 | M21 Extract без бесконечного спиннера | готов | D-115–117; `GET /extract/config`; preflight missing key; pending TTL 60с; UI poll ≤100с / worker 15с; `make test` 118; e2e m21 ×2 (+ suite 105, 1 flake week rerun ok) |
 | M22 Офлайн create/правка | готов | D-118–120; client UUID create; outbox IDB; баннер; 404≠сеть; `make test` 121; `make e2e` 109 |
+| M23 Антидрожание UI | готов | D-121–123; gutter+RO-guard+WS backoff; `make test` 121; `make e2e` 112 |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -43,7 +44,8 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → **121 passed** (testcontainers); Playwright e2e → **109** (chromium suite + m15 ff/wk + M16–M22); `e2e_week_many_notes_in_slot` иногда flaky — на повторном прогоне ок.
+- Тесты: `make test` → **121 passed** (testcontainers); Playwright e2e → **112** (chromium suite + m15 ff/wk + M16–M23); `e2e_week_many_notes_in_slot` иногда flaky — на повторном прогоне ок.
+- **M23 антидрожание:** диагностика D-121 (RO 14–19/с на ±1px; WS+invalidate на close); `scrollbar-gutter: stable`; `observeElementSize` (rAF/≥1px/ignore self) для календаря и virtualizer; WS backoff 1→30 с + jitter, invalidate только после успешного reconnect; e2e `e2e_no_layout_shift_at_breakpoints` / `e2e_offline_no_rerender_storm` / `ws_reconnect_backoff_unit` (D-122/D-123).
 - **M22 офлайн:** create с клиентским UUID (идемпотентный POST); очередь в `notetaker-outbox` + черновик D-057; баннер `role="status"`; не navigate до ack; страница заметки «Нет соединения»+«Повторить» vs 404; pytest `test_create_note_idempotent`; e2e `e2e_offline_*` / `e2e_no_duplicate_after_reconnect` (D-118–120).
 - **M21 extract timeouts:** `GET /api/extract/config` `{provider,configured,worker_ok}`; openrouter без ключа → 503 до job; pending без воркера >60 с → `worker_unavailable`; UI poll ≤100 с + предупреждение у кнопки; captions ConnectError → «Нет доступа к youtube.com»; pytest `test_m21_*` ×5; e2e missing key ≤2 с, worker down ≤20 с (D-115–117).
 - **M19 Annotate:** D-105–114 (bell, extract session, EN/RU, captions, side panel Apple Notes, share pills/stack).
@@ -251,6 +253,14 @@
 | M19 | Annotate-driven UI | готов |
 | M21 | Extract без бесконечного спиннера | готов |
 | M22 | Офлайн создание/правка заметок | готов |
+| M23 | Антидрожание UI (CLS/RO/WS) | готов |
+
+### Смоки M23 (2026-11-04 03:19 +06)
+**Диагностика (D-121):** осцилляция ±1px → RO 14.4–19.4/с (выше у mq 900/640); CLS headless=0; `ws.close()`+offline → 4 open / 6 close / 12 с с invalidate на каждый close; баннер уже fixed.
+**Автоматически:**
+- `make test` → **121 passed**.
+- `make e2e` → **112 passed** (`ws_reconnect_backoff_unit`, `e2e_no_layout_shift_at_breakpoints`, `e2e_offline_no_rerender_storm` + регрессии).
+**Работает:** gutter stable; RO без петли measure/updateSize; offline без invalidate-шторма; одна инвалидация после reconnect.
 
 ### Смоки M22 (2026-11-04 02:53 +06)
 **Диагностика (D-118):** (a) setOffline → `/notes/new`, 0 заметок; (b) fetch+abort → 1 на сервере, UI на `/new`; (c) повтор без id → дубль; (b2) abort GET → «Заметка не найдена».
