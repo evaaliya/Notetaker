@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-03 04:36 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 02:18 +06.
 
 ## Этапы
 
@@ -27,7 +27,8 @@
 | M16 Общие теги и состояние | готов | `note_user_tags` + `show_in_calendar`; D-095–097; `make test` 97; `make e2e` 87 |
 | M17 Календарь плотность | готов | D-098; месяц пилюля+колбаска; week/day таймлайн; `make test` 97; `make e2e` 93 |
 | M18 Адаптивность списка | готов | D-101–104; truncate+line-clamp-2; virtualizer; month midnight clamp; e2e M18 + `e2e_month_late_series_no_midnight_spill` |
-| M19 Annotate-driven UI | в работе | D-105–109: bell 3с; SquarePlay; extract session store; lang radios; exact caption lang + audioTracks; кэш captions `v3:` |
+| M19 Annotate-driven UI | готов | D-105–114: bell, extract session, EN/RU, captions lang, side panel, share stack; M20 экспорт сессии |
+| M21 Extract без бесконечного спиннера | готов | D-115–117; `GET /extract/config`; preflight missing key; pending TTL 60с; UI poll ≤100с / worker 15с; `make test` 118; e2e m21 ×2 (+ suite 105, 1 flake week rerun ok) |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -41,8 +42,9 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → 97 passed на реальном Postgres (testcontainers); Playwright e2e → 97 passed (chromium suite + m15 firefox/webkit + M16–M18).
-- **M19 (частично):** тряска колокольчика 3 с (D-105); YouTube extract переживает уход с Video через `videoExtractSession` (D-106); радио EN/RU всегда в модалке, EN disabled при `source_lang=ru` (D-107); `source_lang` = `languageCode` скачанной дорожки (D-108), preference аудио из `audioTracks[defaultAudioTrackIndex]` + кэш `v3:` (D-109); live smoke Lyusik → `ru/asr`. Этап не закрыт — полный `make test`/`make e2e` отчёт M19 ещё не сведён.
+- Тесты: `make test` → **118 passed** (testcontainers); Playwright e2e → **105–107** (chromium suite + m15 ff/wk + M16–M21); `e2e_week_many_notes_in_slot` иногда flaky — на повторном прогоне ок.
+- **M21 extract timeouts:** `GET /api/extract/config` `{provider,configured,worker_ok}`; openrouter без ключа → 503 до job; pending без воркера >60 с → `worker_unavailable`; UI poll ≤100 с + предупреждение у кнопки; captions ConnectError → «Нет доступа к youtube.com»; pytest `test_m21_*` ×5; e2e missing key ≤2 с, worker down ≤20 с (D-115–117).
+- **M19 Annotate:** D-105–114 (bell, extract session, EN/RU, captions, side panel Apple Notes, share pills/stack).
 - **M18 адаптивность списка:** причина overlap — `justify-items:start` + `1fr` без `minmax(0,…)` (D-101); title ellipsis, preview line-clamp-2; sidebar/main без пересечений на 1440…390; те же truncate на Upcoming/Trash/notif; virtualizer mid-width: estimate 168/112 + `offsetHeight` + remeasure (D-103); month pills `end` clamp к локальным суткам — нет spill 23:29→завтра (D-104); e2e list overlap/trunc/sidebar/vertical + `e2e_month_late_series_no_midnight_spill`; скрины `list-{1200,768,390}.png`.
 - **M17 календарь:** месяц — одна главная пилюля + сегмент-«колбаска» (session switch + панель); неделя/день — TickTick-таймлайн вне FC (D-098); DnD trash только в месяце; скрины `calendar-{1440,390,month-1440,day-1440}.png`.
 - **M16 персональные теги / календарь:** `note_user_tags` (viewer-specific); чужой tag → 404; `show_in_calendar` скрывает из `/calendar`, не из list/upcoming/reminders; видео-модалка — чекбокс default off; звонки не меняли. WS coalesce 75 мс + `invalidateNoteCaches` (D-097).
@@ -244,6 +246,15 @@
 | M16 | Персональные теги + show_in_calendar + аудит кэша/WS (§15) | готов |
 | M17 | Вид календаря при многих заметках (месяц+таймлайн) | готов |
 | M18 | Адаптивность UI / overflow списка | готов |
+| M19 | Annotate-driven UI | готов |
+| M21 | Extract без бесконечного спиннера | готов |
+
+### Смоки M21 (2026-11-04 02:18 +06)
+**Диагностика (D-115):** (a) stub 2.8 с done; (b) openrouter без ключа — раньше job+ошибка 1.3 с, теперь 503 до job; (c) bad key → invalid_key; (d) stop worker → hang >70 с → **корневая причина**; (e) youtube blocked → network → теперь youtube_unreachable.
+**Автоматически:**
+- `make test` → **118 passed** (`test_m21_*` ×5).
+- e2e `e2e_m21_openrouter_missing_key_message_fast` (≤2 с), `e2e_m21_worker_down_error_within_20s` (≤20 с); полный `make e2e` 105 passed + 1 flake week (rerun ok).
+**Работает:** предупреждение у «Разобрать субтитры»; нет бесконечного poll.
 
 ### Смоки M18 (2026-11-03 02:05 +06)
 **Автоматически:**
@@ -330,7 +341,6 @@
 **Дополнение (2026-11-02 00:01 +06, D-094):** у `.side-tags-scroll` скрыт системный скроллбар на тёмном сайдбаре; `make e2e` → **84 passed**.
 
 ## Следующий заход
-- Дожать M19: сводный `make test` / `make e2e`, экспорт сессии в `docs/sessions/`, закрытие этапа в таблице.
 - Web Push / Service Worker.
 - Интервал повтора и сложные правила («каждый второй вторник»).
 - ICS-экспорт/импорт и подписка на календарь.
