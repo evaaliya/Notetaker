@@ -8,7 +8,7 @@
 
 **Вне объёма:** OAuth, мобильные push, интервал повтора ≠ 1, правила вроде «каждый второй вторник».
 
-Вложения (M9), общие заметки (M10) и заметки из звонков/видео (M11) — расширения сверх исходного брифа; см. §15.
+Вложения (M9), общие заметки (M10), заметки из звонков/видео (M11+) и последующие UI/устойчивость-этапы (M12–M25) — расширения сверх исходного брифа; см. §15.
 
 Сквозной принцип: **время — единственный источник правды в БД (UTC `timestamptz`), состояние напоминаний — в БД, а не в памяти процесса.** Из этого следует переживание рестартов, отсутствие дублей и корректность при нескольких экземплярах.
 
@@ -333,7 +333,21 @@ docker compose up --build     # postgres, mailhog, api, worker, web
 | M9 | Вложения в заметках (§15) | upload/413/415/404/purge + e2e миниатюра |
 | M10 | Общие заметки между пользователями (§15) | share/leave + ACL + realtime + e2e два контекста |
 | M11 | Заметки из звонков и обучающих видео (§15) | stub/openrouter extract, импорт транскрипта, Web Speech, видео+таймкоды |
+| M11.1 | Стабилизация e2e после M11 | календарные даты «сегодня»; stub в e2e compose |
+| M12 | Тесты и документация YouTube (§15) | `test_youtube_*`, `e2e_youtube_*`, без live Innertube/LLM |
+| M13 | UI Polish (§15) | токены/контроли, mid-width, mobile calendar |
+| M14 | Сеть и гонки extract (§15) | jobs/poll/cancel, wall-clock timeouts, cache |
+| M15 | Вёрстка и рендеринг (§15) | layout breakpoints, editor surface; e2e chromium/ff/wk |
 | M16 | Персональные теги + show_in_calendar (§15) | note_user_tags, calendar flag, cache/WS audit + тесты |
+| M17 | Плотность календаря (§15) | месяц: пилюля+сегменты; week/day таймлайн |
+| M18 | Адаптивность списка (§15) | truncate/line-clamp, virtualizer mid-width, month clamp |
+| M19 | Annotate-driven UI (§15) | bell, extract session, EN/RU, captions lang, share stack |
+| M20 | Экспорт сессии Annotate | только docs/sessions; код продукта не менялся |
+| M21 | Extract без бесконечного спиннера (§15) | `/extract/config`, preflight, pending TTL, UI poll budget |
+| M22 | Офлайн create/правка (§15) | client UUID, IndexedDB outbox, 404≠сеть |
+| M23 | Антидрожание UI (§15) | scrollbar-gutter, RO-guard, WS backoff |
+| M24 | Документация (§15) | README/STATUS/HISTORY, `make docs-check` |
+| M25 | (резерв сдачи) | не начат |
 
 ---
 
@@ -470,6 +484,9 @@ note_members(
 |---|---|---|
 | POST | `/api/extract` | `{text, timezone?}` → черновики (не пишет в БД) |
 | POST | `/api/extract/transcript` | multipart `file` (`.txt`/`.vtt`/`.srt`) или JSON `{text}` → парсинг → тот же extract |
+| GET | `/api/extract/config` | `{provider,configured,worker_ok}` (M21) |
+| POST | `/api/extract/youtube` | sync extract из captions (сохранён) |
+| POST | `/api/extract/youtube/jobs` | async job + poll/cancel (M14) |
 
 Создание заметок — обычный `POST /notes` с `source` / `source_url` / `source_ts` / `ai_generated` после подтверждения в UI.
 
@@ -482,9 +499,9 @@ note_members(
 **Видео (клиент)**
 
 - Вставка ссылки на видео (YouTube или иной URL с видео) → плеер в карточке «Разобрать субтитры» слева, кнопка разбора справа (D-072). Отдельной формы «к текущей секунде» в UI нет; `source`/`source_url`/`source_ts` пишутся у ИИ-заметок.
-- **Субтитры YouTube → ИИ (без скачивания медиа):** `POST /api/extract/youtube` тянет текстовую дорожку captions (ручные или ASR), затем extract → подтверждение. Если субтитров нет — 404.
-- Если субтитры/конспект на английском — в подтверждении выбор языка заметки: **English (оригинал)** или **Русский (перевод)**; для русского источника перевод не предлагаем.
-- Внешние плееры требуют сеть (фиксируется в STATUS).
+- **Субтитры YouTube → ИИ (без скачивания медиа):** captions через Innertube ANDROID + timedtext (без скачивания медиа); sync `/extract/youtube` и/или jobs (M14). Если субтитров нет — ошибка/404. Preference языка дорожки — по `audioTracks` (D-108/D-109), не letter-heuristic.
+- В подтверждении радио **English / Русский** показывается всегда (M19, D-107); для русского источника UI может скрывать лишний выбор в e2e-сценариях, продукт хранит `source_lang` с дорожки.
+- Внешние плееры требуют сеть (фиксируется в STATUS). Без ключа OpenRouter UI не крутит бесконечный poll (M21).
 
 **Тесты:** stub на 5 фразах; `test_extract_api`; `test_parse_vtt` / `test_parse_srt`; `test_youtube_captions_xml_to_text`; `test_extract_youtube_uses_captions`; e2e (`e2e_call_transcript_extract`, `e2e_video_player_in_extract_panel`, `e2e_video_captions_button_visible`).
 
@@ -516,3 +533,51 @@ note_user_tags(
 **Состояние под нагрузкой:** ключи TanStack Query и WS-инвалидация не должны расходиться или вызывать лавину (D-097).
 
 **Тесты:** `test_member_personal_tags_isolated`, `test_owner_tags_not_visible_to_member`, `test_show_in_calendar_false_hidden_from_calendar_but_in_list`; e2e `e2e_shared_note_personal_tags`, `e2e_video_draft_show_in_calendar_checkbox`; тест лавины WS.
+
+### M12 · Тесты и документация YouTube
+
+Поведение продукта M11 не расширяли. Добавлены фикстуры/fake fetch для captions и extract (`test_youtube_*`), e2e с route-mock (`e2e_youtube_*`: EN, RU-перевод, RU-источник без выбора языка). Live Innertube и live LLM не покрываются.
+
+### M13 · UI Polish
+
+Без новых API. Токены `--control-h` / `--accent-hover` / тени; единые контроли ≥44px; mid-width OverflowMenu; на 390 — меню «Ещё»; отдельный мобильный календарь (день по умолчанию, sheet, без DnD в корзину).
+
+### M14 · Сеть и гонки extract
+
+Асинхронные jobs: `POST /api/extract/youtube/jobs` + poll/cancel; кэш captions; wall-clock бюджеты (см. `config.py`: `youtube_captions_timeout_sec`, `openrouter_timeout_sec`, `extract_job_deadline_sec`); ошибки по-русски + «Повторить»; защита от double-click и stale-ответов. Sync `/youtube` сохранён.
+
+### M15 · Вёрстка и рендеринг
+
+Исправления CSS/layout (в т.ч. коллизии классов note-main, ResizeObserver календаря); редактор в стиле Apple Notes (writing surface, action bar). E2e layout/editor на chromium, firefox, webkit. Profiler: лишний memo не потребовался.
+
+### M17 · Плотность календаря
+
+Месяц: одна главная пилюля + сегменты-«колбаски» (переключение + панель). Неделя/день: вертикальный таймлайн вне FullCalendar slot-overlap. DnD в корзину — только в месяце на desktop.
+
+### M18 · Адаптивность списка
+
+Сжимаемые grid-строки (`minmax(0,1fr)`), ellipsis заголовка, `line-clamp-2` превью; virtualizer mid-width с measure; month pills clamp к локальным суткам (без spill через полночь).
+
+### M19 · Annotate-driven UI
+
+Тряска колокольчика; extract session store (переживает sidebar); радио EN/RU в модалке; язык конспекта = дорожка + `audioTracks`; NoteSidePanel в chrome как `/notes`; share — пилюли и стек участников. M20 — только экспорт сессии в `docs/sessions/`.
+
+### M21 · Extract без бесконечного спиннера
+
+`GET /api/extract/config`; openrouter без ключа → 503 до job; pending без воркера > `extract_pending_ttl_sec` → `worker_unavailable`; UI poll с бюджетом; ConnectError captions → понятное сообщение.
+
+### M22 · Офлайн create/правка
+
+Клиентский UUID на create (идемпотентный POST); очередь в IndexedDB `notetaker-outbox`; баннер сети; не navigate до ack; страница заметки различает сеть и 404.
+
+### M23 · Антидрожание UI
+
+`scrollbar-gutter: stable`; общий `observeElementSize` (порог ≥1px) для календаря и списка; WS reconnect backoff 1→30 с, инвалидация только после успешного reconnect.
+
+### M24 · Документация
+
+Без изменения кода продукта. Профессиональный README; `docs/TESTING.md`; сжатый STATUS + `docs/HISTORY.md`; `scripts/check_docs.py` / `make docs-check` в `make verify`; сверка CREDITS, `.env.example`, §15.
+
+### M25 · Резерв
+
+Этап в таблице сдачи зарезервирован; на момент M24 не начат.
