@@ -31,8 +31,11 @@ async def test_tags_crud_and_multi(client: AsyncClient):
     names = {t["name"] for t in listed.json()}
     assert names == {"Work", "Home"}
 
+    # M22: duplicate name is idempotent — same tag, not 409.
     dup = await client.post("/api/tags", json={"name": "work", "color": "#000000"})
-    assert dup.status_code == 409
+    assert dup.status_code == 201
+    assert dup.json()["id"] == t1["id"]
+    assert len((await client.get("/api/tags")).json()) == 2
 
     patched = await client.patch(
         f"/api/tags/{t1['id']}",

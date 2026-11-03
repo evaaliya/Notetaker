@@ -34,6 +34,16 @@ async def create_tag(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> Tag:
+    # Idempotent by name_lower (M22): retry after lost response → same tag.
+    name_key = body.name.strip().casefold()
+    existing = (
+        await db.execute(
+            select(Tag).where(Tag.user_id == user.id, Tag.name_lower == name_key)
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return existing
+
     tag = Tag(id=uuid.uuid4(), user_id=user.id, color=body.color)
     try:
         set_tag_name(tag, body.name)
@@ -45,6 +55,13 @@ async def create_tag(
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
+        raced = (
+            await db.execute(
+                select(Tag).where(Tag.user_id == user.id, Tag.name_lower == name_key)
+            )
+        ).scalar_one_or_none()
+        if raced is not None:
+            return raced
         raise AppError("conflict", "tag name already exists", status_code=409) from exc
     await db.refresh(tag)
     return tag

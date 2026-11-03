@@ -5,9 +5,10 @@ from __future__ import annotations
 import uuid
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user
@@ -69,9 +70,27 @@ async def upload_attachment(
     db: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings),
     file: UploadFile = File(...),
+    client_id: str | None = Form(None),
 ) -> AttachmentOut:
     access = await get_note_access(db, user.id, note_id, allow_deleted=False)
     note = access.note
+
+    parsed_client_id: uuid.UUID | None = None
+    if client_id:
+        try:
+            parsed_client_id = uuid.UUID(client_id)
+        except ValueError as exc:
+            raise AppError("validation_error", "client_id must be a UUID") from exc
+        existing = (
+            await db.execute(
+                select(Attachment).where(
+                    Attachment.note_id == note_id,
+                    Attachment.client_id == parsed_client_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            return _attachment_out(existing)
 
     n = await count_attachments(db, note_id)
     if n >= settings.upload_max_per_note:
@@ -115,16 +134,33 @@ async def upload_attachment(
         size=len(data),
         storage_key=storage_key,
         created_at=now,
+        client_id=parsed_client_id,
     )
     db.add(row)
-    await notify_note_audience(
-        db,
-        note,
-        "attachment.added",
-        ids=[att_id],
-        extra={"note_id": str(note_id)},
-    )
-    await db.commit()
+    try:
+        await notify_note_audience(
+            db,
+            note,
+            "attachment.added",
+            ids=[att_id],
+            extra={"note_id": str(note_id)},
+        )
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        if parsed_client_id is not None:
+            raced = (
+                await db.execute(
+                    select(Attachment).where(
+                        Attachment.note_id == note_id,
+                        Attachment.client_id == parsed_client_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if raced is not None:
+                unlink_storage(settings, storage_key)
+                return _attachment_out(raced)
+        raise AppError("conflict", "attachment conflict", status_code=409) from exc
     await db.refresh(row)
     return _attachment_out(row)
 

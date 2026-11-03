@@ -26,6 +26,9 @@ class RecurrenceIn(BaseModel):
 
 
 class NoteCreate(BaseModel):
+    """Client may send `id` (UUID) for idempotent create (M22 / lost-response retries)."""
+
+    id: UUID | None = None
     title: str = ""
     body: str = ""
     starts_at: datetime

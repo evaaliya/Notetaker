@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_clock, get_current_user
@@ -84,9 +85,32 @@ async def create_note(
     db: Annotated[AsyncSession, Depends(get_session)],
     clock: Annotated[Clock, Depends(get_clock)],
 ) -> NoteOut:
+    # Idempotent create (M22 / D-119): client may supply id.
+    if body.id is not None:
+        existing = (
+            await db.execute(select(Note).where(Note.id == body.id))
+        ).scalar_one_or_none()
+        if existing is not None:
+            if existing.user_id != user.id:
+                # Do not reveal foreign note contents.
+                raise AppError(
+                    "id_conflict",
+                    "Нельзя создать заметку с этим идентификатором",
+                    status_code=409,
+                )
+            if existing.deleted_at is not None:
+                raise AppError(
+                    "id_conflict",
+                    "Идентификатор занят удалённой заметкой",
+                    status_code=409,
+                )
+            # Same owner, live note: return existing even if body differs
+            # (retry after lost response + continued typing → then PATCH).
+            return await note_to_out(db, existing, viewer_id=user.id)
+
     now = clock.now()
     note = Note(
-        id=uuid.uuid4(),
+        id=body.id if body.id is not None else uuid.uuid4(),
         user_id=user.id,
         title=body.title,
         body=body.body,
@@ -108,7 +132,21 @@ async def create_note(
         note.rec_until = body.recurrence.until
         note.rec_tz = body.recurrence.tz
     db.add(note)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        await db.rollback()
+        # Race: another request inserted the same client id.
+        raced = (
+            await db.execute(select(Note).where(Note.id == note.id))
+        ).scalar_one_or_none()
+        if raced is not None and raced.user_id == user.id and raced.deleted_at is None:
+            return await note_to_out(db, raced, viewer_id=user.id)
+        raise AppError(
+            "id_conflict",
+            "Нельзя создать заметку с этим идентификатором",
+            status_code=409,
+        ) from exc
     await replace_note_tags(db, user_id=user.id, note_id=note.id, tag_ids=body.tag_ids)
     if note.rec_freq is None:
         await materialize_single_note(
@@ -462,12 +500,15 @@ async def delete_note(
     scope: Scope = Query("all"),
     occurrence_start: datetime | None = None,
 ) -> NoteOut:
+    # Idempotent soft-delete (M22): already in trash → success with current row.
     access = await get_note_access(
-        db, user.id, note_id, allow_deleted=False, require_owner=True
+        db, user.id, note_id, allow_deleted=True, require_owner=True
     )
     note = access.note
     now = clock.now()
     if scope == "this":
+        if note.deleted_at is not None:
+            raise AppError("not_found", "note not found", status_code=404)
         occ = _parse_occurrence_start(occurrence_start)
         if occ is None:
             raise AppError("validation_error", "occurrence_start required for scope=this")
@@ -478,6 +519,11 @@ async def delete_note(
         access = await get_note_access(db, user.id, note_id, allow_deleted=False)
         return await note_to_out(
             db, access.note, viewer_id=user.id, owner_login=access.owner.login, role=access.role
+        )
+
+    if note.deleted_at is not None:
+        return await note_to_out(
+            db, note, viewer_id=user.id, owner_login=access.owner.login, role="owner"
         )
 
     note.deleted_at = now
@@ -523,8 +569,11 @@ async def restore_note(
         db, user.id, note_id, allow_deleted=True, require_owner=True
     )
     note = access.note
+    # Idempotent restore (M22): already live → success.
     if note.deleted_at is None:
-        raise AppError("validation_error", "note is not in trash")
+        return await note_to_out(
+            db, note, viewer_id=user.id, owner_login=access.owner.login, role="owner"
+        )
     now = clock.now()
     note.deleted_at = None
     note.updated_at = now

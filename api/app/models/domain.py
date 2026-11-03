@@ -166,7 +166,16 @@ class Attachment(Base):
     """Note file metadata; bytes live on disk under uploads/{storage_key}."""
 
     __tablename__ = "attachments"
-    __table_args__ = (UniqueConstraint("storage_key", name="uq_attachments_storage_key"),)
+    __table_args__ = (
+        UniqueConstraint("storage_key", name="uq_attachments_storage_key"),
+        Index(
+            "ix_attachments_note_client_id",
+            "note_id",
+            "client_id",
+            unique=True,
+            postgresql_where=text("client_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     note_id: Mapped[uuid.UUID] = mapped_column(
@@ -177,6 +186,7 @@ class Attachment(Base):
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     storage_key: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
 
 class OccurrenceOverride(Base):
