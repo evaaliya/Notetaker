@@ -6,12 +6,14 @@ import { api, RealtimeEvent, User } from "./api";
 import { AppSidebar } from "./components/AppSidebar";
 import { MobileNav } from "./components/MobileNav";
 import { NotificationsPopover } from "./components/NotificationsPopover";
+import { OfflineBanner } from "./components/OfflineBanner";
 import { QuickAddSheet } from "./components/QuickAddSheet";
 import { ToastItem, ToastStack } from "./components/ToastStack";
 import { browserTimeZone } from "./components/TimezonePicker";
 import { QuickAddProvider, useQuickAdd } from "./hooks/useQuickAdd";
 import { useRealtime } from "./hooks/useRealtime";
 import { getAlarmLoop } from "./lib/alarmLoop";
+import { startOutboxPump } from "./lib/mutationOutbox";
 import {
   loadSidebarCollapsed,
   saveSidebarCollapsed,
@@ -158,6 +160,8 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
     return getAlarmLoop().subscribe(setSoundPlaying);
   }, []);
 
+  useEffect(() => startOutboxPump(), []);
+
   useEffect(() => {
     const unlock = (e: Event) => {
       // Don't treat Escape as an unlock gesture — popover relies on it to close.
@@ -264,6 +268,7 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
 
   return (
     <div className={frameClass}>
+      <OfflineBanner />
       <AppSidebar
         collapsed={effectiveCollapsed}
         onToggleCollapsed={toggleSidebar}

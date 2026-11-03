@@ -333,21 +333,28 @@ export const api = {
 
   listNotes: (params: NoteListParams = {}) =>
     request<NoteList>(`/api/notes${notesQuery(params)}`),
-  getNote: (id: string) => request<Note>(`/api/notes/${id}`),
-  createNote: (body: Record<string, unknown>) =>
-    request<Note>("/api/notes", { method: "POST", body: JSON.stringify(body) }),
+  getNote: (id: string, opts?: RequestOpts) =>
+    request<Note>(`/api/notes/${id}`, opts),
+  createNote: (body: Record<string, unknown>, opts?: RequestOpts) =>
+    request<Note>("/api/notes", {
+      method: "POST",
+      body: JSON.stringify(body),
+      ...opts,
+    }),
   patchNote: (
     id: string,
     body: Record<string, unknown>,
-    opts?: { scope?: EditScope; occurrence_start?: string },
+    opts?: { scope?: EditScope; occurrence_start?: string } & RequestOpts,
   ) => {
     const sp = new URLSearchParams();
     if (opts?.scope) sp.set("scope", opts.scope);
     if (opts?.occurrence_start) sp.set("occurrence_start", opts.occurrence_start);
+    const { scope: _s, occurrence_start: _o, ...reqOpts } = opts ?? {};
     const q = sp.toString();
     return request<Note>(`/api/notes/${id}${q ? `?${q}` : ""}`, {
       method: "PATCH",
       body: JSON.stringify(body),
+      ...reqOpts,
     });
   },
   deleteNote: (
@@ -386,6 +393,7 @@ export const api = {
     noteId: string,
     file: File,
     onProgress?: (pct: number) => void,
+    clientId?: string,
   ): Promise<Attachment> => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -423,6 +431,7 @@ export const api = {
         );
       const fd = new FormData();
       fd.append("file", file);
+      if (clientId) fd.append("client_id", clientId);
       xhr.send(fd);
     });
   },

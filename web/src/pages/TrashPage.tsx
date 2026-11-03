@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, Note, Tag, User } from "../api";
+import { ApiError, api, Note, Tag, User } from "../api";
 import { NoteIllustration } from "../components/NoteIllustration";
 import { TagPill } from "../components/TagPill";
 import { formatInZone } from "../format";
 import { useNow } from "../hooks/useNow";
+import { enqueueRestore } from "../lib/mutationOutbox";
 
 const PURGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -25,7 +26,20 @@ export function TrashPage({ user }: { user: User }) {
   const trash = useQuery({ queryKey: ["trash"], queryFn: api.trash });
   const now = useNow(null);
   const restore = useMutation({
-    mutationFn: (id: string) => api.restoreNote(id),
+    mutationFn: async (id: string) => {
+      try {
+        return await api.restoreNote(id);
+      } catch (err) {
+        if (
+          err instanceof ApiError &&
+          (err.status === 0 || err.code === "network" || err.code === "timeout")
+        ) {
+          await enqueueRestore(id);
+          return null;
+        }
+        throw err;
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["trash"] });
       qc.invalidateQueries({ queryKey: ["notes"] });

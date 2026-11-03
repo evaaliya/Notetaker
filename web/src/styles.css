@@ -2,6 +2,24 @@
   box-sizing: border-box;
 }
 
+/* M22: fixed overlay — does not shift layout */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  margin: 0;
+  padding: 0.55rem 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--warn, #c47a00) 22%, var(--paper));
+  border-bottom: 1px solid color-mix(in srgb, var(--warn, #c47a00) 45%, transparent);
+  pointer-events: none;
+}
+
 html,
 body,
 #root {

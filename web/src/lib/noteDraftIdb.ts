@@ -16,6 +16,8 @@ export type DraftFileRecord = {
 
 export type NoteDraftRecord = {
   key: string;
+  /** Client-generated UUID for idempotent create (M22). */
+  clientNoteId?: string;
   title: string;
   body: string;
   startsLocal: string;

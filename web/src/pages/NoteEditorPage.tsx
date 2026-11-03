@@ -30,6 +30,13 @@ import {
   revokePendingPreviews,
   saveDraft,
 } from "../lib/noteDraftIdb";
+import {
+  enqueueCreate,
+  enqueuePatch,
+  enqueueUpload,
+  listOutbox,
+  subscribeOutbox,
+} from "../lib/mutationOutbox";
 import { invalidateNoteCaches } from "../lib/queryInvalidation";
 
 const AUTOSAVE_MS = 600;
@@ -48,6 +55,15 @@ export function NoteEditorPage({ user }: Props) {
     queryKey: ["note", id],
     queryFn: () => api.getNote(id!),
     enabled: !isNew,
+    retry: (count, err) => {
+      if (
+        err instanceof ApiError &&
+        (err.status === 0 || err.code === "network" || err.code === "timeout")
+      ) {
+        return count < 1;
+      }
+      return count < 2;
+    },
   });
 
   if (!isNew && noteQuery.isLoading) {
@@ -61,12 +77,52 @@ export function NoteEditorPage({ user }: Props) {
     );
   }
 
-  if (!isNew && (noteQuery.isError || !noteQuery.data)) {
+  if (!isNew && noteQuery.isError) {
+    const err = noteQuery.error;
+    const network =
+      err instanceof ApiError &&
+      (err.status === 0 || err.code === "network" || err.code === "timeout");
     return (
       <div className="notes-workspace" data-testid="note-editor-page">
         <NotesRail timeZone={user.timezone} />
         <div className="note-editor-pane">
-          <p className="error">Заметка не найдена</p>
+          {network ? (
+            <>
+              <p className="error" data-testid="note-network-error">
+                Нет соединения
+              </p>
+              <button
+                type="button"
+                className="secondary"
+                data-testid="note-network-retry"
+                onClick={() => void noteQuery.refetch()}
+              >
+                Повторить
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="error" data-testid="note-not-found">
+                Заметка не найдена
+              </p>
+              <button type="button" className="secondary" onClick={() => navigate("/list")}>
+                К списку
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (!isNew && !noteQuery.data) {
+    return (
+      <div className="notes-workspace" data-testid="note-editor-page">
+        <NotesRail timeZone={user.timezone} />
+        <div className="note-editor-pane">
+          <p className="error" data-testid="note-not-found">
+            Заметка не найдена
+          </p>
           <button type="button" className="secondary" onClick={() => navigate("/list")}>
             К списку
           </button>
@@ -179,6 +235,9 @@ function NoteEditorForm({
   });
   const uploadingRef = useRef(false);
   const skipNextDirtyRef = useRef(false);
+  const clientNoteIdRef = useRef<string>(crypto.randomUUID());
+  const onCreatedRef = useRef(onCreated);
+  onCreatedRef.current = onCreated;
 
   noteRef.current = note;
   versionRef.current = version;
@@ -202,9 +261,13 @@ function NoteEditorForm({
     void (async () => {
       try {
         const draft = await loadDraft(NEW_DRAFT_KEY);
-        if (cancelled || !draft) {
-          if (!cancelled) setDraftReady(true);
+        if (cancelled) return;
+        if (!draft) {
+          setDraftReady(true);
           return;
+        }
+        if (draft.clientNoteId) {
+          clientNoteIdRef.current = draft.clientNoteId;
         }
         skipNextDirtyRef.current = true;
         const pending = pendingFromDraftFiles(draft.files);
@@ -236,6 +299,35 @@ function NoteEditorForm({
     return () => {
       cancelled = true;
     };
+  }, [note]);
+
+  // After outbox flushes create for this draft — navigate once (M22).
+  useEffect(() => {
+    if (note) return;
+    const clientId = clientNoteIdRef.current;
+    return subscribeOutbox(() => {
+      void (async () => {
+        if (noteRef.current) return;
+        const ops = await listOutbox();
+        const pendingCreate = ops.some(
+          (o) => o.kind === "create" && o.clientNoteId === clientId,
+        );
+        if (pendingCreate) return;
+        try {
+          const saved = await api.getNote(clientId, { timeoutMs: 10_000 });
+          noteRef.current = saved;
+          versionRef.current = saved.version;
+          setVersion(saved.version);
+          setBaseline(saved);
+          await clearDraft(NEW_DRAFT_KEY).catch(() => undefined);
+          setSaveStatus("saved");
+          setDirty(false);
+          onCreatedRef.current(saved);
+        } catch {
+          /* create not on server yet */
+        }
+      })();
+    });
   }, [note]);
 
   const flushSaveRef = useRef<() => Promise<Note | null>>(async () => null);
@@ -276,6 +368,7 @@ function NoteEditorForm({
     }
     await saveDraft({
       key: NEW_DRAFT_KEY,
+      clientNoteId: clientNoteIdRef.current,
       title: f.title,
       body: f.body,
       startsLocal: f.startsLocal,
@@ -313,17 +406,36 @@ function NoteEditorForm({
     }, 200);
   }, [persistIdb]);
 
+  function isNetworkish(err: unknown): boolean {
+    return (
+      err instanceof ApiError &&
+      (err.status === 0 || err.code === "network" || err.code === "timeout")
+    );
+  }
+
   const uploadPending = useCallback(
     async (noteId: string, files: PendingFile[]) => {
       if (!files.length || uploadingRef.current) return;
       uploadingRef.current = true;
       try {
+        const done: PendingFile[] = [];
         for (const p of files) {
-          await api.uploadAttachment(noteId, p.file);
+          try {
+            await api.uploadAttachment(noteId, p.file, undefined, p.localId);
+            done.push(p);
+          } catch (err) {
+            if (isNetworkish(err)) {
+              await enqueueUpload(noteId, p.localId, p.file);
+              done.push(p);
+            } else {
+              throw err;
+            }
+          }
         }
-        revokePendingPreviews(files);
-        setPendingFiles([]);
-        pendingRef.current = [];
+        revokePendingPreviews(done);
+        const left = pendingRef.current.filter((p) => !done.some((d) => d.localId === p.localId));
+        setPendingFiles(left);
+        pendingRef.current = left;
         await qc.invalidateQueries({ queryKey: ["attachments", noteId] });
         invalidateNoteCaches(qc, { noteId });
       } finally {
@@ -332,6 +444,20 @@ function NoteEditorForm({
     },
     [qc],
   );
+
+  const buildCreateBody = useCallback(() => {
+    const f = fieldsRef.current;
+    const starts_at = localInputToUtcIso(f.startsLocal, user.timezone);
+    return {
+      id: clientNoteIdRef.current,
+      title: f.title,
+      body: f.body,
+      starts_at,
+      tag_ids: f.tagIds,
+      reminder_offsets: f.reminderOffsets,
+      ...(f.recurrence ? { recurrence: f.recurrence } : {}),
+    };
+  }, [user.timezone]);
 
   const flushSave = useCallback(
     async (opts?: { immediateCreate?: boolean }): Promise<Note | null> => {
@@ -351,15 +477,9 @@ function NoteEditorForm({
 
         if (!current) {
           if (!createPromiseRef.current) {
+            const body = buildCreateBody();
             createPromiseRef.current = api
-              .createNote({
-                title: f.title,
-                body: f.body,
-                starts_at,
-                tag_ids: f.tagIds,
-                reminder_offsets: f.reminderOffsets,
-                ...(f.recurrence ? { recurrence: f.recurrence } : {}),
-              })
+              .createNote(body, { timeoutMs: 15_000 })
               .then(async (saved) => {
                 noteRef.current = saved;
                 versionRef.current = saved.version;
@@ -375,27 +495,67 @@ function NoteEditorForm({
                 await clearDraft(NEW_DRAFT_KEY).catch(() => undefined);
                 return saved;
               })
+              .catch(async (err) => {
+                if (isNetworkish(err)) {
+                  await persistIdb();
+                  await enqueueCreate(clientNoteIdRef.current, body);
+                  setSaveStatus("saved");
+                  setError(null);
+                  // Stay on /notes/new — do not navigate without server ack (M22).
+                  throw err;
+                }
+                throw err;
+              })
               .finally(() => {
                 createPromiseRef.current = null;
               });
           }
-          current = await createPromiseRef.current;
+          try {
+            current = await createPromiseRef.current;
+          } catch (err) {
+            if (isNetworkish(err)) {
+              return null;
+            }
+            throw err;
+          }
         } else {
-          const saved = await api.patchNote(current.id, {
-            version: versionRef.current,
-            title: f.title,
-            body: f.body,
-            starts_at,
-            tag_ids: f.tagIds,
-            reminder_offsets: f.reminderOffsets,
-            recurrence: f.recurrence,
-          });
-          versionRef.current = saved.version;
-          setVersion(saved.version);
-          setBaseline(saved);
-          noteRef.current = saved;
-          onPatched(saved);
-          current = saved;
+          try {
+            const saved = await api.patchNote(
+              current.id,
+              {
+                version: versionRef.current,
+                title: f.title,
+                body: f.body,
+                starts_at,
+                tag_ids: f.tagIds,
+                reminder_offsets: f.reminderOffsets,
+                recurrence: f.recurrence,
+              },
+              { timeoutMs: 15_000 },
+            );
+            versionRef.current = saved.version;
+            setVersion(saved.version);
+            setBaseline(saved);
+            noteRef.current = saved;
+            onPatched(saved);
+            current = saved;
+          } catch (err) {
+            if (isNetworkish(err)) {
+              await enqueuePatch(current.id, {
+                version: versionRef.current,
+                title: f.title,
+                body: f.body,
+                starts_at,
+                tag_ids: f.tagIds,
+                reminder_offsets: f.reminderOffsets,
+                recurrence: f.recurrence,
+              });
+              setSaveStatus("saved");
+              setDirty(false);
+              return current;
+            }
+            throw err;
+          }
         }
 
         // Race: files added while create was in flight
@@ -411,6 +571,8 @@ function NoteEditorForm({
         if (err instanceof ApiError && err.status === 409 && err.note) {
           setConflictNote(err.note);
           setSaveStatus("error");
+        } else if (isNetworkish(err)) {
+          setSaveStatus("saved");
         } else {
           setError(err instanceof Error ? err.message : "Ошибка сохранения");
           setSaveStatus("error");
@@ -418,7 +580,7 @@ function NoteEditorForm({
         return null;
       }
     },
-    [onCreated, onPatched, uploadPending, user.timezone],
+    [buildCreateBody, onCreated, onPatched, persistIdb, uploadPending, user.timezone],
   );
 
   flushSaveRef.current = () => flushSave({ immediateCreate: true });

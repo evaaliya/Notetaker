@@ -7,7 +7,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { api, Tag, User } from "../api";
+import { ApiError, api, Tag, User } from "../api";
 import { AttachmentClipIcon } from "../components/AttachmentsPanel";
 import { NoteIllustration } from "../components/NoteIllustration";
 import { OverflowMenu } from "../components/OverflowMenu";
@@ -15,6 +15,7 @@ import { Switch } from "../components/Switch";
 import { TagPill } from "../components/TagPill";
 import { formatInZone } from "../format";
 import { useQuickAdd } from "../hooks/useQuickAdd";
+import { enqueueDelete } from "../lib/mutationOutbox";
 import { recordRender } from "../lib/renderProbe";
 
 type Filters = {
@@ -120,7 +121,20 @@ export function ListPage({ user }: { user: User }) {
   }
 
   const remove = useMutation({
-    mutationFn: (id: string) => api.deleteNote(id),
+    mutationFn: async (id: string) => {
+      try {
+        return await api.deleteNote(id);
+      } catch (err) {
+        if (
+          err instanceof ApiError &&
+          (err.status === 0 || err.code === "network" || err.code === "timeout")
+        ) {
+          await enqueueDelete(id);
+          return null;
+        }
+        throw err;
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notes"] });
       qc.invalidateQueries({ queryKey: ["trash"] });
