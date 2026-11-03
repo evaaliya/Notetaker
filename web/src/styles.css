@@ -26,6 +26,11 @@ body,
   min-height: 100%;
 }
 
+/* M23: avoid width flip when vertical scrollbar appears/disappears at breakpoints */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   color: var(--ink);
@@ -236,6 +241,7 @@ button:focus-visible {
   min-height: 100vh;
   background: var(--paper);
   transition: grid-template-columns 150ms ease;
+  scrollbar-gutter: stable;
 }
 
 .app-frame.sidebar-collapsed {

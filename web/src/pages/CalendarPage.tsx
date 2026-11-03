@@ -24,6 +24,7 @@ import {
   shiftAnchor,
   todayAnchor,
 } from "../lib/calendar/groupByLocalDay";
+import { observeElementSize } from "../lib/observeElementSize";
 import { recordRender } from "../lib/renderProbe";
 
 type Selected = {
@@ -104,8 +105,8 @@ export function CalendarPage({ user }: { user: User }) {
     const wrap = calendarWrapRef.current;
     if (!wrap || view !== "month") return;
     const update = () => monthCalRef.current?.getApi().updateSize();
-    const ro = new ResizeObserver(() => update());
-    ro.observe(wrap);
+    // rAF + ≥1px + ignore self (updateSize) — D-089/M23.
+    const stopRo = observeElementSize(wrap, () => update());
     const frame = wrap.closest(".app-frame");
     const onTransitionEnd = (e: Event) => {
       const te = e as TransitionEvent;
@@ -120,7 +121,7 @@ export function CalendarPage({ user }: { user: User }) {
     frame?.addEventListener("transitionend", onTransitionEnd);
     window.addEventListener("resize", update);
     return () => {
-      ro.disconnect();
+      stopRo();
       frame?.removeEventListener("transitionend", onTransitionEnd);
       window.removeEventListener("resize", update);
     };

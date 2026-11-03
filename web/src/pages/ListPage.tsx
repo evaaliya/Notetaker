@@ -16,6 +16,7 @@ import { TagPill } from "../components/TagPill";
 import { formatInZone } from "../format";
 import { useQuickAdd } from "../hooks/useQuickAdd";
 import { enqueueDelete } from "../lib/mutationOutbox";
+import { observeElementSize } from "../lib/observeElementSize";
 import { recordRender } from "../lib/renderProbe";
 
 type Filters = {
@@ -107,11 +108,10 @@ export function ListPage({ user }: { user: User }) {
   useEffect(() => {
     const el = parentRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
+    // rAF + ≥1px + ignore self (virtualizer.measure) — D-089/D-103/M23.
+    return observeElementSize(el, () => {
       virtualizer.measure();
     });
-    ro.observe(el);
-    return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

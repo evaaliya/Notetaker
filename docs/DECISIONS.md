@@ -901,3 +901,53 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 | activate/deactivate | network | явная ошибка списка | ок (редко; не очередь в v1) |
 | leave/remove member | network | ошибка SharePanel | ок |
 | QuickAdd / calendar create | network | ошибка UI (без client id в v1) | TODO(spec-gap) — основной путь `/notes/new` |
+
+### D-121 · 2026-11-04 03:11 +06 · M23 · Диагностика дрожания (цифры)
+**Решение:** замерить CLS / ResizeObserver / WS / renders на ширинах 1210/1190/910/890/650/630 online+offline (10 с), скрипт `web/scripts/m23_jitter_diag.mjs` (осцилляция viewport ±1px / 200 мс). Playwright `setOffline` **не** рвёт уже открытый WS — для WS-шторма: `ws.close()` + offline.
+
+**Простой idle (без осцилляции):** CLS≈0, RO≈0, WS≈0 — дрожание не «само по себе» на статичной ширине.
+
+**Осцилляция ±1px (до фикса), list, gutter=`auto`:**
+
+| width | mode | CLS | RO (n /s) | renders | notes |
+|---|---|---|---|---|---|
+| 1210 | online | 0 | 144 / 14.4 | 48 | |
+| 1210 | offline | 0 | 144 / 14.4 | 48 | setOffline без close WS |
+| 1190 | online/offline | 0 | 144 / 14.4 | 48 | |
+| 910 | online/offline | 0 | 144 / 14.4 | 48 | mq900 ещё false при 910 |
+| 890 | online | 0 | 193 / 19.3 | 72 | mq900=true; +measure/narrowRows |
+| 890 | offline | 0 | 192 / 19.2 | 72 | |
+| 650 | online/offline | 0 | 192 / 19.2 | 72 | |
+| 630 | online | 0 | 194 / 19.4 | 74 | mq640=true |
+
+**WS close+offline 12 с (до фикса):** `wsOpen=4`, `wsClose=6`; каждый `onclose` → `invalidateQueries()` (код `useRealtime`).
+
+**Гипотезы:** (1) RO↔measure/updateSize без порога — **подтверждена** (14–19 RO/с на ±1px; выше у mq 900/640); (2) scrollbar gutter — **частично** (gutter=auto, CLS в headless=0, риск на границе overflow остаётся); (3) WS+invalidate — **подтверждена** кодом + close+offline; (4) баннер/тост сдвигают поток — **опровергнута** (уже `position:fixed`, M22).
+
+**Причина записи:** правки только после цифр.
+**Последствия:** фиксы D-122; аудит класса D-123; e2e CLS/offline storm.
+
+### D-122 · 2026-11-04 03:11 +06 · M23 · Антидрожание: gutter, RO-guard, WS backoff
+**Решение:**
+1. `scrollbar-gutter: stable` на `html` и `.app-frame`.
+2. Общий `observeElementSize` (rAF + порог ≥1px + `ignoring` на время своего колбэка) для календаря `updateSize` и списка `virtualizer.measure`.
+3. WS: backoff `wsReconnectDelayMs` 1→30 с с джиттером; **не** `invalidateQueries` на `onclose`; одна инвалидация на `onopen` после уже бывшего успешного коннекта; ускорение по `online`.
+4. Баннер/тост сети уже `position:fixed` (M22) — без смены.
+
+**Альтернативы:** debounce без порога; remount FC; оставить invalidate на close (спека §5 «после реконнекта») — оставляем catch-up на успешном open.
+**Причина:** D-121 — RO-петля и invalidate-шторм; gutter на случай scrollbar flip.
+**Последствия:** e2e `e2e_no_layout_shift_at_breakpoints`, `e2e_offline_no_rerender_storm`, `ws_reconnect_backoff_unit`; счётчик `window.__m23Ws`.
+
+### D-123 · 2026-11-04 03:11 +06 · M23 · Аудит ResizeObserver / matchMedia / сеть
+| Место | Подписка | Риск петли / сдвига | Действие M23 |
+|---|---|---|---|
+| `ListPage` scrollport | `ResizeObserver` → `virtualizer.measure` | высокий (D-103, 14–19/с) | `observeElementSize` |
+| `CalendarPage` month wrap | RO + `resize` + `transitionend` → `updateSize` | высокий (D-089) | `observeElementSize` |
+| `MonthDaySegments` popover | `resize`/`scroll` → position | низкий (только open) | без изменений |
+| `ListPage` | `matchMedia(max-width:900)` → `narrowRows` | средний у границы 900 (estimate/measure) | порог RO снижает churn |
+| `useMediaQuery` / `CalendarPage` | `matchMedia(640)` mobile chrome | низкий (один setState) | без изменений |
+| `App` reduced-motion | `matchMedia` one-shot | нет | без изменений |
+| `useRealtime` | WS close→invalidate + retry | высокий offline | backoff + invalidate только после reconnect |
+| `OfflineBanner` | online/offline | сдвиг вёрстки | уже fixed (M22) |
+| `mutationOutbox` | online / interval 15s | очередь, не layout | без изменений |
+| `ToastStack` | — | сдвиг | уже fixed |
