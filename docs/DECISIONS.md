@@ -852,3 +852,52 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 | Speech recognition | `onerror`/`onend` | сообщение + stop | ок, текст через ExtractUiError |
 
 **Причина:** класс «крутилка без выхода» шире YouTube; закрываем места с busy/thinking без дедлайна.
+
+### D-118 · 2026-11-04 02:42 +06 · M22 · Диагностика офлайн-create (до правок)
+**Решение:** воспроизвести (a)/(b)/(c) до кода; причину зафиксировать здесь.
+
+| # | Сценарий | Заметок на сервере | URL / UI |
+|---|---|---|---|
+| (a) | `context.setOffline(true)` до первого символа | **0** | остаёмся на `/notes/new`; статус «Ошибка сохранения»; «Нет сети…»; **не** «Заметка не найдена» |
+| (b) | `page.route` POST `/api/notes` → `route.fetch()` → `route.abort()` (ответ потерян) | **1** после abort | UI на `/notes/new`, ошибка сети; сервер уже создал |
+| (c) | после (b) снять route + править title (повтор create) | **2** | navigate на id второй заметки; дубль («…» и «… retry») |
+| (b2) | create ок → soft-nav на `/notes/:id` → abort GET | 1 | после ретраев Query: **«Заметка не найдена»** при сетевой ошибке GET |
+
+**Корневая причина:**
+1. Create **не идемпотентен** (сервер всегда `uuid4`) → повтор после потерянного ответа = вторая строка.
+2. UI **не отличает** сеть/`timeout` от 404 на странице заметки (`noteQuery.isError` → один текст).
+3. Чистый offline до create **не** ведёт на `/notes/:id` (гипотеза «navigate без ответа» не подтверждена); симптом «не найдена» = успешный create + упавший GET, либо дубль после reconnect.
+
+**Гипотезы автора:** (потерянный ответ) — **подтверждена** сценарием (b)+(c); (UI 404≠сеть) — **подтверждена** (b2); (create не идемпотентен) — **подтверждена**; (зависший POST до возврата сети) — при `setOffline` fetch падает сразу (есть default timeout 30с в `api.ts`); таймаут всё равно нужен как правило flush/очереди.
+
+**Причина записи:** без (b)=fetch+abort нельзя ловить дубли; правки только после этой таблицы.
+
+### D-119 · 2026-11-04 02:46 +06 · M22 · Идемпотентный create + outbox + границы
+**Решение:**
+1. `NoteCreate.id` опционален; клиент всегда шлёт UUID с `/notes/new` (в черновике IDB).
+2. Повтор того же id у того же владельца (не в корзине) → вернуть существующую заметку (**даже если тело другое**); дальше клиент PATCH. Чужой id / soft-deleted → `409 id_conflict` без тела заметки (не воскрешаем).
+3. Очередь мутаций в IndexedDB `notetaker-outbox` (не память); coalesce create/PATCH; delete до create отменяет create; flush под Web Lock `notetaker-outbox-flush`; триггеры: `online`, `visibilitychange`, интервал 15 с, backoff до 30 с; запросы create/PATCH с `timeoutMs=15_000` (AbortController).
+4. Не `navigate(/notes/:id)` до успешного create; баннер `role="status"` fixed overlay.
+5. PATCH в очереди: **last-write-wins** (coalesce); при 409 после reconnect — один retry с `version` сервера и нашим телом.
+6. Вложения: опциональный `client_id` + partial unique `(note_id, client_id)`; повтор upload → та же строка.
+7. DELETE/restore на сервере идемпотентны; share уже был; create tag по `name_lower` возвращает существующий.
+
+**Альтернативы:** 409 при другом теле create (ломает retry после допечатывания); Service Worker; только `online` без backoff.
+**Причина:** D-118 — дубли от потерянного ответа; `online` ненадёжен.
+**Последствия:** pytest `test_create_note_idempotent` (+ foreign/deleted); e2e offline_m22; миграция `010_attachment_client_id`.
+
+### D-120 · 2026-11-04 02:47 +06 · M22 · Аудит мутаций при обрыве сети
+| Мутация | Обрыв посреди запроса | Повтор / очередь | Статус |
+|---|---|---|---|
+| POST create note | ответ потерян → клиент думал fail | клиентский id + return existing; outbox | **исправлено** |
+| PATCH note | timeout/network | outbox coalesce LWW; 409→retry once | **исправлено** |
+| DELETE note | 404 на уже удалённой | сервер: уже в trash → 200; outbox enqueue | **исправлено** |
+| restore | ошибка если уже live | сервер: уже live → 200; outbox | **исправлено** |
+| share addMember | дубль member | сервер уже возвращал existing | ок |
+| create tag | 409 имя | return existing by name_lower | **исправлено** |
+| upload attachment | дубль файла | `client_id` + unique; outbox upload | **исправлено** |
+| delete attachment | повтор → 404 | явная ошибка (не очередь) | ок / понятная ошибка |
+| PATCH /me settings | network | явная ошибка формы, без тихой потери | ок |
+| activate/deactivate | network | явная ошибка списка | ок (редко; не очередь в v1) |
+| leave/remove member | network | ошибка SharePanel | ок |
+| QuickAdd / calendar create | network | ошибка UI (без client id в v1) | TODO(spec-gap) — основной путь `/notes/new` |
