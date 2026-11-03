@@ -1,4 +1,4 @@
-.PHONY: up down seed test e2e verify
+.PHONY: up down seed test e2e verify docs-check
 
 COMPOSE=docker compose
 COMPOSE_E2E=docker compose -f docker-compose.yml -f docker-compose.e2e.yml
@@ -77,4 +77,8 @@ verify:
 		--junit $$JUNIT --playwright $$PWJSON --out $$OUT \
 		--pytest-rc $$PY_RC --e2e-rc $$E2E_RC; \
 	echo "report: $$OUT"; \
+	$(MAKE) docs-check; \
 	if [ $$PY_RC -ne 0 ] || [ $$E2E_RC -ne 0 ]; then exit 1; fi
+
+docs-check:
+	python3 scripts/check_docs.py
