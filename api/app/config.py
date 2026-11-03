@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     youtube_captions_timeout_sec: float = 15.0
     openrouter_timeout_sec: float = 60.0
     extract_job_deadline_sec: float = 90.0
+    # M21: pending job without a live worker → failed(worker_unavailable).
+    extract_pending_ttl_sec: float = 60.0
     extract_transient_retries: int = 1
     extract_retry_pause_sec: float = 1.0
     youtube_caption_cache_ttl_hours: int = 24

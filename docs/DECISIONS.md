@@ -811,3 +811,44 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** оставить members owner-only; стек только у участника; фото из Gravatar.
 **Причина:** Annotate — участники должны видеть друг друга; референс overlapping avatars.
 **Последствия:** `MemberOut.role` = `owner|editor`; e2e `e2e_share_participant_stack`; pytest member GET members.
+
+### D-115 · 2026-11-04 02:03 +06 · M21 · Диагностика: «Разобрать субтитры» крутится бесконечно
+**Решение:** зафиксировать замеры на чистом стеке (`cp .env.example` + вариации AI_PROVIDER/ключа/воркера/YouTube) до рефакторинга. Ролик `jNQXAC9IVRw`; poll API ≤100 с; UI = тот же job+poll путь, что `videoExtractSession`.
+
+| # | Сценарий | Время до терминала | Что видит пользователь (сейчас) |
+|---|---|---|---|
+| (a) | `AI_PROVIDER=stub`, ключа нет | **2.8 с** → `done` | Модалка черновиков (stub) — ок |
+| (b) | `openrouter`, ключа нет | **1.3 с** → `error` `config_error` | Job **создаётся**; ошибка после captions→extract: «OPENROUTER_API_KEY не задан…»; hint общий. Не мгновенно и не до POST job |
+| (c) | `openrouter`, неверный ключ | **1.6 с** → `invalid_key` | «Ключ OpenRouter отклонён…» (после claim) |
+| (d) | `docker compose stop worker` | **>70 с** timeout опроса, job остаётся `pending` | **Бесконечный спиннер** — poll без общего дедлайна; TTL pending нет (есть только `fail_stale_running` в тике воркера) |
+| (e) | youtube.com → 127.0.0.1 (кэш очищен) | **1.5 с** → `network` | «Нет сети до внешнего сервиса. (ConnectError)» — не «Нет доступа к youtube.com» |
+
+**Гипотезы автора:** (1) подтверждена как главный hang — (d); (2) частично — без ключа ошибка есть, но не мгновенная/не preflight; (3) частично — ошибка доходит, текст слабый. Доп. дыра: `pollUntilDone` = `for (;;)` без wall-clock 100 с.
+**Причина записи:** без таблицы нельзя чинить «вслепую»; дальше — config/preflight/TTL/UI.
+
+### D-116 · 2026-11-04 02:07 +06 · M21 · Config + preflight + TTL против бесконечного спиннера
+**Решение:**
+1. `GET /api/extract/config` → `{provider, configured, worker_ok}`; UI предупреждение у кнопки и preflight до POST job.
+2. `AI_PROVIDER=openrouter` без ключа → `503 missing_ai_key` **до** создания job (тот же текст, что в ТЗ).
+3. Серверный TTL на `GET /jobs/{id}`: `pending` + `!worker_ok` > `extract_pending_ttl_sec` (60) → `error/worker_unavailable`; `running` > `extract_job_deadline_sec` → `timeout` (как раньше воркером, теперь ещё и на poll).
+4. Клиент: `pollUntilDone` wall ≤100 с; pending ≥15 с + `!worker_ok` → сообщение про `docker compose ps`; стоп на любом терминале.
+5. Коды/тексты: `invalid_key` = «Ключ отклонён провайдером»; captions ConnectError → `youtube_unreachable` / «Нет доступа к youtube.com».
+
+**Альтернативы:** только клиентский таймаут без серверного TTL; отказывать в POST при `!worker_ok` (ложные отказы при кратком рестарте); heartbeat через отдельный WS.
+**Причина:** D-115 — hang только при мёртвом воркере; TTL в тике воркера бессилен, если воркера нет.
+**Последствия:** pytest `test_extract_m21`; e2e `e2e_m21_*`; compose worker по-прежнему обязателен для успеха.
+
+### D-117 · 2026-11-04 02:07 +06 · M21 · Аудит бесконечных спиннеров
+| Место | Было | Конечное время / сообщение | Статус |
+|---|---|---|---|
+| Video extract poll (`videoExtractSession`) | `for (;;)` без wall | ≤100 с → timeout; pending+!worker 15 с; терминал → стоп | **исправлено** |
+| Video start без ключа | job + поздний config_error | preflight + config warn | **исправлено** |
+| Call extract (`api.extract`) | HTTP timeout 90 с | тот же + preflight missing key + ExtractUiError | **исправлено** |
+| Call file extract | 90 с | как выше | **исправлено** |
+| Attachment upload XHR | `xhr.timeout=60_000` | 60 с + ApiError timeout | ок, без правок |
+| Note/side-panel save `busy` | до ответа PATCH | сетевой timeout `request` (15 с default) | ок |
+| WS reconnect (`useRealtime`) | бесконечный backoff | нет спиннера UI; invalidate на close | ок (не спиннер) |
+| AiThinkingPanel | крутится пока `active` | родитель обязан сбросить active (теперь всегда) | ок после фиксов extract |
+| Speech recognition | `onerror`/`onend` | сообщение + stop | ок, текст через ExtractUiError |
+
+**Причина:** класс «крутилка без выхода» шире YouTube; закрываем места с busy/thinking без дедлайна.

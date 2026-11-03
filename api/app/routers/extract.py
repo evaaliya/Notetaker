@@ -1,4 +1,4 @@
-"""M11/M14: extract drafts from text / transcript / YouTube captions."""
+"""M11/M14/M21: extract drafts from text / transcript / YouTube captions."""
 
 from __future__ import annotations
 
@@ -17,7 +17,9 @@ from app.db import get_session
 from app.errors import AppError
 from app.models import ExtractJob, User
 from app.schemas.extract import ExtractIn, ExtractOut, YoutubeExtractIn
+from app.services.extract_errors import MISSING_AI_KEY_HINT, MISSING_AI_KEY_MSG
 from app.services.extract_jobs import (
+    apply_job_ttl,
     create_youtube_job,
     get_cached_captions,
     put_cached_captions,
@@ -25,9 +27,28 @@ from app.services.extract_jobs import (
 )
 from app.services.extract_run import run_text_extract
 from app.services.transcripts import parse_transcript
+from app.services.worker_status import ai_provider_configured, worker_ok
 from app.services.youtube_captions import extract_youtube_id, fetch_youtube_captions
 
 router = APIRouter(prefix="/extract", tags=["extract"])
+
+
+class ExtractConfigOut(BaseModel):
+    provider: str
+    configured: bool
+    worker_ok: bool
+
+
+def _require_ai_configured() -> None:
+    settings = get_settings()
+    _provider, configured = ai_provider_configured(settings)
+    if not configured:
+        raise AppError(
+            "missing_ai_key",
+            MISSING_AI_KEY_MSG,
+            status_code=503,
+            extra={"hint": MISSING_AI_KEY_HINT},
+        )
 
 
 def _iso_z(value) -> str:
@@ -102,6 +123,20 @@ async def _captions_with_cache(
     return text, lang
 
 
+@router.get("/config", response_model=ExtractConfigOut)
+async def extract_config(
+    user: Annotated[User, Depends(get_current_user)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> ExtractConfigOut:
+    """Preflight for UI: provider, key presence, worker heartbeat (M21)."""
+    _ = user
+    settings = get_settings()
+    provider, configured = ai_provider_configured(settings)
+    ok, _last = await worker_ok(db, now=clock.now(), settings=settings)
+    return ExtractConfigOut(provider=provider, configured=configured, worker_ok=ok)
+
+
 @router.post("", response_model=ExtractOut)
 async def extract_text(
     body: ExtractIn,
@@ -109,6 +144,7 @@ async def extract_text(
     clock: Annotated[Clock, Depends(get_clock)],
     _db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ExtractOut:
+    _require_ai_configured()
     return run_text_extract(body.text, user=user, clock=clock, timezone_name=body.timezone)
 
 
@@ -131,6 +167,8 @@ async def extract_transcript(
     if not raw_text:
         raise AppError("validation_error", "Нужен файл или непустой text")
 
+    _require_ai_configured()
+
     if timezone_name:
         try:
             ExtractIn(text="x", timezone=timezone_name)
@@ -148,6 +186,7 @@ async def extract_youtube(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ExtractOut:
     """Sync path (compat). Prefers caption cache; same timeouts as jobs."""
+    _require_ai_configured()
     text, caption_lang = await _captions_with_cache(db, body.url, clock=clock)
     await db.commit()
     return run_text_extract(
@@ -168,6 +207,7 @@ async def start_youtube_job(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ExtractJobCreated:
     """Start (or reuse in-flight) background YouTube extract job."""
+    _require_ai_configured()
     before = None
     video_id = extract_youtube_id(body.url)
     from app.services.extract_jobs import find_inflight_job
@@ -191,11 +231,24 @@ async def start_youtube_job(
 async def get_extract_job(
     job_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
+    clock: Annotated[Clock, Depends(get_clock)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> ExtractJobOut:
     job = await db.get(ExtractJob, job_id)
     if job is None or job.user_id != user.id:
         raise AppError("not_found", "Задача не найдена", status_code=404)
+    settings = get_settings()
+    alive, _ = await worker_ok(db, now=clock.now(), settings=settings)
+    changed = apply_job_ttl(
+        job,
+        now=clock.now(),
+        worker_alive=alive,
+        pending_ttl_sec=settings.extract_pending_ttl_sec,
+        running_deadline_sec=settings.extract_job_deadline_sec,
+    )
+    if changed:
+        await db.commit()
+        await db.refresh(job)
     return _job_to_out(job)
 
 

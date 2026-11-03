@@ -125,11 +125,9 @@ class OpenRouterProvider:
         caption_lang: str | None = None,
     ) -> ExtractResult:
         if not self._api_key:
-            raise AppError(
-                "config_error",
-                "OPENROUTER_API_KEY не задан (AI_PROVIDER=openrouter)",
-                status_code=503,
-            )
+            from app.services.extract_errors import raise_extract
+
+            raise_extract("missing_ai_key")
         # Prefer YouTube caption track languageCode; letter heuristic only if unknown.
         detected = resolve_source_lang(caption_lang=caption_lang, transcript=text)
         sample = (text or "").replace("\n", " ")[:120]

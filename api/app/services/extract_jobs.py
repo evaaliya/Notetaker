@@ -223,10 +223,88 @@ async def fail_stale_running(
     return len(rows)
 
 
-def _mark_error(job: ExtractJob, exc: BaseException, *, now: datetime) -> None:
+async def fail_stale_pending(
+    session: AsyncSession,
+    *,
+    now: datetime,
+    pending_ttl_sec: float,
+    worker_alive: bool,
+) -> int:
+    """Fail pending jobs when the worker is down longer than TTL (M21)."""
+    if worker_alive:
+        return 0
+    now_u = _utc(now)
+    cutoff = now_u - timedelta(seconds=pending_ttl_sec)
+    result = await session.execute(
+        select(ExtractJob)
+        .where(
+            ExtractJob.status == "pending",
+            ExtractJob.cancel_requested.is_(False),
+            ExtractJob.created_at < cutoff,
+        )
+        .with_for_update(skip_locked=True)
+    )
+    rows = list(result.scalars().all())
+    f = failure_for("worker_unavailable")
+    for job in rows:
+        job.status = "error"
+        job.error_code = f.code
+        job.error_message = f.message
+        job.error_hint = f.hint
+        job.result = None
+        job.finished_at = now_u
+        job.updated_at = now_u
+    await session.flush()
+    return len(rows)
+
+
+def apply_job_ttl(
+    job: ExtractJob,
+    *,
+    now: datetime,
+    worker_alive: bool,
+    pending_ttl_sec: float,
+    running_deadline_sec: float,
+) -> bool:
+    """Mutate a single job to terminal if TTL exceeded. Returns True if changed."""
+    if job.status not in _INFLIGHT:
+        return False
+    now_u = _utc(now)
+    if job.status == "pending" and not worker_alive:
+        created = _utc(job.created_at)
+        if now_u - created >= timedelta(seconds=pending_ttl_sec):
+            f = failure_for("worker_unavailable")
+            job.status = "error"
+            job.error_code = f.code
+            job.error_message = f.message
+            job.error_hint = f.hint
+            job.result = None
+            job.finished_at = now_u
+            job.updated_at = now_u
+            return True
+    if job.status == "running" and job.started_at is not None:
+        started = _utc(job.started_at)
+        if now_u - started >= timedelta(seconds=running_deadline_sec):
+            f = failure_for("cancelled" if job.cancel_requested else "timeout")
+            job.status = "cancelled" if job.cancel_requested else "error"
+            job.error_code = f.code
+            job.error_message = f.message
+            job.error_hint = f.hint
+            job.result = None
+            job.finished_at = now_u
+            job.updated_at = now_u
+            return True
+    return False
+
+
+def _mark_error(
+    job: ExtractJob, exc: BaseException, *, now: datetime, step: str | None = None
+) -> None:
     now_u = _utc(now)
     if isinstance(exc, AppError):
         code = exc.code if exc.code != "extract_failed" else "upstream_error"
+        if code == "config_error":
+            code = "missing_ai_key"
         job.status = "cancelled" if code == "cancelled" else "error"
         job.error_code = code
         job.error_message = exc.message
@@ -238,7 +316,27 @@ def _mark_error(job: ExtractJob, exc: BaseException, *, now: datetime) -> None:
         job.error_message = f.message
         job.error_hint = f.hint
     else:
-        f = failure_for("upstream_error", detail=type(exc).__name__)
+        name = type(exc).__name__
+        msg = str(exc)
+        # Captions stage: treat connect/DNS as YouTube unreachable (M21).
+        captions_step = (step or job.step or "") == "captions"
+        networkish = (
+            "Connect" in name
+            or "Network" in name
+            or "NameResolution" in name
+            or "timeout" in msg.lower()
+            or "Timeout" in name
+        )
+        if captions_step and networkish and "Timeout" not in name and "timeout" not in msg.lower():
+            f = failure_for("youtube_unreachable")
+        elif "Timeout" in name or "timeout" in msg.lower():
+            f = failure_for("timeout", detail=name)
+        elif networkish:
+            f = failure_for(
+                "youtube_unreachable" if captions_step else "network", detail=name
+            )
+        else:
+            f = failure_for("upstream_error", detail=name)
         job.status = "error"
         job.error_code = f.code
         job.error_message = f.message
@@ -344,7 +442,7 @@ async def process_extract_job(
         async with session_factory() as session:
             job = await session.get(ExtractJob, job_id)
             if job:
-                _mark_error(job, exc, now=now)
+                _mark_error(job, exc, now=now, step="captions")
                 await session.commit()
         return
 
@@ -380,7 +478,7 @@ async def process_extract_job(
         async with session_factory() as session:
             job = await session.get(ExtractJob, job_id)
             if job:
-                _mark_error(job, exc, now=now)
+                _mark_error(job, exc, now=now, step="extract")
                 await session.commit()
         return
 
@@ -416,6 +514,8 @@ async def process_due_extract_jobs(
     settings = settings or get_settings()
     async with session_factory() as session:
         async with session.begin():
+            # Pending TTL is applied by the API (GET job) when the worker is down —
+            # this process is the worker, so we only close stuck running jobs here.
             stale = await fail_stale_running(
                 session, now=now, deadline_sec=settings.extract_job_deadline_sec
             )

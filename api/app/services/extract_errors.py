@@ -15,6 +15,15 @@ class ExtractFailure:
     status_code: int = 502
 
 
+MISSING_AI_KEY_MSG = (
+    "Не задан ключ ИИ-провайдера: добавьте OPENROUTER_API_KEY в .env "
+    "или поставьте AI_PROVIDER=stub"
+)
+MISSING_AI_KEY_HINT = (
+    "В .env укажите OPENROUTER_API_KEY или AI_PROVIDER=stub, затем "
+    "перезапустите api и worker: docker compose up -d --force-recreate api worker."
+)
+
 _HINTS: dict[str, ExtractFailure] = {
     "no_captions": ExtractFailure(
         "no_captions",
@@ -42,9 +51,27 @@ _HINTS: dict[str, ExtractFailure] = {
     ),
     "invalid_key": ExtractFailure(
         "invalid_key",
-        "Ключ OpenRouter отклонён (неверный или без доступа).",
+        "Ключ отклонён провайдером",
         "Проверьте OPENROUTER_API_KEY в .env и перезапустите api/worker.",
         503,
+    ),
+    "missing_ai_key": ExtractFailure(
+        "missing_ai_key",
+        MISSING_AI_KEY_MSG,
+        MISSING_AI_KEY_HINT,
+        503,
+    ),
+    "worker_unavailable": ExtractFailure(
+        "worker_unavailable",
+        "Фоновый обработчик не отвечает: проверьте docker compose ps",
+        "Запустите worker: docker compose up -d worker. Затем «Повторить».",
+        503,
+    ),
+    "youtube_unreachable": ExtractFailure(
+        "youtube_unreachable",
+        "Нет доступа к youtube.com",
+        "Проверьте интернет и доступ к youtube.com, затем «Повторить».",
+        502,
     ),
     "network": ExtractFailure(
         "network",
