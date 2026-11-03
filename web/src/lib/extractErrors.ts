@@ -12,7 +12,7 @@ const FALLBACK: ExtractUiError = {
   hint: "Нажмите «Повторить». Если ошибка повторяется — проверьте сеть и ключ OpenRouter.",
 };
 
-const BY_CODE: Record<string, ExtractUiError> = {
+export const BY_CODE: Record<string, ExtractUiError> = {
   no_captions: {
     code: "no_captions",
     message: "У этого ролика нет субтитров (ни ручных, ни авто).",
@@ -35,8 +35,24 @@ const BY_CODE: Record<string, ExtractUiError> = {
   },
   invalid_key: {
     code: "invalid_key",
-    message: "Ключ OpenRouter отклонён.",
+    message: "Ключ отклонён провайдером",
     hint: "Проверьте OPENROUTER_API_KEY в .env и перезапустите api/worker.",
+  },
+  missing_ai_key: {
+    code: "missing_ai_key",
+    message:
+      "Не задан ключ ИИ-провайдера: добавьте OPENROUTER_API_KEY в .env или поставьте AI_PROVIDER=stub",
+    hint: "В .env укажите ключ или AI_PROVIDER=stub, затем перезапустите api и worker.",
+  },
+  worker_unavailable: {
+    code: "worker_unavailable",
+    message: "Фоновый обработчик не отвечает: проверьте docker compose ps",
+    hint: "Запустите worker: docker compose up -d worker. Затем «Повторить».",
+  },
+  youtube_unreachable: {
+    code: "youtube_unreachable",
+    message: "Нет доступа к youtube.com",
+    hint: "Проверьте интернет и доступ к youtube.com, затем «Повторить».",
   },
   network: {
     code: "network",

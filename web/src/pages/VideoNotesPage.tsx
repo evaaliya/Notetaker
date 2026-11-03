@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ExtractDraft, ExtractResult, Note, User } from "../api";
+import { api, ExtractConfig, ExtractDraft, ExtractResult, Note, User } from "../api";
 import { NoteLink } from "../components/NoteLink";
 import {
   AiThinkingPanel,
@@ -14,7 +14,7 @@ import {
   SummaryLang,
 } from "../components/ExtractDraftsModal";
 import { useVideoExtractSession } from "../hooks/useVideoExtractSession";
-import { extractErrorFromUnknown, ExtractUiError } from "../lib/extractErrors";
+import { BY_CODE, extractErrorFromUnknown, ExtractUiError } from "../lib/extractErrors";
 import { parseVideoUrl, VideoSource } from "../lib/videoUrl";
 
 type YTPlayer = {
@@ -57,6 +57,13 @@ function loadYouTubeApi(): Promise<void> {
 
 function draftHasText(d: ExtractDraft | null | undefined): d is ExtractDraft {
   return !!(d?.title?.trim() && d?.body?.trim());
+}
+
+function configWarning(cfg: ExtractConfig | undefined): string | null {
+  if (!cfg) return null;
+  if (!cfg.configured) return BY_CODE.missing_ai_key.message;
+  if (!cfg.worker_ok) return BY_CODE.worker_unavailable.message;
+  return null;
 }
 
 /** Placeholder when the chosen language was not returned by the model (D-107). */
@@ -175,9 +182,18 @@ export function VideoNotesPage({ user }: { user: User }) {
     enabled: !!source,
   });
 
+  const extractConfig = useQuery({
+    queryKey: ["extract-config"],
+    queryFn: () => api.getExtractConfig(),
+    refetchInterval: 15_000,
+    staleTime: 5_000,
+  });
+
   const videoNotes = (notes.data?.items ?? []).filter(
     (n) => n.source === "video" && n.source_url === source?.url,
   );
+
+  const configWarn = configWarning(extractConfig.data);
 
   // Restore URL / player after navigating away mid-job (D-106).
   useEffect(() => {
@@ -414,6 +430,11 @@ export function VideoNotesPage({ user }: { user: User }) {
               >
                 Отменить
               </button>
+            ) : null}
+            {configWarn ? (
+              <p className="muted small" data-testid="video-extract-config-warn" role="status">
+                {configWarn}
+              </p>
             ) : null}
           </div>
         </div>

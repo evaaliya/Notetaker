@@ -282,6 +282,12 @@ export type ExtractJobCreated = {
   reused: boolean;
 };
 
+export type ExtractConfig = {
+  provider: string;
+  configured: boolean;
+  worker_ok: boolean;
+};
+
 function notesQuery(params: NoteListParams): string {
   const sp = new URLSearchParams();
   if (params.q) sp.set("q", params.q);
@@ -479,6 +485,8 @@ export const api = {
       timeoutMs: 100_000,
       ...opts,
     }),
+  getExtractConfig: (opts?: RequestOpts) =>
+    request<ExtractConfig>("/api/extract/config", { timeoutMs: 10_000, ...opts }),
   startYoutubeExtractJob: (url: string, timezone?: string, opts?: RequestOpts) =>
     request<ExtractJobCreated>("/api/extract/youtube/jobs", {
       method: "POST",

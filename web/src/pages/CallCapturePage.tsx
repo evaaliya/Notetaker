@@ -6,6 +6,7 @@ import {
   AiThinkingPanel,
   CALL_EXTRACT_STEPS,
 } from "../components/AiThinkingPanel";
+import { BY_CODE, extractErrorFromUnknown, ExtractUiError } from "../lib/extractErrors";
 
 type SpeechRec = {
   start: () => void;
@@ -42,7 +43,7 @@ export function CallCapturePage({ user }: { user: User }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ExtractUiError | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -81,12 +82,18 @@ export function CallCapturePage({ user }: { user: User }) {
     setError(null);
     setAiBusy(true);
     try {
+      const cfg = await api.getExtractConfig({ timeoutMs: 10_000 });
+      if (gen !== extractGen.current) return;
+      if (!cfg.configured) {
+        setError(BY_CODE.missing_ai_key);
+        return;
+      }
       const result = await api.extract(text, user.timezone);
       if (gen !== extractGen.current) return; // stale response
       applyExtract(result);
     } catch (err) {
       if (gen !== extractGen.current) return;
-      setError(err instanceof Error ? err.message : "Ошибка extract");
+      setError(extractErrorFromUnknown(err));
     } finally {
       if (gen === extractGen.current) setAiBusy(false);
     }
@@ -98,12 +105,18 @@ export function CallCapturePage({ user }: { user: User }) {
     setError(null);
     setAiBusy(true);
     try {
+      const cfg = await api.getExtractConfig({ timeoutMs: 10_000 });
+      if (gen !== extractGen.current) return;
+      if (!cfg.configured) {
+        setError(BY_CODE.missing_ai_key);
+        return;
+      }
       const result = await api.extractTranscriptFile(file, user.timezone);
       if (gen !== extractGen.current) return;
       applyExtract(result);
     } catch (err) {
       if (gen !== extractGen.current) return;
-      setError(err instanceof Error ? err.message : "Ошибка файла");
+      setError(extractErrorFromUnknown(err));
     } finally {
       if (gen === extractGen.current) setAiBusy(false);
     }
@@ -112,7 +125,11 @@ export function CallCapturePage({ user }: { user: User }) {
   function startSpeech() {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) {
-      setError("Web Speech API недоступен в этом браузере");
+      setError({
+        code: "upstream_error",
+        message: "Web Speech API недоступен в этом браузере",
+        hint: "Вставьте транскрипт текстом или загрузите файл .vtt/.srt/.txt.",
+      });
       setConsentOpen(false);
       return;
     }
@@ -138,7 +155,11 @@ export function CallCapturePage({ user }: { user: User }) {
       setText(live);
     };
     rec.onerror = (ev) => {
-      setError(`Распознавание: ${ev.error}`);
+      setError({
+        code: "upstream_error",
+        message: `Распознавание: ${ev.error}`,
+        hint: "Остановите запись и вставьте текст вручную, если ошибка повторяется.",
+      });
       setRecording(false);
     };
     rec.onend = () => {
@@ -183,7 +204,7 @@ export function CallCapturePage({ user }: { user: User }) {
       setConfirmOpen(false);
       navigate("/list");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось создать");
+      setError(extractErrorFromUnknown(err));
     } finally {
       setBusy(false);
     }
@@ -261,7 +282,12 @@ export function CallCapturePage({ user }: { user: User }) {
           title="Разбор транскрипта"
           testId="call-ai-thinking"
         />
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <div className="extract-error" data-testid="call-extract-error" role="alert">
+            <p className="error">{error.message}</p>
+            {error.hint ? <p className="muted small">{error.hint}</p> : null}
+          </div>
+        )}
       </section>
 
       {consentOpen && (
