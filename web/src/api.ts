@@ -60,7 +60,7 @@ export type ExtractResult = {
 export type NoteMember = {
   user_id: string;
   login: string;
-  role: "editor";
+  role: "owner" | "editor";
   created_at: string;
 };
 

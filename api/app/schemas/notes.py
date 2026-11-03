@@ -131,7 +131,7 @@ class NoteOut(BaseModel):
 class MemberOut(BaseModel):
     user_id: UUID
     login: str
-    role: Literal["editor"] = "editor"
+    role: Literal["owner", "editor"] = "editor"
     created_at: datetime
 
     @field_serializer("created_at")

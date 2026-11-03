@@ -146,7 +146,8 @@ async def list_members(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[MemberOut]:
-    await get_note_access(db, user.id, note_id, allow_deleted=False, require_owner=True)
+    # Any accessor (owner or member) may list participants — avatar stack for groups (D-114).
+    access = await get_note_access(db, user.id, note_id, allow_deleted=False, require_owner=False)
     result = await db.execute(
         select(NoteMember, User)
         .join(User, User.id == NoteMember.user_id)
@@ -154,10 +155,19 @@ async def list_members(
         .order_by(User.login.asc())
     )
     rows = result.all()
-    return [
+    out = [
+        MemberOut(
+            user_id=access.owner.id,
+            login=access.owner.login,
+            role="owner",
+            created_at=access.note.created_at,
+        )
+    ]
+    out.extend(
         MemberOut(user_id=m.user_id, login=u.login, role="editor", created_at=m.created_at)
         for m, u in rows
-    ]
+    )
+    return out
 
 
 @router.post("/{note_id}/members", response_model=MemberOut, status_code=201)

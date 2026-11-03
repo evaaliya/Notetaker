@@ -94,6 +94,7 @@ test("e2e_shared_note_personal_tags", async ({ browser }) => {
 
     await ownerPage.goto(`/notes/${note.id}`);
     await expect(ownerPage.getByTestId("note-selected-tags")).toContainText("owner-m16");
+    await ownerPage.getByTestId("share-add-toggle").click();
     await ownerPage.getByTestId("share-login").fill(memberLogin);
     await ownerPage.getByTestId("share-add").click();
     await expect(ownerPage.getByTestId("share-members")).toContainText(memberLogin, {

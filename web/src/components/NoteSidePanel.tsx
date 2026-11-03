@@ -12,6 +12,7 @@ import { ConflictDialog } from "./ConflictDialog";
 import { EditScopeDialog } from "./EditScopeDialog";
 import { EditorMetaDisclosure } from "./EditorMetaDisclosure";
 import { ReminderOffsetsField, REMINDER_OPTIONS, offsetsEqual } from "./ReminderOffsetsField";
+import { LeaveNoteButton } from "./LeaveNoteButton";
 import { SharePanel } from "./SharePanel";
 import { TagMultiSelect } from "./TagMultiSelect";
 import { TagPill } from "./TagPill";
@@ -458,6 +459,7 @@ export function NoteSidePanel({
           {error && <p className="error">{error}</p>}
 
           <div className="side-panel-footer">
+            {note.role === "editor" ? <LeaveNoteButton noteId={note.id} /> : null}
             <button type="submit" disabled={busy} data-testid="note-save">
               Сохранить
             </button>

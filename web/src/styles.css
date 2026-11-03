@@ -3441,45 +3441,263 @@ button.note-main,
   }
 }
 
-/* M10 shared notes */
+/* M10 shared notes — compact assignee chips (D-113) */
 .share-panel {
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: var(--paper);
+  background: var(--surface);
+  min-width: 0;
 }
-.share-panel h3 {
+
+.share-panel-compact {
+  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+}
+
+/* Member view: owner pill sits above any share chrome, not inside the bordered box */
+.share-member-block {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.share-owner-above {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.share-label {
   margin: 0;
-  font-size: 16px;
+  letter-spacing: 0.02em;
 }
+
+.share-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
 .share-form {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  align-items: end;
+  align-items: center;
 }
 
 .share-form button {
   flex: 0 0 auto;
+  min-height: var(--control-h-sm);
 }
-.share-form label {
-  flex: 1 1 160px;
+
+.share-form-field {
+  flex: 1 1 140px;
+  margin: 0;
+  min-width: 0;
 }
-.share-members {
+
+.share-form-field input {
+  width: 100%;
+  min-height: var(--control-h-sm);
+  padding: var(--space-1) var(--space-2);
+}
+
+.share-leave-btn {
+  min-height: var(--control-h-sm);
+  padding: var(--space-1) var(--space-3);
+  font-size: 13px;
+}
+
+.share-suggestions {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.share-stack-manage {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
-.share-members li {
+
+.share-stack-manage li {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
+  font: 500 13px var(--font-sans);
+  color: var(--muted);
+}
+
+/* Overlapping avatar stack (D-114) — reference: faces with light ring */
+.participant-stack {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  padding-left: 0;
+}
+
+.participant-stack-avatar,
+.participant-stack-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: -8px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  box-sizing: border-box;
+  font: 700 11px/1 var(--font-sans);
+  letter-spacing: 0.02em;
+  position: relative;
+}
+
+.participant-stack-avatar:first-child,
+.participant-stack-more:first-child {
+  margin-left: 0;
+}
+
+.participant-stack-avatar {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.participant-stack-more {
+  background: color-mix(in srgb, var(--accent) 55%, var(--paper));
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 11px;
+}
+
+/* Light assignee pills (reference shape; our paper/accent tokens) */
+.contact-pill {
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  max-width: 100%;
+  min-height: 32px;
+  padding: 2px var(--space-2) 2px 2px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  box-sizing: border-box;
+  font: 500 13px/1.2 var(--font-sans);
+  color: var(--ink);
+  background: var(--surface);
 }
+
+.contact-pill-member,
+.contact-pill-owner {
+  color: var(--ink);
+  background: var(--paper);
+  border-color: var(--line-strong);
+}
+
+.contact-pill-suggestion {
+  color: var(--muted);
+  background: var(--surface);
+  border-style: dashed;
+  border-color: var(--line-strong);
+  cursor: pointer;
+}
+
+.contact-pill-suggestion:hover:not(:disabled) {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+
+.contact-pill-suggestion:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.contact-pill-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: 700 10px/1 var(--font-sans);
+  letter-spacing: 0.02em;
+}
+
+.contact-pill-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+  padding-right: var(--space-1);
+}
+
+.contact-pill-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.contact-pill-remove:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.contact-pill-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.contact-pill-add:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.contact-pill-add:focus-visible,
+.contact-pill-suggestion:focus-visible,
+.contact-pill-remove:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .shared-note-badge,
 .cal-event-shared {
   display: block;

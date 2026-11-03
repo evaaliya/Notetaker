@@ -799,3 +799,15 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** `min-width` внутри ячейки (режется `overflow` FC); всегда 100vw sheet на mobile.
 **Причина:** Annotate — popover ~87×200, текст «лесенкой»; при любом масштабе должен читаться.
 **Последствия:** e2e `e2e_month_overflow_popover_readable_width` (1280 и 390).
+
+### D-113 · 2026-11-03 05:51 +06 · M19 · SharePanel: пилюли контактов + недавние
+**Решение:** компактный `SharePanel` + `ContactPill` (круг с инициалами + логин; layout как референс Assignees). Участники = светлая пилюля + ×; «Недавние» = dashed-suggestion (клик → add). История в `localStorage` `notetaker.shareContacts`. У участника пилюля владельца **вне** bordered SharePanel (`share-owner-above`); «Покинуть» — `LeaveNoteButton` над «Сохранить»/«Закрыть», не в блоке шаринга.
+**Альтернативы:** тёмные пилюли как на референсе; `GET /me/share_suggestions`; leave внутри SharePanel.
+**Причина:** Annotate — уменьшить панель, пилюли, рекомендации; затем светлая пилюля выше панели и leave у Save.
+**Последствия:** e2e жмут `share-add-toggle` перед `share-login`; `e2e_share_contact_pills_and_suggestions`; рекомендации только на этом устройстве.
+
+### D-114 · 2026-11-03 19:49 +06 · M19 · Стек аватаров при ≥3 участниках
+**Решение:** `GET /notes/{id}/members` доступен любому с доступом к заметке; в ответе сначала `role=owner`, затем editors. При числе людей ≥3 UI — `ParticipantStack` (до 10 кружков с наложением `margin-left:-8px` + кольцо `--surface`, дальше `+N`); ≤2 — пилюли как раньше. У владельца под стеком список «Удалить». Фото нет — инициалы.
+**Альтернативы:** оставить members owner-only; стек только у участника; фото из Gravatar.
+**Причина:** Annotate — участники должны видеть друг друга; референс overlapping avatars.
+**Последствия:** `MemberOut.role` = `owner|editor`; e2e `e2e_share_participant_stack`; pytest member GET members.

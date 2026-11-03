@@ -248,3 +248,39 @@ async def test_realtime_event_reaches_member(client: AsyncClient):
     # silence unused
     assert owner["id"]
     assert datetime.now(timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_member_can_list_participants_including_owner(client: AsyncClient):
+    """D-114: any accessor lists owner + editors (avatar stack)."""
+    owner_login = f"olist_{uuid.uuid4().hex[:8]}"
+    mem_a = f"ma_{uuid.uuid4().hex[:8]}"
+    mem_b = f"mb_{uuid.uuid4().hex[:8]}"
+    await _register(client, owner_login)
+    note = await _create_note(client, "Group list")
+    note_id = note["id"]
+
+    await _logout(client)
+    await _register(client, mem_a)
+    await _logout(client)
+    await _register(client, mem_b)
+    await _logout(client)
+
+    await _login(client, owner_login)
+    assert (
+        await client.post(f"/api/notes/{note_id}/members", json={"login": mem_a})
+    ).status_code == 201
+    assert (
+        await client.post(f"/api/notes/{note_id}/members", json={"login": mem_b})
+    ).status_code == 201
+
+    await _logout(client)
+    await _login(client, mem_a)
+    res = await client.get(f"/api/notes/{note_id}/members")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert len(body) == 3
+    assert body[0]["role"] == "owner"
+    assert body[0]["login"] == owner_login
+    editor_logins = {m["login"] for m in body if m["role"] == "editor"}
+    assert editor_logins == {mem_a, mem_b}

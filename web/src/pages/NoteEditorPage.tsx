@@ -9,6 +9,7 @@ import { EditorMetaDisclosure } from "../components/EditorMetaDisclosure";
 import { NotesRail } from "../components/NotesRail";
 import { RecurrenceField } from "../components/RecurrenceField";
 import { ReminderOffsetsField, REMINDER_OPTIONS } from "../components/ReminderOffsetsField";
+import { LeaveNoteButton } from "../components/LeaveNoteButton";
 import { SharePanel } from "../components/SharePanel";
 import { TagMultiSelect } from "../components/TagMultiSelect";
 import { TagPill } from "../components/TagPill";
@@ -664,6 +665,7 @@ function NoteEditorForm({
               >
                 {statusLabel}
               </span>
+              {note?.role === "editor" ? <LeaveNoteButton noteId={note.id} /> : null}
               <button type="button" className="secondary" onClick={() => void handleCancel()}>
                 Закрыть
               </button>
