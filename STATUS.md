@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 02:18 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 02:53 +06.
 
 ## Этапы
 
@@ -29,6 +29,7 @@
 | M18 Адаптивность списка | готов | D-101–104; truncate+line-clamp-2; virtualizer; month midnight clamp; e2e M18 + `e2e_month_late_series_no_midnight_spill` |
 | M19 Annotate-driven UI | готов | D-105–114: bell, extract session, EN/RU, captions lang, side panel, share stack; M20 экспорт сессии |
 | M21 Extract без бесконечного спиннера | готов | D-115–117; `GET /extract/config`; preflight missing key; pending TTL 60с; UI poll ≤100с / worker 15с; `make test` 118; e2e m21 ×2 (+ suite 105, 1 flake week rerun ok) |
+| M22 Офлайн create/правка | готов | D-118–120; client UUID create; outbox IDB; баннер; 404≠сеть; `make test` 121; `make e2e` 109 |
 
 ## Работает
 - `docker compose up --build` поднимает postgres, mailhog, api, worker, web.
@@ -42,7 +43,8 @@
 - `GET /api/calendar?from=&to=` — вхождения `{occurrence_start, note}` для одиночных (`rec_freq IS NULL`), не в корзине (D-017).
 - `GET /api/upcoming` — бакеты `today` / `week` / `past` по `Clock` + TZ пользователя; past только `active` (D-018).
 - Web: Календарь (FullCalendar 6: месяц/неделя/день, клик → боковая панель, DnD → PATCH с `version` и сохранением wall-time), «Ближайшее» (три секции), Список, Теги, Корзина, Настройки; время через `Intl` + `user.timezone`.
-- Тесты: `make test` → **118 passed** (testcontainers); Playwright e2e → **105–107** (chromium suite + m15 ff/wk + M16–M21); `e2e_week_many_notes_in_slot` иногда flaky — на повторном прогоне ок.
+- Тесты: `make test` → **121 passed** (testcontainers); Playwright e2e → **109** (chromium suite + m15 ff/wk + M16–M22); `e2e_week_many_notes_in_slot` иногда flaky — на повторном прогоне ок.
+- **M22 офлайн:** create с клиентским UUID (идемпотентный POST); очередь в `notetaker-outbox` + черновик D-057; баннер `role="status"`; не navigate до ack; страница заметки «Нет соединения»+«Повторить» vs 404; pytest `test_create_note_idempotent`; e2e `e2e_offline_*` / `e2e_no_duplicate_after_reconnect` (D-118–120).
 - **M21 extract timeouts:** `GET /api/extract/config` `{provider,configured,worker_ok}`; openrouter без ключа → 503 до job; pending без воркера >60 с → `worker_unavailable`; UI poll ≤100 с + предупреждение у кнопки; captions ConnectError → «Нет доступа к youtube.com»; pytest `test_m21_*` ×5; e2e missing key ≤2 с, worker down ≤20 с (D-115–117).
 - **M19 Annotate:** D-105–114 (bell, extract session, EN/RU, captions, side panel Apple Notes, share pills/stack).
 - **M18 адаптивность списка:** причина overlap — `justify-items:start` + `1fr` без `minmax(0,…)` (D-101); title ellipsis, preview line-clamp-2; sidebar/main без пересечений на 1440…390; те же truncate на Upcoming/Trash/notif; virtualizer mid-width: estimate 168/112 + `offsetHeight` + remeasure (D-103); month pills `end` clamp к локальным суткам — нет spill 23:29→завтра (D-104); e2e list overlap/trunc/sidebar/vertical + `e2e_month_late_series_no_midnight_spill`; скрины `list-{1200,768,390}.png`.
@@ -248,6 +250,14 @@
 | M18 | Адаптивность UI / overflow списка | готов |
 | M19 | Annotate-driven UI | готов |
 | M21 | Extract без бесконечного спиннера | готов |
+| M22 | Офлайн создание/правка заметок | готов |
+
+### Смоки M22 (2026-11-04 02:53 +06)
+**Диагностика (D-118):** (a) setOffline → `/notes/new`, 0 заметок; (b) fetch+abort → 1 на сервере, UI на `/new`; (c) повтор без id → дубль; (b2) abort GET → «Заметка не найдена».
+**Автоматически:**
+- `make test` → **121 passed** (`test_create_note_idempotent` + foreign/deleted).
+- `make e2e` → **109 passed** (`e2e_offline_create_queued_once`, `e2e_offline_note_page_shows_network_error`, `e2e_no_duplicate_after_reconnect`).
+**Работает:** баннер поверх вёрстки; очередь IDB; идемпотентный create; 404≠сеть.
 
 ### Смоки M21 (2026-11-04 02:18 +06)
 **Диагностика (D-115):** (a) stub 2.8 с done; (b) openrouter без ключа — раньше job+ошибка 1.3 с, теперь 503 до job; (c) bad key → invalid_key; (d) stop worker → hang >70 с → **корневая причина**; (e) youtube blocked → network → теперь youtube_unreachable.
