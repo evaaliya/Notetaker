@@ -110,7 +110,8 @@ curl -s http://localhost:8000/api/health
 
 1. Открыть http://localhost:5173  
 2. «Создать аккаунт» → зарегистрироваться  
-3. Создать заметку в Списке или Календаре  
+3. Открыть **Список** → «Новая заметка» (создать заметку с нуля в Календаре нельзя — там правят уже существующие)  
+
 
 Опционально: демо напоминания ≈ через 2 минуты — `docker compose exec api python scripts/demo.py` (toast + письмо в MailHog).
 
@@ -151,19 +152,27 @@ make docs-check  # синхронизация STATUS ↔ DECISIONS
 
 ### AI (звонки / видео)
 
-По умолчанию `AI_PROVIDER=stub` — без ключей и внешней сети.
+По умолчанию `AI_PROVIDER=stub` — без ключей и внешней сети к LLM.
 
-**OpenRouter** (опционально): в `.env` задать `AI_PROVIDER=openrouter` и `OPENROUTER_API_KEY`, затем  
-`docker compose up -d --force-recreate --no-deps api`.
+**Сменить провайдер на OpenRouter** (не обязательно: stub достаточно для локального демо; OpenRouter нужен, если хотите живую модель). Тогда в `.env` задайте и провайдер, и ключ:
+
+```bash
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-...
+```
+
+затем `docker compose up -d --force-recreate --no-deps api`. Без ключа при `openrouter` разбор не стартует (M21).
 
 - Сайдбар → **Звонок**: текст или `.txt`/`.vtt`/`.srt` → извлечь черновики → подтвердить.  
-- **Видео**: ссылка YouTube → «Разобрать субтитры» → при EN-источнике выбрать English или Русский.
+- **Видео**: ссылка YouTube → «Разобрать субтитры» → выбрать English или Русский.
 
 Звук на сервер не пишется. Zoom как бот не подключаем.
 
 ### YouTube
 
-Нужна сеть с контейнера `api` до `youtube.com` (Innertube + timedtext). Без captions у ролика разбор невозможен; не-YouTube URL — только плеер.
+Нужна сеть с контейнера `api` до `youtube.com` (Innertube + timedtext). Без captions у ролика разбор невозможен.
+
+На экране «Видео» можно вставить и прямой `.mp4` (или иной URL с видео): **плеер покажет ролик**, но кнопка «Разобрать субтитры» работает **только для YouTube** — у произвольного файла/URL субтитры этим путём не скачиваются.
 
 Автотесты используют фикстуры и mock (без live YouTube/LLM): `test_youtube_*`, `e2e_youtube_*`.
 
