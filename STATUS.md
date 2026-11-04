@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 16:00 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 16:43 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-132** (DnD finish на window; также D-128–131).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-134** (touch open без move; также D-133 safeRandomUUID).
 
 ## Этапы
 
@@ -34,6 +34,7 @@
 | M23 Антидрожание UI | готов | gutter, RO-guard, WS backoff |
 | M24 Документация | готов | README/TESTING/HISTORY; `make docs-check`; D-124–126 |
 | M25 Список период + DnD календаря | готов | UI from/to+reset; DnD month/week/day+trash; create `/notes/new`; ghost clone; release-on-window D-128–132 |
+| M26 Touch / LAN open | готов | safeRandomUUID (H3); long-press tap (H1); CDP touch e2e D-133–134 |
 
 ## Работает
 
@@ -41,15 +42,16 @@
 - Auth (cookie/argon2), заметки/теги/корзина, список (search/keyset/**период from–to**), календарь, «Ближайшее», повторы, reminders+outbox, realtime WS, уведомления.
 - UI по `docs/FRONTEND.md`: сайдбар, список/календарь/upcoming/tags/trash/settings, страница заметки, mobile ≤640.
 - **M25:** фильтр периода в списке + сброс (сорт сохраняется); DnD relocate+trash в month/week/day на desktop и mobile viewport (touch: long-press в хуке); ghost не залипает в углу (D-129), клонирует `.tl-card` (D-131), finish через window listeners после потери capture (D-132); mobile «Новая заметка» → `/notes/new` (D-130).
+- **M26:** на `http://LAN-IP` (insecure context) `/notes/new` и `/notes/:id` не падают — `safeRandomUUID` (D-133); long-press без движения открывает карточку календаря (`onTapAfterArm`, D-134).
 - M9–M11: вложения; общие заметки; звонки/видео + YouTube captions (stub/OpenRouter).
 - M14–M23: extract jobs; персональные теги / `show_in_calendar`; плотность календаря; адаптивность; annotate UI; extract timeouts; офлайн-очередь; антидрожание (D-121–123).
 - **M24:** профессиональный README; `docs/TESTING.md`; сжатый STATUS + `docs/HISTORY.md`; `scripts/check_docs.py` / `make docs-check` в `make verify`.
-- Тесты (факт M25, 2026-11-04): e2e `list_period` + `calendar_dnd` → **7 passed** (+ `e2e_dnd_ghost_not_stuck_at_origin`); полный `make e2e` / `make test` в этом заходе не гонялись целиком.
+- Тесты (факт M26, 2026-11-04): e2e `m26_mobile_open` + `calendar_dnd` + `dnd_release_clears_ghost` → **18 passed**; полный `make e2e` / `make test` в этом заходе не гонялись целиком.
 - T1–T21 закрыты с M6; отчёты `reports/verify-*.md`.
 
 ## Не работает
 
-- (пусто по объёму реализованных этапов M0–M25)
+- (пусто по объёму реализованных этапов M0–M26)
 
 ## Не делали и почему
 
@@ -62,6 +64,7 @@
 - Calendar create без client id в офлайн-очереди — TODO(spec-gap), D-120 (основной create — `/notes/new`).
 - CI/GitHub Actions — вне M24 (по задаче).
 - URL-persistence фильтров списка — не делали (сброс при reload; D-128).
+- Реальный телефон на LAN в этом заходе не гоняли вручную — покрытие симуляцией insecure + CDP touch.
 
 ## Известные ограничения
 
@@ -77,7 +80,7 @@
 - YouTube: без captions разбор невозможен; нужен доступ api→youtube.com; id регистрозависим.
 - E2E_HOOKS только на время `make e2e` / `make verify`.
 - `e2e_week_many_notes_in_slot` иногда flaky (на повторном прогоне ок).
-- E2E mobile DnD гоняет mouse path на узком viewport; ветка touch long-press покрыта кодом хука (D-128).
+- Calendar DnD e2e trash/relocate на mobile viewport по-прежнему mouse path; open/suppress touch — CDP в `m26_mobile_open` (D-134).
 
 ## Расширения сверх брифа
 
@@ -91,13 +94,14 @@
 | M21–M23 | Extract TTL, офлайн, антидрожание | готов |
 | M24 | Документация + docs-check | готов |
 | M25 | Период списка + DnD всех видов | готов |
+| M26 | Touch open + insecure LAN UUID | готов |
 
 ## Экспорты сессий (`docs/sessions/`)
 
 Есть файлы для M0–M7, M7.1–M7.3, M8, M9–M25 (включая M11.1, M20; M25 — `cursor_m25_notetaker_functional_requirement.md`).  
-**Нет отдельного экспорта с именем этапа:** M7.fix, M8.2 (близкие чаты — `m7_*` / `m8_*`).
+**Нет отдельного экспорта с именем этапа:** M7.fix, M8.2 (близкие чаты — `m7_*` / `m8_*`); **M26 — экспорт чата ещё не сохранён**.
 
 ## Следующий заход
 
-- При желании: полный `make verify`; стабилизация flake week-slot; URL-persistence фильтров.
+- При желании: полный `make verify`; ручная проверка на реальном телефоне по LAN; стабилизация flake week-slot.
 - Вне объёма: Web Push; сложные правила повтора; ICS; журнал WS; FTS; напоминания участникам; rate-limit / подтверждение email.

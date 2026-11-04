@@ -1009,3 +1009,15 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** только element `onPointerUp`; отмена на `lostpointercapture` без window up.
 **Причина:** при потере capture (up над trash `pointer-events:auto`, панель, сбой capture) React-обработчик на кнопке не вызывался → ghost и `cal-dnd-active` залипали.
 **Последствия:** drop/cancel доходят даже без capture; month FullCalendar не затронут (свой lifecycle).
+
+### D-133 · 2026-11-04 16:43 +06 · M26 · safeRandomUUID вне secure context
+**Решение:** общий `safeRandomUUID()` (`web/src/lib/safeRandomUUID.ts`) вместо голого `crypto.randomUUID()` в `NoteEditorPage`, `noteDraftIdb`, `mutationOutbox`, `alarmLoop`. При отсутствии API — fallback `fallback-<time>-<rand>` (достаточно для client/outbox id).
+**Альтернативы:** требовать HTTPS/localhost; полифилл только в редакторе; игнорировать LAN.
+**Причина:** `http://<LAN-IP>` не secure context → `crypto.randomUUID` отсутствует → TypeError при mount `/notes/new` и `/notes/:id` на реальном телефоне (localhost в DevTools работает).
+**Последствия:** e2e `e2e_insecure_context_notes_new_opens` / `e2e_insecure_context_existing_note_opens` снимают `Crypto.prototype.randomUUID`; fallback UUID не RFC-4122.
+
+### D-134 · 2026-11-04 16:43 +06 · M26 · long-press без move открывает заметку
+**Решение:** в `useLongPressDrag` флаг `didDrag` (suppress click) ставится только после движения >`DND_MOVE_CANCEL_PX` уже в armed; release без travel → `onCancel` + `onTapAfterArm` (браузеры часто не шлют click после long-press). `TimelineNoteCard` в `onTapAfterArm` вызывает `onSelect`.
+**Альтернативы:** оставить `didDrag=true` в `arm()`; ждать только native click; отключить touch DnD.
+**Причина:** на телефоне удержание ≥350 мс глушило открытие карточки календаря даже без переноса (H1); CDP touch подтвердил.
+**Последствия:** e2e CDP `Input.dispatchTouchEvent`: quick tap / hold без move открывают панель; hold+move — нет. Реальный drag по-прежнему suppress click.
