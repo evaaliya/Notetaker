@@ -9,7 +9,11 @@ function todayAtUtc(hour: number, minute = 0): string {
 
 /** Mouse drag with movement past threshold (timeline mouse DnD). */
 async function mouseDragTo(page: Page, source: Locator, target: Locator): Promise<void> {
+  await expect(source).toBeVisible();
+  await expect(target).toBeVisible();
   await target.scrollIntoViewIfNeeded();
+  // Re-query after target scroll — relocate can remount the card (detached DOM flake).
+  await expect(source).toBeVisible();
   await source.scrollIntoViewIfNeeded();
   const s = await source.boundingBox();
   const t = await target.boundingBox();

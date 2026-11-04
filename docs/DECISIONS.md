@@ -1077,3 +1077,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** CSS grid `auto-fit`; уменьшить шрифт date inputs; горизонтальный scroll тулбара.
 **Причина:** на ~1280px nowrap заставлял «С»/«По» наезжать на сортировку «дата ↑».
 **Последствия:** скрины `reports/ui-fix-2026-11-04/list-toolbar-{before,after}-*.png`; e2e `e2e_list_toolbar_screenshots_and_no_overlap` (overlap assert на 1440/1280/1024/768/390).
+
+### D-144 · 2026-11-04 20:34 +06 · M28 · Autoscroll freeze над зоной корзины
+**Решение:** пока pointer в padded bbox видимой `cal-trash-zone`, `dragAutoScroll` не меняет `scrollTop` (иначе зона уезжает из-под курсора).
+**Альтернативы:** отключить autoscroll у нижнего края всегда; увеличить hit-test trash без freeze.
+**Причина:** после D-140 e2e `dnd_release_clears_ghost` trash/relocate флакали — скролл у нижнего края сдвигал drop-target во время move-to-zone.
+**Последствия:** `dnd_release_clears_ghost` + `calendar_dnd` + `dnd_autoscroll` зелёные в изоляции.
