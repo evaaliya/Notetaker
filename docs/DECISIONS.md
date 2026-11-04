@@ -975,3 +975,13 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** оставить краткие двусмысленные формулировки.
 **Причина:** пользователь указал фактическую ложь про календарь и неоднозначность «опционально» / «только плеер».
 **Последствия:** README точнее отражает UI; поведение продукта не менялось.
+
+### D-128 · 2026-11-04 14:20 +06 · M25 · Период в списке + DnD во всех видах календаря
+**Решение:**
+1. Список: UI `from`/`to` как локальные даты → `localDateStartToUtcIso` / `localDateEndToUtcIso` в поясе пользователя; API без изменений. «Сбросить» очищает q/tags/status/period, **сортировку сохраняет**.
+2. Календарь DnD во month/week/day и на mobile: месяц — FC `editable` + `longPressDelay`; week/day — pointer DnD (`useLongPressDrag`: touch = long-press 350 мс, mouse = arm после порога движения). Drop на час сохраняет минуты (`relocateToLocalHourKeepingMinutes`). Общая зона корзины во всех видах.
+3. FRONTEND §6–7 обновлён (отмена «DnD только месяц» / D-098 month-only trash).
+
+**Альтернативы:** URL-persistence фильтров; snap к `:00` при drop на час; вернуть FullCalendar timeGrid для week/day.
+**Причина:** аудит M25 — пробелы UI периода и DnD вне month; API/patch/series `scope=this` уже готовы.
+**Последствия:** e2e `list_period.spec.ts`, `calendar_dnd.spec.ts`; touch long-press в e2e проверяется косвенно (mobile viewport + mouse path; ветка `pointerType!==mouse` в хуке).

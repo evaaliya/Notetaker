@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 05:27 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 14:20 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-127** (уточнения README; также D-124–D-126).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-128** (период в списке + DnD во всех видах; также D-124–D-127).
 
 ## Этапы
 
@@ -32,23 +32,24 @@
 | M21 Extract без спиннера | готов | config/preflight, TTL, UI poll |
 | M22 Офлайн create/правка | готов | client UUID, outbox IDB |
 | M23 Антидрожание UI | готов | gutter, RO-guard, WS backoff |
-| M24 Документация | готов | README/TESTING/HISTORY; `make docs-check`; D-124–126; pytest **121**; e2e 111+flake rerun |
-| M25 | не начат | — |
+| M24 Документация | готов | README/TESTING/HISTORY; `make docs-check`; D-124–126 |
+| M25 Список период + DnD календаря | готов | UI from/to+reset; DnD month/week/day+trash mobile; e2e 8/8 chromium; D-128 |
 
 ## Работает
 
 - Стек: `docker compose up --build` — postgres, mailhog, api, worker, web; миграции при старте.
-- Auth (cookie/argon2), заметки/теги/корзина, список (search/keyset), календарь, «Ближайшее», повторы, reminders+outbox, realtime WS, уведомления.
+- Auth (cookie/argon2), заметки/теги/корзина, список (search/keyset/**период from–to**), календарь, «Ближайшее», повторы, reminders+outbox, realtime WS, уведомления.
 - UI по `docs/FRONTEND.md`: сайдбар, список/календарь/upcoming/tags/trash/settings, страница заметки, mobile ≤640.
+- **M25:** фильтр периода в списке + сброс (сорт сохраняется); DnD relocate+trash в month/week/day на desktop и mobile viewport (touch: long-press в хуке).
 - M9–M11: вложения; общие заметки; звонки/видео + YouTube captions (stub/OpenRouter).
 - M14–M23: extract jobs; персональные теги / `show_in_calendar`; плотность календаря; адаптивность; annotate UI; extract timeouts; офлайн-очередь; антидрожание (D-121–123).
-- **M24:** профессиональный README; `docs/TESTING.md`; сжатый STATUS + `docs/HISTORY.md`; `scripts/check_docs.py` / `make docs-check` в `make verify`; сверка CREDITS, `.env.example`, `spec.md` §12/§15; правило синхронизации STATUS в `.cursor/rules/00-process.mdc`.
-- Тесты (факт M24, 2026-11-04): `make test` → **121 passed**; `make e2e` → **111 passed, 1 failed** (`e2e_week_many_notes_in_slot`, известный flake) → повтор того же теста **1 passed**; `make docs-check` → OK D-126.
+- **M24:** профессиональный README; `docs/TESTING.md`; сжатый STATUS + `docs/HISTORY.md`; `scripts/check_docs.py` / `make docs-check` в `make verify`.
+- Тесты (факт M25, 2026-11-04): e2e `list_period` + `calendar_dnd` → **8 passed** (chromium); полный `make e2e` / `make test` в этом заходе не гонялись целиком.
 - T1–T21 закрыты с M6; отчёты `reports/verify-*.md`.
 
 ## Не работает
 
-- (пусто по объёму реализованных этапов M0–M24)
+- (пусто по объёму реализованных этапов M0–M25)
 
 ## Не делали и почему
 
@@ -60,6 +61,7 @@
 - Генерация картинок / Web Push — вне объёма.
 - QuickAdd / calendar create без client id в офлайн-очереди — TODO(spec-gap), D-120.
 - CI/GitHub Actions — вне M24 (по задаче).
+- URL-persistence фильтров списка — не делали (сброс при reload; D-128).
 
 ## Известные ограничения
 
@@ -75,6 +77,7 @@
 - YouTube: без captions разбор невозможен; нужен доступ api→youtube.com; id регистрозависим.
 - E2E_HOOKS только на время `make e2e` / `make verify`.
 - `e2e_week_many_notes_in_slot` иногда flaky (на повторном прогоне ок).
+- E2E mobile DnD гоняет mouse path на узком viewport; ветка touch long-press покрыта кодом хука (D-128).
 
 ## Расширения сверх брифа
 
@@ -87,6 +90,7 @@
 | M16–M19 | Теги/календарь, плотность, адаптив, annotate | готов |
 | M21–M23 | Extract TTL, офлайн, антидрожание | готов |
 | M24 | Документация + docs-check | готов |
+| M25 | Период списка + DnD всех видов | готов |
 
 ## Экспорты сессий (`docs/sessions/`)
 
@@ -96,5 +100,6 @@
 
 ## Следующий заход
 
-- M25 — по плану сдачи.
-- Вне объёма: Web Push; сложные правила повтора; ICS; журнал WS; FTS; напоминания участникам; rate-limit / подтверждение email; стабилизация flake week-slot при желании.
+- Экспорт сессии M25 в `docs/sessions/`.
+- При желании: полный `make verify`; стабилизация flake week-slot; URL-persistence фильтров.
+- Вне объёма: Web Push; сложные правила повтора; ICS; журнал WS; FTS; напоминания участникам; rate-limit / подтверждение email.
