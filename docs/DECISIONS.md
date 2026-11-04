@@ -1071,3 +1071,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** `secondary`; оставить linkish с !important color.
 **Причина:** на телефоне `button` + `danger-text` = бирюзовый фон и красный текст; сырой «Unprocessable Entity» / англ. `loc` плохо читаются.
 **Последствия:** e2e `e2e_attachment_delete_uses_btn_danger`.
+
+### D-143 · 2026-11-04 20:17 +06 · M28 · List toolbar adaptive wrap
+**Решение:** убрать `@media (min-width: 1200px) { flex-wrap: nowrap }` у `.list-toolbar-bar` / filters; поля дат и select с `flex: 1 1 …` + `min-width`, wrap всегда разрешён.
+**Альтернативы:** CSS grid `auto-fit`; уменьшить шрифт date inputs; горизонтальный scroll тулбара.
+**Причина:** на ~1280px nowrap заставлял «С»/«По» наезжать на сортировку «дата ↑».
+**Последствия:** скрины `reports/ui-fix-2026-11-04/list-toolbar-{before,after}-*.png`; e2e `e2e_list_toolbar_screenshots_and_no_overlap` (overlap assert на 1440/1280/1024/768/390).

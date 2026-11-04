@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 20:15 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 20:17 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-142** (attachment delete btn-danger; также D-139–141).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-143** (list toolbar wrap; также D-139–142).
 
 ## Этапы
 
@@ -36,7 +36,7 @@
 | M25 Список период + DnD календаря | готов | UI from/to+reset; DnD month/week/day+trash; create `/notes/new`; ghost clone; release-on-window D-128–132 |
 | M26 Touch / LAN open | готов | safeRandomUUID (H3); long-press tap (H1); CDP touch e2e D-133–134 |
 | M27 Изоляция / сдача | готов | compose-порты, `make fresh-check`, D-135; `make verify` 2026-11-04 |
-| M28 UI-дефекты сдачи | в работе | D-139–142 ✓; пункты 5–6 |
+| M28 UI-дефекты сдачи | в работе | D-139–143 ✓; пункт 6 verify |
 
 ## Работает
 
@@ -45,6 +45,7 @@
 - **M28 / D-140:** автопрокрутка у края при DnD (month FC + week/day long-press); e2e `e2e_dnd_autoscroll_day_near_viewport_edge` + regression `calendar_dnd`/`m26_mobile_open` green.
 - **M28 / D-141:** меню «Действия» — portal + clamp; e2e `e2e_list_actions_menu_not_clipped_on_narrow`.
 - **M28 / D-142:** «Удалить» у вложения — `btn-danger` (AA); 422 с русскими именами полей; e2e `e2e_attachment_delete_uses_btn_danger`.
+- **M28 / D-143:** панель фильтров списка — adaptive wrap; скрины до/после [`reports/ui-fix-2026-11-04/`](reports/ui-fix-2026-11-04/); e2e no-overlap на 1440/1280/1024/768/390.
 - Auth (cookie/argon2), заметки/теги/корзина, список (search/keyset/**период from–to**), календарь, «Ближайшее», повторы, reminders+outbox, realtime WS, уведомления.
 - UI по `docs/FRONTEND.md`: сайдбар, список/календарь/upcoming/tags/trash/settings, страница заметки, mobile ≤640.
 - **M25:** фильтр периода; DnD month/week/day; mobile create → `/notes/new`.
