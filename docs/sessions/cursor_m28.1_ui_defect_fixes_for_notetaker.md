@@ -44,6 +44,103 @@ _Exported on 11/4/2026 at 20:53:06 GMT+6 from Cursor (3.26.16)_
 Достаточно контекста: корневые причины по пунктам ясны. Фиксирую план.
 
 ---
+name: M28 UI defects
+overview: "Этап M28: шесть UI-дефектов перед сдачей — по одному коммиту на пункт (D-139…), с воспроизведением/тестом, STATUS + docs-check; финал — полная регрессия и отчёт verify."
+todos:
+  - id: p1-undo-toast
+    content: "П1: TRASH_UNDO_MS=15s, очередь в Shell, e2e, D-139, commit"
+    status: completed
+  - id: p2-dnd-autoscroll
+    content: "П2: drag edge autoscroll month+week/day, e2e, D-140, commit"
+    status: completed
+  - id: p3-overflow-menu
+    content: "П3: OverflowMenu portal+clamp, тест, D-141, commit"
+    status: completed
+  - id: p4-attachment-btn
+    content: "П4: attachment delete style AA + field errors, D-142, commit"
+    status: completed
+  - id: p5-list-toolbar
+    content: "П5: adaptive list filters + screenshots, D-143, commit"
+    status: completed
+  - id: p6-verify
+    content: "П6: make test/e2e/verify, README+STATUS+report, D-144, commit"
+    status: completed
+isProject: false
+---
+
+# M28 · UI-дефекты перед сдачей
+
+Контекст: последний лог **D-138**. Префикс коммитов: `M28: …`. После каждого пункта: запись в [docs/DECISIONS.md](docs/DECISIONS.md), обновление [STATUS.md](STATUS.md), `make docs-check`. Дата/время только через `date "+%Y-%m-%d %H:%M %Z"`.
+
+## Диагноз (уже в коде)
+
+| # | Причина |
+|---|---|
+| 1 | Undo-тост только в [CalendarPage.tsx](web/src/pages/CalendarPage.tsx) (`undo` state ~407–424): **нет TTL**, один слот; при уходе со страницы тост пропадает/сбрасывается вместе с компонентом |
+| 2 | Месяц: FullCalendar `height="auto"` → нет внутреннего scroller, `dragScroll` не крутит родителя [`.calendar-main`](web/src/styles.css) (`overflow: auto`). Week/day: [useLongPressDrag](web/src/hooks/useLongPressDrag.ts) + `preventDefault` на move — **автоскролла нет** |
+| 3 | [OverflowMenu](web/src/components/OverflowMenu.tsx) — `position: absolute` внутри строки; [`.virtual-list`](web/src/styles.css) `overflow: auto` **обрезает**; меню наезжает на текст |
+| 4 | [AttachmentsPanel](web/src/components/AttachmentsPanel.tsx): `className="linkish danger-text"` — глобальный `button` даёт **бирюзовый фон**, `danger-text` только красный цвет → нечитаемо. `messageFromErrorBody` уже есть (D-137); при необходимости — человекочитаемые имена полей |
+| 5 | `@media (min-width: 1200px)` в [styles.css](web/src/styles.css) форсирует `flex-wrap: nowrap` у `.list-toolbar-bar` / filters → на **1280** даты налезают на «дата ↑» |
+
+## Пункт 1 · автоскрытие undo 15 с
+
+- Константа в одном месте, напр. `web/src/lib/trashUndo.ts`: `export const TRASH_UNDO_MS = 15_000`.
+- Очередь undo-тостов **на уровне Shell** в [App.tsx](web/src/App.tsx) (рядом с `ToastStack`), чтобы смена маршрута **не сбрасывала** таймер и не убивала тост.
+- Каждое удаление → отдельный item `{ id, noteId, title }` + свой `setTimeout(TRASH_UNDO_MS)`; dismiss по таймеру / «Отменить» / вручную; несколько подряд живут параллельно свои 15 с.
+- CalendarPage вызывает `pushTrashUndo` (React context или тонкий store-модуль); убрать локальный `undo` UI.
+- Текст можно оставить «В корзине» + title (как сейчас) или «Заметка перемещена в корзину» — без смены `data-testid` (`trash-undo`, `trash-undo-toast`).
+- **Тест:** e2e (fake timers / clock) — тост виден, после 15 с исчезает; два удаления → два тоста, каждый гаснет независимо; переход `/calendar` → `/list` не сбрасывает оставшееся время.
+
+Коммит: `M28: trash-undo автоскрытие 15с` · **D-139**.
+
+## Пункт 2 · автопрокрутка во время DnD
+
+- Хук `useDragAutoScroll` (или `lib/calendar/dragAutoScroll.ts`): при активном drag, если pointer у края viewport **или** у края scroll-контейнера (`.calendar-main`, при наличии `.fc-scroller`), плавно менять `scrollTop`/`scrollLeft` (rAF loop); mouse + touch.
+- Подключить: month — `eventDragStart/Stop` + move listener в [MonthCalendar.tsx](web/src/components/calendar/MonthCalendar.tsx); week/day — `onArmed`/`onMove`/`onEnd`/`onCancel` в [TimelineNoteCard.tsx](web/src/components/calendar/TimelineNoteCard.tsx).
+- **Почему сейчас нет:** FC `height="auto"` + скролл на родителе; кастомный long-press DnD без edge-scroll. Не полагаться на FC `dragScroll` как единственный фикс.
+- **E2e:** уменьшить viewport / прокрутить так, чтобы корзина/низ были вне экрана; начать drag к нижнему краю; assert `calendar-main.scrollTop` вырос. Сохранить зелёными `calendar_dnd.spec.ts`, `m26_mobile_open.spec.ts`. Если e2e нестабилен — зафиксировать ручную процедуру в STATUS (как требует ТЗ).
+
+Коммит: `M28: calendar DnD edge autoscroll` · **D-140**.
+
+## Пункт 3 · OverflowMenu «Действия»
+
+- Рендер меню через `createPortal(document.body)` + `position: fixed` по `getBoundingClientRect` триггера; clamp во viewport (flip вверх / сдвиг по X); высокий z-index.
+- Не перекрывать заголовок/превью заметки (якорь у кнопки, меню сбоку/ниже с отступом).
+- E2e/компонентный: узкий viewport (390), открыть «Действия» — menuitem в viewport, не clipped (`getBoundingClientRect` vs scroll parent). Существующий `m13_390_no_hscroll_and_more_menu` остаётся зелёным.
+
+Коммит: `M28: overflow-menu portal + viewport clamp` · **D-141**.
+
+## Пункт 4 · кнопка «Удалить» у вложения
+
+- Заменить `linkish danger-text` на существующий **`btn-danger`** или **`secondary`** (выбрать один стиль для pending + saved; целевой размер ≥44px на телефоне).
+- Layout: actions не под плашкой «Ожидает сохранения» внакладку — колонка/ряд с gap.
+- Если UI ещё показывает голый statusText — усилить mapping в `messageFromErrorBody` (русские ярлыки полей: `id` → «идентификатор», и т.п.) только где видно рядом с вложением.
+- Тест: компонент/e2e на класс кнопки + видимый контрастный текст; при 422 — сообщение с именем поля.
+
+Коммит: `M28: attachment delete button contrast` · **D-142**.
+
+## Пункт 5 · адаптивная сетка фильтров списка
+
+- Убрать/ослабить `nowrap` при ≥1200px; `flex-wrap` + `min-width` у select/date (или CSS grid `repeat(auto-fit, minmax(...))`).
+- Проверить 1440 / 1280 / 1024 / 768 / 390: элементы не пересекаются.
+- Скриншоты до/после → `reports/ui-fix-<дата>/` (playwright screenshot), ссылка из STATUS.
+
+Коммит: `M28: list toolbar adaptive wrap` · **D-143**.
+
+## Пункт 6 · регрессия
+
+- `make test` → `make e2e` → `make verify`.
+- Отчёт `reports/verify-<timestamp>.md`; обновить README (числа тестов + «последний полный прогон») и STATUS («Не работает» без смягчений).
+- Коммит: `M28: verify report + STATUS/README` · **D-144** (если только доки).
+
+## Критерий «готово»
+
+- 6 пунктов закрыты отдельными коммитами; D-139…; docs-check OK.
+- Тост undo гаснет через 15 с (тест); DnD скроллит к корзине (e2e или ручная процедура в STATUS); меню «Действия» не клипится; delete-вложение AA; фильтры без наложений + скрины; verify зелёный или честный список падений/флаков.
+- Итоговый ответ: таблица пункт|причина|коммит|тест|статус; числа; что проверить руками; хеши коммитов.
+
+Жду **«ок»** — после этого иду по пунктам по порядку, без выхода за ТЗ.
+---
 
 **User**
 
