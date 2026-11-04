@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 16:48 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 17:20 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-134** (touch open без move; также D-133 safeRandomUUID).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-135** (poll без LISTEN на `reminders_changed`; также D-133/134 touch/UUID).
 
 ## Этапы
 
@@ -35,36 +35,35 @@
 | M24 Документация | готов | README/TESTING/HISTORY; `make docs-check`; D-124–126 |
 | M25 Список период + DnD календаря | готов | UI from/to+reset; DnD month/week/day+trash; create `/notes/new`; ghost clone; release-on-window D-128–132 |
 | M26 Touch / LAN open | готов | safeRandomUUID (H3); long-press tap (H1); CDP touch e2e D-133–134 |
+| M27 Изоляция / сдача | в работе | compose-порты, `make fresh-check`, docs D-135; полный verify — ниже |
 
 ## Работает
 
-- Стек: `docker compose up --build` — postgres, mailhog, api, worker, web; миграции при старте.
+- Стек: `docker compose up --build` — postgres, mailhog, api, worker, web; миграции при старте. Порты/имя проекта — из `.env` (изоляция второй копии — README).
 - Auth (cookie/argon2), заметки/теги/корзина, список (search/keyset/**период from–to**), календарь, «Ближайшее», повторы, reminders+outbox, realtime WS, уведомления.
 - UI по `docs/FRONTEND.md`: сайдбар, список/календарь/upcoming/tags/trash/settings, страница заметки, mobile ≤640.
-- **M25:** фильтр периода в списке + сброс (сорт сохраняется); DnD relocate+trash в month/week/day на desktop и mobile viewport (touch: long-press в хуке); ghost не залипает в углу (D-129), клонирует `.tl-card` (D-131), finish через window listeners после потери capture (D-132); mobile «Новая заметка» → `/notes/new` (D-130).
-- **M26:** на `http://LAN-IP` (insecure context) `/notes/new` и `/notes/:id` не падают — `safeRandomUUID` (D-133); long-press без движения открывает карточку календаря (`onTapAfterArm`, D-134).
-- M9–M11: вложения; общие заметки; звонки/видео + YouTube captions (stub/OpenRouter).
-- M14–M23: extract jobs; персональные теги / `show_in_calendar`; плотность календаря; адаптивность; annotate UI; extract timeouts; офлайн-очередь; антидрожание (D-121–123).
-- **M24:** профессиональный README; `docs/TESTING.md`; сжатый STATUS + `docs/HISTORY.md`; `scripts/check_docs.py` / `make docs-check` в `make verify`.
-- Тесты (факт M26, 2026-11-04): e2e `m26_mobile_open` + `calendar_dnd` + `dnd_release_clears_ghost` → **18 passed**; полный `make e2e` / `make test` в этом заходе не гонялись целиком.
+- **M25:** фильтр периода; DnD month/week/day; mobile create → `/notes/new`.
+- **M26:** insecure LAN UUID; long-press без move открывает карточку.
+- M9–M23: вложения; share; звонки/видео/YouTube; extract jobs; офлайн-очередь; антидрожание.
+- **Счётчики collect:** pytest **121**; Playwright chromium **110** / все проекты **132**.
+- Тесты: `make fresh-check` (2026-11-04) OK; полный `make e2e` / `make verify` — обновляется в этом заходе (M27).
 - T1–T21 закрыты с M6; отчёты `reports/verify-*.md`.
 
-## Не работает
+## Не реализовано (явные пробелы / TODO)
 
-- (пусто по объёму реализованных этапов M0–M26)
+- **«Удалить навсегда» в корзине** — нет API/кнопки; только автоpurge через 30 дней (`TODO(spec-gap)` в `TrashPage.tsx`).
+- **Calendar / QuickAdd create в офлайн-очереди** — без client id не ставится в IDB outbox (`TODO(spec-gap)`, D-120); основной create — `/notes/new`.
+- **LISTEN `reminders_changed`** — NOTIFY шлётся, воркер только poll (D-135; отступление от spec §4.4).
 
 ## Не делали и почему
 
 - Запись звука на сервере / Zoom-бот — вне M11.
 - Напоминания участникам общих заметок — v1 только владелец (D-058).
-- LISTEN `reminders_changed` для немедленного тика — достаточно poll.
 - Счётчики заметок у тегов в API — нет `note_count` (D-039).
-- «Удалить навсегда» в корзине — нет endpoint (автоpurge 30д).
 - Генерация картинок / Web Push — вне объёма.
-- Calendar create без client id в офлайн-очереди — TODO(spec-gap), D-120 (основной create — `/notes/new`).
 - CI/GitHub Actions — вне M24 (по задаче).
 - URL-persistence фильтров списка — не делали (сброс при reload; D-128).
-- Реальный телефон на LAN в этом заходе не гоняли вручную — покрытие симуляцией insecure + CDP touch.
+- Реальный телефон на LAN в M26 не гоняли вручную — покрытие симуляцией insecure + CDP touch.
 
 ## Известные ограничения
 
@@ -95,6 +94,7 @@
 | M24 | Документация + docs-check | готов |
 | M25 | Период списка + DnD всех видов | готов |
 | M26 | Touch open + insecure LAN UUID | готов |
+| M27 | Изоляция стека / сдача docs | в работе |
 
 ## Экспорты сессий (`docs/sessions/`)
 
@@ -103,5 +103,7 @@
 
 ## Следующий заход
 
-- При желании: полный `make verify`; ручная проверка на реальном телефоне по LAN; стабилизация flake week-slot.
-- Вне объёма: Web Push; сложные правила повтора; ICS; журнал WS; FTS; напоминания участникам; rate-limit / подтверждение email.
+1. Полный `make verify` и фиксация отчёта в `reports/verify-*.md` (приоритет сдачи).
+2. Ручная проверка на реальном телефоне по LAN.
+3. Стабилизация flake `e2e_week_many_notes_in_slot`, если воспроизведётся.
+4. Вне объёма: Web Push; сложные правила повтора; ICS; журнал WS; FTS; напоминания участникам; rate-limit / подтверждение email; опционально LISTEN на `reminders_changed` (D-135).
