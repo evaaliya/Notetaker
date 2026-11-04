@@ -209,6 +209,35 @@ test("e2e_dnd_mobile_day_trash", async ({ page }) => {
   await expect(page.getByTestId("tl-card").filter({ hasText: title })).toHaveCount(0);
 });
 
+test("e2e_dnd_ghost_not_stuck_at_origin", async ({ page }) => {
+  const login = uniqueLogin("dndgst");
+  await registerUi(page, login);
+  await page.request.patch("/api/me", { data: { timezone: "UTC" } });
+  const title = `DnDGhost ${Date.now()}`;
+  await apiCreateNote(page.request, {
+    title,
+    body: "",
+    starts_at: todayAtUtc(12, 10),
+    reminder_offsets: [],
+    tag_ids: [],
+  });
+  await page.goto("/calendar");
+  await page.getByTestId("cal-view-week").click();
+  await expect(page.getByTestId("tl-card").filter({ hasText: title })).toBeVisible();
+  await expect(page.getByTestId("tl-dnd-ghost")).toHaveCount(0);
+
+  const card = page.getByTestId("tl-card").filter({ hasText: title });
+  const box = await card.boundingBox();
+  if (!box) throw new Error("no card box");
+  // Start drag then Escape / cancel via pointercancel path: move then up off any drop.
+  await page.mouse.move(box.x + 5, box.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 20, box.y + 5, { steps: 3 });
+  await expect(page.getByTestId("tl-dnd-ghost")).toHaveCount(1);
+  await page.mouse.up();
+  await expect(page.getByTestId("tl-dnd-ghost")).toHaveCount(0);
+});
+
 test("e2e_dnd_api_error_shows_and_keeps_note", async ({ page }) => {
   const login = uniqueLogin("dnderr");
   await registerUi(page, login);

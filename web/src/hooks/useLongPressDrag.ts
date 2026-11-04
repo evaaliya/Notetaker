@@ -1,4 +1,9 @@
-import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { DND_LONG_PRESS_MS, DND_MOVE_CANCEL_PX } from "../lib/calendar/dnd";
 
 type Handlers = {
@@ -139,6 +144,19 @@ export function useLongPressDrag({
     didDragRef.current = false;
     return true;
   }, []);
+
+  // If the card unmounts mid-drag (query invalidate), clear chrome via onCancel.
+  useEffect(() => {
+    return () => {
+      clearTimer();
+      if (armedRef.current) {
+        armedRef.current = false;
+        handlersRef.current.onCancel();
+      }
+      pointerIdRef.current = null;
+      startRef.current = null;
+    };
+  }, [clearTimer]);
 
   return {
     bind: {

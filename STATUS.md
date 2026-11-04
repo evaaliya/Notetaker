@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 14:20 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 14:47 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-128** (период в списке + DnD во всех видах; также D-124–D-127).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-129** (DnD ghost не залипает; также D-128).
 
 ## Этапы
 
@@ -40,11 +40,11 @@
 - Стек: `docker compose up --build` — postgres, mailhog, api, worker, web; миграции при старте.
 - Auth (cookie/argon2), заметки/теги/корзина, список (search/keyset/**период from–to**), календарь, «Ближайшее», повторы, reminders+outbox, realtime WS, уведомления.
 - UI по `docs/FRONTEND.md`: сайдбар, список/календарь/upcoming/tags/trash/settings, страница заметки, mobile ≤640.
-- **M25:** фильтр периода в списке + сброс (сорт сохраняется); DnD relocate+trash в month/week/day на desktop и mobile viewport (touch: long-press в хуке).
+- **M25:** фильтр периода в списке + сброс (сорт сохраняется); DnD relocate+trash в month/week/day на desktop и mobile viewport (touch: long-press в хуке); ghost drag не остаётся в углу (D-129).
 - M9–M11: вложения; общие заметки; звонки/видео + YouTube captions (stub/OpenRouter).
 - M14–M23: extract jobs; персональные теги / `show_in_calendar`; плотность календаря; адаптивность; annotate UI; extract timeouts; офлайн-очередь; антидрожание (D-121–123).
 - **M24:** профессиональный README; `docs/TESTING.md`; сжатый STATUS + `docs/HISTORY.md`; `scripts/check_docs.py` / `make docs-check` в `make verify`.
-- Тесты (факт M25, 2026-11-04): e2e `list_period` + `calendar_dnd` → **8 passed** (chromium); полный `make e2e` / `make test` в этом заходе не гонялись целиком.
+- Тесты (факт M25, 2026-11-04): e2e `list_period` + `calendar_dnd` → **7 passed** (+ `e2e_dnd_ghost_not_stuck_at_origin`); полный `make e2e` / `make test` в этом заходе не гонялись целиком.
 - T1–T21 закрыты с M6; отчёты `reports/verify-*.md`.
 
 ## Не работает

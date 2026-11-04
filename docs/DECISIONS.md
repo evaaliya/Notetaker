@@ -985,3 +985,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** URL-persistence фильтров; snap к `:00` при drop на час; вернуть FullCalendar timeGrid для week/day.
 **Причина:** аудит M25 — пробелы UI периода и DnD вне month; API/patch/series `scope=this` уже готовы.
 **Последствия:** e2e `list_period.spec.ts`, `calendar_dnd.spec.ts`; touch long-press в e2e проверяется косвенно (mobile viewport + mouse path; ветка `pointerType!==mouse` в хуке).
+
+### D-129 · 2026-11-04 14:47 +06 · M25 · DnD ghost не залипает в (0,0)
+**Решение:** превью перетаскивания (`tl-dnd-ghost`) монтируется только при активном drag (React state + portal в `document.body`); CSS `display:none` без `.is-visible`. Cleanup `onCancel` при unmount карточки mid-drag. E2e `e2e_dnd_ghost_not_stuck_at_origin`.
+**Альтернативы:** DOM `hidden` + `display:flex` на классе (ломало видимость → пилюля в углу экрана).
+**Причина:** после прерванного/незавершённого DnD ghost оставался `position:fixed; top:0; left:0` с текстом заметки.
+**Последствия:** нет «фантомных» пилюль в углу; ghost только под курсором во время drag.

@@ -966,13 +966,14 @@ body.cal-dnd-active .calendar-main {
   touch-action: manipulation;
 }
 
+/* Mounted only while dragging (portal). Never leave a static pill at 0,0. */
 .tl-dnd-ghost {
   position: fixed;
   top: 0;
   left: 0;
   z-index: 80;
   pointer-events: none;
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 2px;
   min-width: 8rem;
@@ -983,6 +984,10 @@ body.cal-dnd-active .calendar-main {
   border: 1px solid var(--line);
   box-shadow: var(--shadow-md);
   opacity: 0.92;
+}
+
+.tl-dnd-ghost.is-visible {
+  display: flex;
 }
 
 @media (prefers-reduced-motion: reduce) {

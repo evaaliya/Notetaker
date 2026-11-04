@@ -1,5 +1,6 @@
 import type { CSSProperties, RefObject } from "react";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { DateTime } from "luxon";
 import type { Note, Occurrence, Tag } from "../../api";
 import { formatTimeHm } from "../../format";
@@ -54,37 +55,35 @@ export function TimelineNoteCard({
   const title = occ.note.title || "Без названия";
   const hm = formatTimeHm(occ.occurrence_start, timeZone);
   const range = eventTimeRangeLabel(occ.occurrence_start, timeZone);
-  const ghostRef = useRef<HTMLDivElement | null>(null);
+  /** null = ghost not mounted (avoids stuck pill at 0,0). */
+  const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
 
-  const updateGhost = useCallback((x: number, y: number) => {
-    const g = ghostRef.current;
-    if (!g) return;
-    g.style.transform = `translate(${x + 8}px, ${y + 8}px)`;
-    g.hidden = false;
-  }, []);
+  const clearDragChrome = useCallback(() => {
+    setGhostPos(null);
+    document.body.classList.remove("cal-dnd-active");
+    onDraggingChange?.(false, false);
+  }, [onDraggingChange]);
 
-  const hideGhost = useCallback(() => {
-    const g = ghostRef.current;
-    if (!g) return;
-    g.hidden = true;
+  useEffect(() => {
+    return () => {
+      document.body.classList.remove("cal-dnd-active");
+    };
   }, []);
 
   const { bind, suppressClickIfDragged } = useLongPressDrag({
     enabled: dndEnabled,
     onArmed: (x, y) => {
       onDraggingChange?.(true, false);
-      updateGhost(x, y);
+      setGhostPos({ x: x + 8, y: y + 8 });
       document.body.classList.add("cal-dnd-active");
     },
     onMove: (x, y) => {
-      updateGhost(x, y);
+      setGhostPos({ x: x + 8, y: y + 8 });
       const target = resolveCalDropTarget(x, y, trashZoneRef?.current ?? null);
       onDraggingChange?.(true, target?.kind === "trash");
     },
     onEnd: (x, y) => {
-      hideGhost();
-      document.body.classList.remove("cal-dnd-active");
-      onDraggingChange?.(false, false);
+      clearDragChrome();
       const target = resolveCalDropTarget(x, y, trashZoneRef?.current ?? null);
       if (!target) return;
       if (target.kind === "trash") {
@@ -104,9 +103,7 @@ export function TimelineNoteCard({
       }
     },
     onCancel: () => {
-      hideGhost();
-      document.body.classList.remove("cal-dnd-active");
-      onDraggingChange?.(false, false);
+      clearDragChrome();
     },
   });
 
@@ -134,18 +131,20 @@ export function TimelineNoteCard({
         <span className="tl-card-range">{range}</span>
         <span className="tl-card-title">{title}</span>
       </button>
-      {dndEnabled ? (
-        <div
-          ref={ghostRef}
-          className="tl-dnd-ghost"
-          data-testid="tl-dnd-ghost"
-          hidden
-          aria-hidden="true"
-        >
-          <span className="tl-card-range">{range}</span>
-          <span className="tl-card-title">{title}</span>
-        </div>
-      ) : null}
+      {dndEnabled &&
+        ghostPos &&
+        createPortal(
+          <div
+            className="tl-dnd-ghost is-visible"
+            data-testid="tl-dnd-ghost"
+            aria-hidden="true"
+            style={{ transform: `translate(${ghostPos.x}px, ${ghostPos.y}px)` }}
+          >
+            <span className="tl-card-range">{range}</span>
+            <span className="tl-card-title">{title}</span>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
