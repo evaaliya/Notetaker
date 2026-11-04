@@ -28,6 +28,11 @@ import { tagColors } from "../../lib/tagColors";
 import { formatTimeHm, relocateKeepWallTime } from "../../format";
 import { DND_LONG_PRESS_MS } from "../../lib/calendar/dnd";
 import {
+  startDragAutoScroll,
+  stopDragAutoScroll,
+  updateDragAutoScroll,
+} from "../../lib/calendar/dragAutoScroll";
+import {
   groupByLocalDay,
   localDayKey,
   monthPillRange,
@@ -90,6 +95,31 @@ export function MonthCalendar({
   const [hosts, setHosts] = useState<Record<string, HTMLElement>>({});
   const dropOnTrashRef = useRef(false);
   const dragOccRef = useRef<Occurrence | null>(null);
+  const onDraggingChangeRef = useRef(onDraggingChange);
+  onDraggingChangeRef.current = onDraggingChange;
+  const trashZoneRefLatest = trashZoneRef;
+
+  const onMonthDragPointerMove = useCallback((e: PointerEvent) => {
+    updateDragAutoScroll(e.clientX, e.clientY);
+    const zone = trashZoneRefLatest.current;
+    let over = false;
+    if (zone) {
+      const r = zone.getBoundingClientRect();
+      over =
+        e.clientX >= r.left &&
+        e.clientX <= r.right &&
+        e.clientY >= r.top &&
+        e.clientY <= r.bottom;
+    }
+    onDraggingChangeRef.current(true, over);
+  }, [trashZoneRefLatest]);
+
+  const detachMonthDragScroll = useCallback(() => {
+    window.removeEventListener("pointermove", onMonthDragPointerMove);
+    stopDragAutoScroll();
+  }, [onMonthDragPointerMove]);
+
+  useEffect(() => () => detachMonthDragScroll(), [detachMonthDragScroll]);
 
   const mainEvents = useMemo(() => {
     const out: {
@@ -177,9 +207,15 @@ export function MonthCalendar({
     dropOnTrashRef.current = false;
     dragOccRef.current = (arg.event.extendedProps.occurrence as Occurrence) ?? null;
     onDraggingChange(true, false);
+    const js = arg.jsEvent as MouseEvent | undefined;
+    const x = js?.clientX ?? 0;
+    const y = js?.clientY ?? 0;
+    startDragAutoScroll(x, y);
+    window.addEventListener("pointermove", onMonthDragPointerMove);
   }
 
   function onEventDragStop(arg: EventDragStopArg) {
+    detachMonthDragScroll();
     const js = arg.jsEvent as MouseEvent | undefined;
     const hit = hitTrashZone(js);
     dropOnTrashRef.current = hit;

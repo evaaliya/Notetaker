@@ -6,6 +6,11 @@ import type { Note, Occurrence, Tag } from "../../api";
 import { formatTimeHm } from "../../format";
 import { useLongPressDrag } from "../../hooks/useLongPressDrag";
 import { resolveCalDropTarget, startsAtForTimelineDrop } from "../../lib/calendar/dnd";
+import {
+  startDragAutoScroll,
+  stopDragAutoScroll,
+  updateDragAutoScroll,
+} from "../../lib/calendar/dragAutoScroll";
 import { tagColors } from "../../lib/tagColors";
 import { occKey } from "../../lib/calendar/groupByLocalDay";
 
@@ -61,6 +66,7 @@ export function TimelineNoteCard({
   const [cardEl, setCardEl] = useState<HTMLButtonElement | null>(null);
 
   const clearDragChrome = useCallback(() => {
+    stopDragAutoScroll();
     setGhostPos(null);
     setGhostSize(null);
     document.body.classList.remove("cal-dnd-active");
@@ -69,6 +75,7 @@ export function TimelineNoteCard({
 
   useEffect(() => {
     return () => {
+      stopDragAutoScroll();
       document.body.classList.remove("cal-dnd-active");
     };
   }, []);
@@ -83,9 +90,11 @@ export function TimelineNoteCard({
       }
       setGhostPos({ x: x + 8, y: y + 8 });
       document.body.classList.add("cal-dnd-active");
+      startDragAutoScroll(x, y);
     },
     onMove: (x, y) => {
       setGhostPos({ x: x + 8, y: y + 8 });
+      updateDragAutoScroll(x, y);
       const target = resolveCalDropTarget(x, y, trashZoneRef?.current ?? null);
       onDraggingChange?.(true, target?.kind === "trash");
     },

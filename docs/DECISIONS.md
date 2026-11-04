@@ -1053,3 +1053,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** оставить тост только на CalendarPage; один слот с перезапуском таймера; бесконечный тост до клика; React state без module store.
 **Причина:** тост без TTL висел «очень долго»; локальный state страницы пропадал при навигации; несколько удалений — параллельные 15 с; правый toast перекрывал «В корзину» в панели.
 **Последствия:** e2e `e2e_trash_undo_auto_hides_after_15s_survives_navigation`, `e2e_trash_undo_each_toast_has_own_15s` (Playwright clock).
+
+### D-140 · 2026-11-04 20:13 +06 · M28 · Calendar DnD edge autoscroll
+**Решение:** кастомный `dragAutoScroll` (rAF, край viewport и scroll-контейнеров `.calendar-main` / `.tl-day-view` / `.tl-week` / `.fc-scroller`). Подключён в month (`eventDragStart` + window `pointermove`) и week/day (`useLongPressDrag` onArmed/onMove). Константа `DRAG_AUTO_SCROLL_EDGE_PX = 48`.
+**Альтернативы:** полагаться на FullCalendar `dragScroll`; не скроллить parent; только window scroll.
+**Причина:** месяц — FC `height="auto"` → нет внутреннего scroller, `dragScroll` не крутит родителя; week/day — свой long-press DnD без автоскролла + `preventDefault` на move.
+**Последствия:** e2e `e2e_dnd_autoscroll_day_near_viewport_edge`; `calendar_dnd` + `m26_mobile_open` остаются зелёными.
