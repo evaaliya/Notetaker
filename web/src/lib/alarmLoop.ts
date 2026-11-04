@@ -3,6 +3,8 @@
  * Repeats until stopped; one audible tab via BroadcastChannel + localStorage.
  */
 
+import { safeRandomUUID } from "./safeRandomUUID";
+
 export type AlarmStartOpts = {
   /** When false, play the melody once. Default true. */
   repeat?: boolean;
@@ -139,11 +141,7 @@ export function createAlarmLoop(deps: AlarmLoopDeps = {}): AlarmLoop {
   const createCtx = deps.createAudioContext ?? defaultCreateContext;
   const melodyMs = deps.melodyMs ?? DEFAULT_MELODY_MS;
   const repeatEveryMs = deps.repeatEveryMs ?? DEFAULT_REPEAT_EVERY_MS;
-  const tabId =
-    deps.tabId ??
-    (typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `tab-${Math.random().toString(36).slice(2)}`);
+  const tabId = deps.tabId ?? safeRandomUUID();
   const storage = deps.storage === undefined ? defaultStorage() : deps.storage;
   const channel = deps.channel === undefined ? defaultChannel() : deps.channel;
 

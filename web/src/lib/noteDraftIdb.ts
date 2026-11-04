@@ -1,5 +1,7 @@
 /** IndexedDB draft for /notes/new (and dirty edits) — survives reload (D-057). */
 
+import { safeRandomUUID } from "./safeRandomUUID";
+
 const DB_NAME = "notetaker-drafts";
 const DB_VERSION = 1;
 const STORE = "drafts";
@@ -94,7 +96,7 @@ export async function clearDraft(key: string): Promise<void> {
 
 export function filesToDraftRecords(files: File[]): DraftFileRecord[] {
   return files.map((f) => ({
-    localId: crypto.randomUUID(),
+    localId: safeRandomUUID(),
     name: f.name,
     type: f.type,
     lastModified: f.lastModified,

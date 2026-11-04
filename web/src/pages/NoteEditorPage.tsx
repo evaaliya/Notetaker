@@ -38,6 +38,7 @@ import {
   subscribeOutbox,
 } from "../lib/mutationOutbox";
 import { invalidateNoteCaches } from "../lib/queryInvalidation";
+import { safeRandomUUID } from "../lib/safeRandomUUID";
 
 const AUTOSAVE_MS = 600;
 
@@ -235,7 +236,7 @@ function NoteEditorForm({
   });
   const uploadingRef = useRef(false);
   const skipNextDirtyRef = useRef(false);
-  const clientNoteIdRef = useRef<string>(crypto.randomUUID());
+  const clientNoteIdRef = useRef<string>(safeRandomUUID());
   const onCreatedRef = useRef(onCreated);
   onCreatedRef.current = onCreated;
 

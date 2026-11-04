@@ -4,6 +4,7 @@
  */
 
 import { ApiError, api, type Note } from "../api";
+import { safeRandomUUID } from "./safeRandomUUID";
 
 const DB_NAME = "notetaker-outbox";
 const DB_VERSION = 1;
@@ -156,7 +157,7 @@ export async function enqueueCreate(
     }
   }
   await putOp({
-    id: crypto.randomUUID(),
+    id: safeRandomUUID(),
     kind: "create",
     clientNoteId,
     body: { ...body, id: clientNoteId },
@@ -189,7 +190,7 @@ export async function enqueuePatch(
     return;
   }
   await putOp({
-    id: crypto.randomUUID(),
+    id: safeRandomUUID(),
     kind: "patch",
     noteId,
     body,
@@ -216,7 +217,7 @@ export async function enqueueDelete(noteId: string): Promise<void> {
   const existing = ops.find((o) => o.kind === "delete" && o.noteId === noteId);
   if (existing) return;
   await putOp({
-    id: crypto.randomUUID(),
+    id: safeRandomUUID(),
     kind: "delete",
     noteId,
     createdAt: Date.now(),
@@ -231,7 +232,7 @@ export async function enqueueRestore(noteId: string): Promise<void> {
   const existing = ops.find((o) => o.kind === "restore" && o.noteId === noteId);
   if (existing) return;
   await putOp({
-    id: crypto.randomUUID(),
+    id: safeRandomUUID(),
     kind: "restore",
     noteId,
     createdAt: Date.now(),
@@ -246,7 +247,7 @@ export async function enqueueUpload(
   const ops = await listOutbox();
   if (ops.some((o) => o.kind === "upload" && o.clientId === clientId)) return;
   await putOp({
-    id: crypto.randomUUID(),
+    id: safeRandomUUID(),
     kind: "upload",
     noteId,
     clientId,
