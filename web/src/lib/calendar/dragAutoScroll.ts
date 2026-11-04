@@ -49,12 +49,33 @@ function scrollTargets(fromX: number, fromY: number): HTMLElement[] {
   return out;
 }
 
+/** While aiming at the trash drop zone, freeze scroll so the zone stays under the pointer. */
+function pointerOverTrashAim(x: number, y: number): boolean {
+  const zone = document.querySelector<HTMLElement>(
+    '[data-testid="cal-trash-zone"].visible, [data-testid="cal-trash-zone"].active, [data-cal-drop="trash"].visible',
+  );
+  if (!zone) return false;
+  const r = zone.getBoundingClientRect();
+  const pad = 24;
+  return (
+    x >= r.left - pad &&
+    x <= r.right + pad &&
+    y >= r.top - pad &&
+    y <= r.bottom + pad
+  );
+}
+
 function tick() {
   if (!active) return;
   const edge = DRAG_AUTO_SCROLL_EDGE_PX;
   const { x, y } = ptr;
   const vh = window.innerHeight;
   const vw = window.innerWidth;
+
+  if (pointerOverTrashAim(x, y)) {
+    raf = window.requestAnimationFrame(tick);
+    return;
+  }
 
   for (const el of scrollTargets(x, y)) {
     const r = el.getBoundingClientRect();
