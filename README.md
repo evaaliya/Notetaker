@@ -83,15 +83,17 @@ docker compose up --build -d
 
 Первый запуск может занять несколько минут (образы и сборка). Миграции применяются при старте `api`.
 
-| Сервис | URL |
+| Сервис | URL (порты по умолчанию) |
 |---|---|
 | Web | http://localhost:5173 |
 | API (Swagger) | http://localhost:8000/docs |
 | MailHog | http://localhost:8025 |
 
+Порты и имя проекта задаются в `.env` (`API_PORT`, `WEB_PORT`, `POSTGRES_PORT`, `MAILHOG_*`, опционально `COMPOSE_PROJECT_NAME`) — см. `.env.example`.
+
 Остановка с сохранением данных: `docker compose down` (или `make down`).
 
-**Сброс БД (удалит данные тома Postgres):**
+**Сброс БД (удалит данные тома Postgres этого проекта):**
 
 ```bash
 docker compose down -v
@@ -100,6 +102,28 @@ docker compose down -v
 Используйте только если нужен чистый том. Не включайте `-v` в обычный ежедневный запуск.
 
 Демо с 10 000 заметок: `make seed`, логин `demo` / `demo` (см. [`docs/TESTING.md`](docs/TESTING.md)).
+
+### Если у вас уже запущена другая копия
+
+Два стека на одних и тех же хост-портах не поднимутся; при частичном старте UI может ходить в «чужой» API на `:8000`.
+
+1. В `.env` второй копии задайте **другие порты** и при необходимости имя проекта:
+   ```bash
+   COMPOSE_PROJECT_NAME=notetaker-copy2
+   API_PORT=18000
+   WEB_PORT=15173
+   POSTGRES_PORT=15432
+   MAILHOG_SMTP_PORT=11025
+   MAILHOG_UI_PORT=18025
+   ```
+2. Поднимите: `docker compose up --build -d` (тома будут `<COMPOSE_PROJECT_NAME>_pgdata`, не общие с первой копией).
+3. Проверьте, что это **ваша** пустая (или своя) БД:
+   ```bash
+   docker compose exec postgres psql -U notetaker -d notetaker -c 'SELECT count(*) FROM notes;'
+   ```
+   На только что поднятом стеке без seed ожидается **0**. Если видите чужие сотни тысяч строк — вы смотрите не тот проект/том (проверьте `COMPOSE_PROJECT_NAME` и порты).
+
+Автопроверка изоляции: `make fresh-check` (клонирует текущий `HEAD` во временную папку, поднимает `-p notetaker-fresh` на портах 18xxx, проверяет `notes=0`, API и MailHog, затем сносит **только** этот временный проект с `-v`).
 
 ## Проверка работоспособности
 

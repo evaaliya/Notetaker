@@ -1,4 +1,4 @@
-.PHONY: up down seed test e2e verify docs-check
+.PHONY: up down seed test e2e verify docs-check fresh-check
 
 COMPOSE=docker compose
 COMPOSE_E2E=docker compose -f docker-compose.yml -f docker-compose.e2e.yml
@@ -82,3 +82,8 @@ verify:
 
 docs-check:
 	python3 scripts/check_docs.py
+
+# Isolated clone + alternate ports; tears down ONLY -p notetaker-fresh (-v).
+# Does not run docker compose down -v against the developer main stack.
+fresh-check:
+	bash scripts/fresh_check.sh

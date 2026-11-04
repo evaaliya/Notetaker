@@ -1,3 +1,6 @@
+# Project name = directory basename by default (so clones in different folders
+# get separate volumes). Override with env COMPOSE_PROJECT_NAME or `docker compose -p`.
+# Host ports are overridable so a second copy does not collide on the host.
 services:
   postgres:
     image: postgres:16
@@ -6,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notetaker}
       POSTGRES_DB: ${POSTGRES_DB:-notetaker}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,8 +21,8 @@ services:
   mailhog:
     image: mailhog/mailhog:v1.0.1
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
 
   api:
     build: ./api
@@ -31,8 +34,10 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-stub}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     volumes:
       - uploads:/uploads
     depends_on:
@@ -48,6 +53,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-notetaker}:${POSTGRES_PASSWORD:-notetaker}@postgres:5432/${POSTGRES_DB:-notetaker}
       UPLOADS_DIR: /uploads
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
     volumes:
       - uploads:/uploads
     depends_on:
@@ -59,9 +66,9 @@ services:
   web:
     build: ./web
     ports:
-      - "5173:5173"
-    environment:
-      VITE_API_URL: http://localhost:8000
+      - "${WEB_PORT:-5173}:5173"
+    # Browser → web; Vite proxies /api and /ws to http://api:8000 on the compose network
+    # (container port stays 8000; only the host mapping API_PORT changes).
     depends_on:
       - api
 
