@@ -18,7 +18,6 @@ import {
   localDateEndToUtcIso,
   localDateStartToUtcIso,
 } from "../format";
-import { useQuickAdd } from "../hooks/useQuickAdd";
 import { enqueueDelete } from "../lib/mutationOutbox";
 import { observeElementSize } from "../lib/observeElementSize";
 import { recordRender } from "../lib/renderProbe";
@@ -41,7 +40,6 @@ export function ListPage({ user }: { user: User }) {
   });
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const quickAdd = useQuickAdd();
   const [searchParams] = useSearchParams();
   const tagFromUrl = searchParams.get("tag") ?? "";
   const tags = useQuery({ queryKey: ["tags"], queryFn: api.listTags });
@@ -191,10 +189,7 @@ export function ListPage({ user }: { user: User }) {
   });
 
   function openCreate() {
-    if (window.matchMedia("(max-width: 640px)").matches) {
-      quickAdd.show();
-      return;
-    }
+    // Same Apple Notes editor on desktop and mobile (D-130); no QuickAddSheet.
     navigate("/notes/new");
   }
 

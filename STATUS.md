@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 14:47 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 14:58 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-129** (DnD ghost не залипает; также D-128).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-130** (mobile create → `/notes/new`; также D-128/129).
 
 ## Этапы
 
@@ -33,14 +33,14 @@
 | M22 Офлайн create/правка | готов | client UUID, outbox IDB |
 | M23 Антидрожание UI | готов | gutter, RO-guard, WS backoff |
 | M24 Документация | готов | README/TESTING/HISTORY; `make docs-check`; D-124–126 |
-| M25 Список период + DnD календаря | готов | UI from/to+reset; DnD month/week/day+trash mobile; e2e 8/8 chromium; D-128 |
+| M25 Список период + DnD календаря | готов | UI from/to+reset; DnD month/week/day+trash mobile; create → `/notes/new`; D-128–130 |
 
 ## Работает
 
 - Стек: `docker compose up --build` — postgres, mailhog, api, worker, web; миграции при старте.
 - Auth (cookie/argon2), заметки/теги/корзина, список (search/keyset/**период from–to**), календарь, «Ближайшее», повторы, reminders+outbox, realtime WS, уведомления.
 - UI по `docs/FRONTEND.md`: сайдбар, список/календарь/upcoming/tags/trash/settings, страница заметки, mobile ≤640.
-- **M25:** фильтр периода в списке + сброс (сорт сохраняется); DnD relocate+trash в month/week/day на desktop и mobile viewport (touch: long-press в хуке); ghost drag не остаётся в углу (D-129).
+- **M25:** фильтр периода в списке + сброс (сорт сохраняется); DnD relocate+trash в month/week/day на desktop и mobile viewport (touch: long-press в хуке); ghost drag не остаётся в углу (D-129); mobile «Новая заметка» → `/notes/new` (D-130, без QuickAddSheet).
 - M9–M11: вложения; общие заметки; звонки/видео + YouTube captions (stub/OpenRouter).
 - M14–M23: extract jobs; персональные теги / `show_in_calendar`; плотность календаря; адаптивность; annotate UI; extract timeouts; офлайн-очередь; антидрожание (D-121–123).
 - **M24:** профессиональный README; `docs/TESTING.md`; сжатый STATUS + `docs/HISTORY.md`; `scripts/check_docs.py` / `make docs-check` в `make verify`.
@@ -59,7 +59,7 @@
 - Счётчики заметок у тегов в API — нет `note_count` (D-039).
 - «Удалить навсегда» в корзине — нет endpoint (автоpurge 30д).
 - Генерация картинок / Web Push — вне объёма.
-- QuickAdd / calendar create без client id в офлайн-очереди — TODO(spec-gap), D-120.
+- Calendar create без client id в офлайн-очереди — TODO(spec-gap), D-120 (основной create — `/notes/new`).
 - CI/GitHub Actions — вне M24 (по задаче).
 - URL-persistence фильтров списка — не делали (сброс при reload; D-128).
 

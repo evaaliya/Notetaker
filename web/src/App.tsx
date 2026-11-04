@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import logoNt from "./assets/logo-nt.jpg";
 import { api, RealtimeEvent, User } from "./api";
@@ -7,10 +7,8 @@ import { AppSidebar } from "./components/AppSidebar";
 import { MobileNav } from "./components/MobileNav";
 import { NotificationsPopover } from "./components/NotificationsPopover";
 import { OfflineBanner } from "./components/OfflineBanner";
-import { QuickAddSheet } from "./components/QuickAddSheet";
 import { ToastItem, ToastStack } from "./components/ToastStack";
 import { browserTimeZone } from "./components/TimezonePicker";
-import { QuickAddProvider, useQuickAdd } from "./hooks/useQuickAdd";
 import { useRealtime } from "./hooks/useRealtime";
 import { getAlarmLoop } from "./lib/alarmLoop";
 import { startOutboxPump } from "./lib/mutationOutbox";
@@ -51,11 +49,7 @@ export function App() {
     );
   }
 
-  return (
-    <QuickAddProvider>
-      <Shell user={me.data} onLogout={() => qc.setQueryData(["me"], null)} />
-    </QuickAddProvider>
-  );
+  return <Shell user={me.data} onLogout={() => qc.setQueryData(["me"], null)} />;
 }
 
 function AuthScreen({ onDone }: { onDone: (user: User) => void }) {
@@ -118,6 +112,7 @@ function AuthScreen({ onDone }: { onDone: (user: User) => void }) {
 
 function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const isNoteRoute = location.pathname.startsWith("/notes/");
   const [busy, setBusy] = useState(false);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -254,7 +249,6 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
   }
 
   const unseenCount = unseen.data?.length ?? 0;
-  const quickAdd = useQuickAdd();
 
   const userEmail = user.email?.trim() || user.login;
 
@@ -316,12 +310,11 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
           className="mobile-fab"
           data-testid="mobile-new-note"
           aria-label="Новая заметка"
-          onClick={() => quickAdd.show()}
+          onClick={() => navigate("/notes/new")}
         >
           Новая заметка
         </button>
       )}
-      <QuickAddSheet user={user} open={quickAdd.open} onClose={quickAdd.hide} />
       <ToastStack
         toasts={toasts}
         onDismiss={dismissToast}

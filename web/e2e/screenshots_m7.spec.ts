@@ -55,9 +55,9 @@ test("m7_screenshots_1280_and_390", async ({ page }) => {
 
   await page.goto("/list");
   await page.getByTestId("mobile-new-note").click();
-  await expect(page.getByTestId("quick-add-sheet")).toBeVisible();
+  await expect(page.getByTestId("note-editor-page")).toBeVisible();
   await page.screenshot({
-    path: path.join(OUT, "mobile-sheet-390.png"),
+    path: path.join(OUT, "mobile-note-new-390.png"),
     fullPage: true,
   });
 });

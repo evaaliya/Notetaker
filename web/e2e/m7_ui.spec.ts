@@ -151,17 +151,20 @@ test("e2e_drag_to_trash", async ({ page }) => {
     .toBeFalsy();
 });
 
-test("e2e_mobile_quick_add", async ({ page }) => {
+test("e2e_mobile_new_note_opens_editor", async ({ page }) => {
   const login = uniqueLogin("m7mob");
   await registerUi(page, login);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/list");
   await expect(page.getByTestId("mobile-new-note")).toBeVisible();
   await page.getByTestId("mobile-new-note").click();
-  await expect(page.getByTestId("quick-add-sheet")).toBeVisible();
+  await expect(page).toHaveURL(/\/notes\/new/);
+  await expect(page.getByTestId("note-editor-page")).toBeVisible();
+  await expect(page.getByTestId("note-form")).toBeVisible();
   const title = `MobileAdd ${Date.now()}`;
   await page.getByTestId("note-title").fill(title);
-  await page.getByTestId("quick-add-submit").click();
-  await expect(page.getByTestId("quick-add-sheet")).toBeHidden({ timeout: 8000 });
+  await expect(page).toHaveURL(/\/notes\/[0-9a-f-]{36}$/i, { timeout: 10_000 });
+  await page.getByRole("button", { name: "Закрыть" }).click();
+  await page.goto("/list");
   await expect(page.getByText(title)).toBeVisible({ timeout: 8000 });
 });

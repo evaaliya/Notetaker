@@ -991,3 +991,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** DOM `hidden` + `display:flex` на классе (ломало видимость → пилюля в углу экрана).
 **Причина:** после прерванного/незавершённого DnD ghost оставался `position:fixed; top:0; left:0` с текстом заметки.
 **Последствия:** нет «фантомных» пилюль в углу; ghost только под курсором во время drag.
+
+### D-130 · 2026-11-04 14:58 +06 · M25 · Mobile create → `/notes/new`, без QuickAddSheet
+**Решение:** FAB `mobile-new-note` и кнопка списка «Новая заметка» на ≤640px ведут на `/notes/new` (`NoteEditorPage`), тот же Apple Notes-редактор, что на desktop. Удалены `QuickAddSheet`, `useQuickAdd`. E2e: `e2e_mobile_new_note_opens_editor` (вместо `e2e_mobile_quick_add`).
+**Альтернативы:** оставить bottom sheet; рестайлить QuickAdd под новый редактор.
+**Причина:** после M8.2/M13 mobile FAB открывал устаревший лист, а desktop уже шёл в полноэкранный редактор — расхождение стиля и функций (autosave, вложения, AI).
+**Последствия:** один путь создания заметки; offline create через client UUID на `/notes/new` (D-120); calendar create без client id по-прежнему TODO(spec-gap).
