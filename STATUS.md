@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 19:22 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 19:25 +06.
 
 Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-138** (README stub/изоляция/volume; fresh-check→MailHog; также D-136/137).
 
@@ -45,11 +45,11 @@
 - **M25:** фильтр периода; DnD month/week/day; mobile create → `/notes/new`.
 - **M26:** insecure LAN UUID; long-press без move открывает карточку.
 - M9–M23: вложения; share; звонки/видео/YouTube; extract jobs; офлайн-очередь; антидрожание.
-- **Счётчики collect:** pytest **128** (+5 D-136 restore, +2 D-137 tz/uuid); Playwright chromium **112** / все проекты ориентир **134** (+ insecure create, + tz create).
-- **Последний полный прогон (2026-11-04):** `make test` / verify pytest → **121 passed**; `make e2e` / verify playwright → **132 passed** (0 failed, 0 skipped); T1–T21 закрыты. Отчёт: [`reports/verify-20261104-172913.md`](reports/verify-20261104-172913.md). `make fresh-check` OK (изолированный `-p notetaker-fresh`).
-- **D-136:** restore — overdue skipped + prune offsets; `test_reminders_m3.py` **18 passed**.
-- **D-137:** create на телефоне/LAN — RFC-4122 fallback UUID; UI показывает FastAPI `detail` при 422. API после смены TZ OK; e2e timezone+m26 chromium **11 passed**.
-- **D-138:** README — таблица stub без ключа, cookie/`127.0.0.1`, volume `<project>_pgdata`; `make fresh-check` проверяет письмо в MailHog.
+- **Счётчики collect:** pytest **128**; Playwright chromium ориентир **112** / все проекты **~134** (+2 e2e D-137).
+- **Регрессия после D-136–138 (2026-11-04 19:25 +06):** `make docs-check` OK; `make test` → **128 passed** (0 failed); `make fresh-check` OK (notes=0 → register → note → MailHog). E2e (chromium, корзина/reminders/tz/create): timezone + m26 + autosave + offline + m7_ui (**22 passed**); reminder_ui + alarm + realtime + m15_editor (**13 passed** после повторного прогона `e2e_reminder_from_ui_toast_and_mail` — первый раз 0 из‑за api без E2E_HOOKS). Полный `make e2e` / verify в этом заходе не гоняли. Старый полный отчёт: [`reports/verify-20261104-172913.md`](reports/verify-20261104-172913.md).
+- **D-136:** restore — overdue skipped + prune offsets.
+- **D-137:** phone/LAN create — RFC-4122 UUID; 422 detail в UI.
+- **D-138:** README stub/изоляция/volume; fresh-check→MailHog.
 - `e2e_week_many_notes_in_slot`: стабилизирован (toggle overflow вместо Escape; 5/5 rerun). `e2e_scroll_10k` — passed.
 
 ## Не реализовано (явные пробелы / TODO)
