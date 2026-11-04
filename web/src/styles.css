@@ -3420,7 +3420,7 @@ button.note-main,
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  width: 96px;
+  width: 120px;
 }
 
 .attachment-thumb {
@@ -3444,8 +3444,17 @@ button.note-main,
 .attachment-thumb-actions {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: stretch;
+  gap: var(--space-1);
   font-size: 12px;
+  width: 100%;
+}
+
+.attachment-thumb-actions .attachment-delete-btn {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  font-size: 13px;
 }
 
 .attachment-docs {

@@ -144,13 +144,39 @@ type ErrorBody = {
   detail?: string | { loc?: (string | number)[]; msg?: string; type?: string }[];
 };
 
+/** Human-readable field names for FastAPI 422 `detail[].loc` (M28). */
+const FIELD_LABELS_RU: Record<string, string> = {
+  id: "идентификатор",
+  title: "заголовок",
+  body: "текст",
+  starts_at: "дата и время",
+  status: "статус",
+  reminder_offsets: "напоминания",
+  tag_ids: "теги",
+  email: "email",
+  timezone: "часовой пояс",
+  login: "логин",
+  password: "пароль",
+  version: "версия",
+  filename: "файл",
+  content_type: "тип файла",
+};
+
+function fieldLabelRu(locPart: string | number): string {
+  const key = String(locPart);
+  return FIELD_LABELS_RU[key] ?? key;
+}
+
 function messageFromErrorBody(body: ErrorBody, fallback: string): string {
   if (body.error?.message) return body.error.message;
   if (typeof body.detail === "string" && body.detail.trim()) return body.detail;
   if (Array.isArray(body.detail) && body.detail.length > 0) {
     return body.detail
       .map((d) => {
-        const loc = Array.isArray(d.loc) ? d.loc.filter((x) => x !== "body").join(".") : "";
+        const parts = Array.isArray(d.loc)
+          ? d.loc.filter((x) => x !== "body").map(fieldLabelRu)
+          : [];
+        const loc = parts.join(" · ");
         const msg = d.msg ?? "";
         return loc ? `${loc}: ${msg}` : msg;
       })

@@ -1065,3 +1065,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** `overflow: visible` на `.virtual-list`; popper/floating-ui зависимость.
 **Причина:** `position: absolute` внутри строки обрезался `overflow: auto` у `.virtual-list` и наезжал на текст заметки на узком экране.
 **Последствия:** e2e `e2e_list_actions_menu_not_clipped_on_narrow`; `m13_390_no_hscroll_and_more_menu` зелёный.
+
+### D-142 · 2026-11-04 20:15 +06 · M28 · Attachment delete = btn-danger + 422 field labels
+**Решение:** кнопки «Удалить» у превью вложений — класс `btn-danger` (белый на danger, AA), не `linkish danger-text` поверх глобального accent. `messageFromErrorBody` печатает русские ярлыки полей (`id` → «идентификатор», …).
+**Альтернативы:** `secondary`; оставить linkish с !important color.
+**Причина:** на телефоне `button` + `danger-text` = бирюзовый фон и красный текст; сырой «Unprocessable Entity» / англ. `loc` плохо читаются.
+**Последствия:** e2e `e2e_attachment_delete_uses_btn_danger`.

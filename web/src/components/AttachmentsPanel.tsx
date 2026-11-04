@@ -214,7 +214,7 @@ export function AttachmentsPanel({
                 <span className="muted small">Ожидает сохранения</span>
                 <button
                   type="button"
-                  className="linkish danger-text"
+                  className="btn-danger attachment-delete-btn"
                   data-testid="attachment-delete-pending"
                   onClick={() => onRemovePending?.(p.localId)}
                 >
@@ -245,7 +245,7 @@ export function AttachmentsPanel({
                   </a>
                   <button
                     type="button"
-                    className="linkish danger-text"
+                    className="btn-danger attachment-delete-btn"
                     data-testid="attachment-delete"
                     onClick={() => void remove(a)}
                   >
