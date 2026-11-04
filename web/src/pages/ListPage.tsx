@@ -13,7 +13,11 @@ import { NoteIllustration } from "../components/NoteIllustration";
 import { OverflowMenu } from "../components/OverflowMenu";
 import { Switch } from "../components/Switch";
 import { TagPill } from "../components/TagPill";
-import { formatInZone } from "../format";
+import {
+  formatInZone,
+  localDateEndToUtcIso,
+  localDateStartToUtcIso,
+} from "../format";
 import { useQuickAdd } from "../hooks/useQuickAdd";
 import { enqueueDelete } from "../lib/mutationOutbox";
 import { observeElementSize } from "../lib/observeElementSize";
@@ -23,6 +27,9 @@ type Filters = {
   q: string;
   status: string;
   tagId: string;
+  /** Local yyyy-MM-dd in user timezone; empty = no bound. */
+  fromDate: string;
+  toDate: string;
   sort: "starts_at" | "updated_at";
   dir: "asc" | "desc";
 };
@@ -42,10 +49,13 @@ export function ListPage({ user }: { user: User }) {
     q: "",
     status: "",
     tagId: tagFromUrl,
+    fromDate: "",
+    toDate: "",
     sort: "starts_at",
     dir: "asc",
   });
   const [draft, setDraft] = useState<Filters>(filters);
+  const [periodError, setPeriodError] = useState<string | null>(null);
 
   useEffect(() => {
     if (tagFromUrl === filters.tagId) return;
@@ -55,17 +65,28 @@ export function ListPage({ user }: { user: User }) {
   }, [tagFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const listQuery = useInfiniteQuery({
-    queryKey: ["notes", filters],
-    queryFn: ({ pageParam }) =>
-      api.listNotes({
+    queryKey: ["notes", filters, user.timezone],
+    queryFn: ({ pageParam }) => {
+      let from: string | undefined;
+      let to: string | undefined;
+      if (filters.fromDate) {
+        from = localDateStartToUtcIso(filters.fromDate, user.timezone);
+      }
+      if (filters.toDate) {
+        to = localDateEndToUtcIso(filters.toDate, user.timezone);
+      }
+      return api.listNotes({
         q: filters.q || undefined,
         status: filters.status || undefined,
         tags: filters.tagId ? [filters.tagId] : undefined,
+        from,
+        to,
         sort: filters.sort,
         dir: filters.dir,
         cursor: pageParam,
         limit: 40,
-      }),
+      });
+    },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
@@ -117,7 +138,29 @@ export function ListPage({ user }: { user: User }) {
 
   function applyFilters(e: FormEvent) {
     e.preventDefault();
+    if (draft.fromDate && draft.toDate && draft.fromDate > draft.toDate) {
+      setPeriodError("Дата «с» не может быть позже даты «по»");
+      return;
+    }
+    setPeriodError(null);
     setFilters(draft);
+  }
+
+  /** Reset search/tags/status/period; keep sort+dir (M25). */
+  function resetFilters() {
+    setPeriodError(null);
+    const next: Filters = {
+      ...draft,
+      q: "",
+      status: "",
+      tagId: "",
+      fromDate: "",
+      toDate: "",
+      sort: filters.sort,
+      dir: filters.dir,
+    };
+    setDraft(next);
+    setFilters(next);
   }
 
   const remove = useMutation({
@@ -219,6 +262,32 @@ export function ListPage({ user }: { user: User }) {
             <option value="active">активные</option>
             <option value="inactive">неактивные</option>
           </select>
+          <label className="list-period-field">
+            <span className="muted small">С</span>
+            <input
+              type="date"
+              aria-label="Период с"
+              data-testid="list-from"
+              value={draft.fromDate}
+              onChange={(e) => {
+                setPeriodError(null);
+                setDraft({ ...draft, fromDate: e.target.value });
+              }}
+            />
+          </label>
+          <label className="list-period-field">
+            <span className="muted small">По</span>
+            <input
+              type="date"
+              aria-label="Период по"
+              data-testid="list-to"
+              value={draft.toDate}
+              onChange={(e) => {
+                setPeriodError(null);
+                setDraft({ ...draft, toDate: e.target.value });
+              }}
+            />
+          </label>
           <select
             aria-label="Сортировка"
             data-testid="list-sort-filter"
@@ -239,7 +308,20 @@ export function ListPage({ user }: { user: User }) {
           <button type="submit" className="btn-accent" data-testid="list-apply">
             Применить
           </button>
+          <button
+            type="button"
+            className="secondary"
+            data-testid="list-reset"
+            onClick={resetFilters}
+          >
+            Сбросить
+          </button>
         </div>
+        {periodError && (
+          <p className="error list-period-error" data-testid="list-period-error" role="alert">
+            {periodError}
+          </p>
+        )}
       </form>
 
       <div

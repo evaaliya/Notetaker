@@ -103,6 +103,58 @@ export function relocateKeepWallTime(
   return localInputToUtcIso(`${datePart}T${timePart}`, timeZone);
 }
 
+/**
+ * Move to ``dayKey`` + ``hour`` in ``timeZone``, keeping the original minutes
+ * (e.g. 14:35 → hour 16 → 16:35). Used by week/day timeline DnD.
+ */
+export function relocateToLocalHourKeepingMinutes(
+  startsAtIso: string,
+  dayKey: string,
+  hour: number,
+  timeZone: string,
+): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
+    throw new Error("invalid dayKey");
+  }
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+    throw new Error("invalid hour");
+  }
+  const wall = utcIsoToLocalInput(startsAtIso, timeZone);
+  const minutes = (wall.split("T")[1] ?? "00:00").split(":")[1] ?? "00";
+  const hh = String(hour).padStart(2, "0");
+  return localInputToUtcIso(`${dayKey}T${hh}:${minutes}`, timeZone);
+}
+
+/** Change calendar day only; keep HH:MM wall time in ``timeZone``. */
+export function relocateToLocalDayKeepingTime(
+  startsAtIso: string,
+  dayKey: string,
+  timeZone: string,
+): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
+    throw new Error("invalid dayKey");
+  }
+  const wall = utcIsoToLocalInput(startsAtIso, timeZone);
+  const timePart = wall.split("T")[1] ?? "00:00";
+  return localInputToUtcIso(`${dayKey}T${timePart}`, timeZone);
+}
+
+/** Start of local calendar day (00:00) → UTC ISO Z for list ``from``. */
+export function localDateStartToUtcIso(dateYmd: string, timeZone: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateYmd)) {
+    throw new Error("invalid date");
+  }
+  return localInputToUtcIso(`${dateYmd}T00:00`, timeZone);
+}
+
+/** End of local calendar day (23:59) → UTC ISO Z for list ``to`` (inclusive minutes). */
+export function localDateEndToUtcIso(dateYmd: string, timeZone: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateYmd)) {
+    throw new Error("invalid date");
+  }
+  return localInputToUtcIso(`${dateYmd}T23:59`, timeZone);
+}
+
 /** UTC ISO → value for <input type="datetime-local"> in user TZ. */
 export function utcIsoToLocalInput(iso: string, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {

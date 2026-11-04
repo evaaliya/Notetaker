@@ -943,11 +943,46 @@ button:focus-visible {
 .cal-trash-zone.active {
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
 }
 
 .cal-trash-zone.active {
   border-color: var(--danger);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+
+body.cal-dnd-active {
+  user-select: none;
+  cursor: grabbing;
+}
+
+body.cal-dnd-active .calendar-main {
+  /* Reduce scroll fighting while a timeline card is dragged */
+  overscroll-behavior: contain;
+}
+
+.tl-card-dnd {
+  cursor: grab;
+  touch-action: manipulation;
+}
+
+.tl-dnd-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 80;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 8rem;
+  max-width: 14rem;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+  opacity: 0.92;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1584,6 +1619,42 @@ button:focus-visible {
 .list-toolbar-filters select {
   min-width: 8rem;
   flex: 1 1 8rem;
+}
+
+.list-period-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.list-period-field input[type="date"] {
+  min-width: 8.5rem;
+  max-width: 11rem;
+}
+
+.list-period-error {
+  flex: 1 1 100%;
+  margin: 0;
+  width: 100%;
+}
+
+.list-period-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.list-period-field input[type="date"] {
+  min-width: 8.5rem;
+  max-width: 11rem;
+}
+
+.list-period-error {
+  flex: 1 1 100%;
+  margin: 0;
+  width: 100%;
 }
 
 @media (min-width: 1200px) {
