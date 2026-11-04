@@ -92,3 +92,65 @@ async def test_register_with_timezone(client: AsyncClient):
         json={"login": _login(), "password": "x", "timezone": "Not/AZone"},
     )
     assert bad.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_note_after_settings_tz_differs_from_utc(client: AsyncClient):
+    """Settings TZ ≠ UTC (device often Asia/*): create today and tomorrow must be 201.
+
+    Regression for opaque UI «Unprocessable Entity» after timezone change — API
+    accepts aware starts_at regardless of users.timezone (wall clock is client-side).
+    """
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+
+    login = _login()
+    await client.post("/api/auth/register", json={"login": login, "password": "x"})
+    # Device-like default was UTC at register; switch away (phone repro).
+    patched = await client.patch("/api/me", json={"timezone": "America/New_York"})
+    assert patched.status_code == 200
+    assert patched.json()["timezone"] == "America/New_York"
+
+    tz = ZoneInfo("America/New_York")
+    now_local = datetime.now(tz)
+    today_local = (now_local + timedelta(hours=2)).replace(second=0, microsecond=0)
+    tomorrow_local = (now_local + timedelta(days=1)).replace(
+        hour=15, minute=0, second=0, microsecond=0
+    )
+
+    for label, wall in (("today", today_local), ("tomorrow", tomorrow_local)):
+        starts = wall.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        created = await client.post(
+            "/api/notes",
+            json={
+                "id": str(uuid.uuid4()),
+                "title": f"tz-{label}",
+                "body": "",
+                "starts_at": starts,
+                "reminder_offsets": [10],
+                "tag_ids": [],
+            },
+        )
+        assert created.status_code == 201, created.text
+        assert created.json()["starts_at"] == starts
+
+
+@pytest.mark.asyncio
+async def test_create_note_rejects_non_uuid_client_id(client: AsyncClient):
+    """M22 client id must be UUID; pre-D-137 fallback-… strings → 422 on id."""
+    login = _login()
+    await client.post("/api/auth/register", json={"login": login, "password": "x"})
+    bad = await client.post(
+        "/api/notes",
+        json={
+            "id": "fallback-m26lan-abc",
+            "title": "bad-id",
+            "body": "",
+            "starts_at": "2026-11-05T15:00:00Z",
+            "reminder_offsets": [],
+            "tag_ids": [],
+        },
+    )
+    assert bad.status_code == 422
+    detail = bad.json()["detail"]
+    assert any(d.get("loc") == ["body", "id"] for d in detail)

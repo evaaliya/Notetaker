@@ -140,7 +140,25 @@ type ErrorBody = {
   error?: { code?: string; message?: string; hint?: string };
   hint?: string;
   note?: Note;
+  /** FastAPI / Pydantic validation (422) — not our AppError envelope. */
+  detail?: string | { loc?: (string | number)[]; msg?: string; type?: string }[];
 };
+
+function messageFromErrorBody(body: ErrorBody, fallback: string): string {
+  if (body.error?.message) return body.error.message;
+  if (typeof body.detail === "string" && body.detail.trim()) return body.detail;
+  if (Array.isArray(body.detail) && body.detail.length > 0) {
+    return body.detail
+      .map((d) => {
+        const loc = Array.isArray(d.loc) ? d.loc.filter((x) => x !== "body").join(".") : "";
+        const msg = d.msg ?? "";
+        return loc ? `${loc}: ${msg}` : msg;
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+  return fallback;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -209,7 +227,7 @@ async function request<T>(path: string, init?: RequestOpts): Promise<T> {
       let hint: string | undefined;
       try {
         const body = (await res.json()) as ErrorBody;
-        message = body.error?.message || message;
+        message = messageFromErrorBody(body, message);
         code = body.error?.code;
         note = body.note;
         hint = body.hint || body.error?.hint;

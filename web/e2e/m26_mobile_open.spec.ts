@@ -158,6 +158,33 @@ test.describe("M26 touch + insecure context", () => {
     expect(pageErrors.filter((e) => /randomUUID/i.test(e))).toEqual([]);
   });
 
+  test("e2e_insecure_context_create_note_succeeds", async ({ page }) => {
+    /** D-137: fallback id must be RFC-4122 — otherwise POST /notes → 422 on body.id. */
+    const login = uniqueLogin("m26c");
+    await registerUi(page, login);
+    await page.addInitScript(stripRandomUUID);
+
+    const createStatuses: number[] = [];
+    page.on("response", (res) => {
+      if (res.request().method() === "POST" && /\/api\/notes\/?$/.test(res.url())) {
+        createStatuses.push(res.status());
+      }
+    });
+
+    await page.goto("/notes/new");
+    const title = `M26Create ${Date.now()}`;
+    await page.getByTestId("note-title").fill(title);
+    await expect
+      .poll(async () => {
+        const res = await page.request.get("/api/notes?q=" + encodeURIComponent(title));
+        const body = (await res.json()) as { items: { title: string; id: string }[] };
+        return body.items.find((n) => n.title === title)?.id ?? null;
+      }, { timeout: 15_000 })
+      .toBeTruthy();
+    expect(createStatuses.some((s) => s === 201)).toBeTruthy();
+    expect(createStatuses.some((s) => s === 422)).toBeFalsy();
+  });
+
   test("e2e_insecure_context_existing_note_opens", async ({ page }) => {
     const login = uniqueLogin("m26e");
     await registerUi(page, login);

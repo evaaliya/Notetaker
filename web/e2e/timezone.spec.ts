@@ -66,6 +66,54 @@ test("e2e_register_uses_browser_timezone", async ({ page }) => {
   await expect(page.getByTestId("note-tz-hint")).toContainText(browserTz);
 });
 
+test("e2e_create_note_after_settings_tz_differs_from_device", async ({ page }) => {
+  const login = uniqueLogin("tzcreate");
+  await registerUi(page, login);
+  const browserTz = await page.evaluate(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
+  const settingsTz =
+    browserTz === "Pacific/Honolulu" ? "Europe/Berlin" : "Pacific/Honolulu";
+
+  await page.goto("/settings");
+  const tzInput = page.getByTestId("settings-timezone");
+  await tzInput.fill(settingsTz);
+  await page.getByRole("option", { name: settingsTz, exact: true }).click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Сохранить" }).click();
+  await expect(page.getByText("Сохранено")).toBeVisible();
+
+  const me = await page.request.get("/api/me");
+  expect((await me.json()).timezone).toBe(settingsTz);
+
+  // Tomorrow 15:00 wall clock in settings TZ → UTC ISO (same as editor).
+  const tomorrowLocal = await page.evaluate((tz) => {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date(now.getTime() + 24 * 3600_000));
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+    return `${get("year")}-${get("month")}-${get("day")}T15:00`;
+  }, settingsTz);
+
+  await page.goto("/notes/new");
+  await page.getByTestId("meta-when-trigger").click();
+  await expect(page.getByTestId("note-tz-hint")).toContainText(settingsTz);
+  await page.getByTestId("note-starts").fill(tomorrowLocal);
+  const title = `TZ create ${Date.now()}`;
+  await page.getByTestId("note-title").fill(title);
+  await expect
+    .poll(async () => {
+      const res = await page.request.get("/api/notes?q=" + encodeURIComponent(title));
+      const body = (await res.json()) as { items: { title: string }[] };
+      return body.items.some((n) => n.title === title);
+    }, { timeout: 15_000 })
+    .toBe(true);
+});
+
 test("e2e_past_reminder_shows_warning", async ({ page }) => {
   const login = uniqueLogin("tzpast");
   await registerUi(page, login);

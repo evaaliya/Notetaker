@@ -1033,3 +1033,11 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** полагаться только на воркер, пока заметка в корзине (как T7b); отдельно чистить offsets на клиенте.
 **Причина:** `test_restore_returns_future_only` тикает *в корзине* до restore → overdue уже `skipped`. Если тика не было (воркер простаивал / restore сразу после due), overdue остаются `pending` и после restore уходят late-send (D-007), а форма показывает все offsets из колонки заметки как предстоящие.
 **Последствия:** тесты `test_restore_skips_overdue_pending_without_prior_tick`, `test_restore_prunes_past_offsets_after_partial_fire`, `test_restore_already_sent_not_resent`, `test_restore_past_note_no_pending`, `test_restore_series_skips_overdue_keeps_future`; UI читает урезанный `reminder_offsets` из API.
+
+### D-137 · 2026-11-04 19:19 +06 · fix · Phone create 422: RFC-4122 safeRandomUUID + detail в ApiError
+**Решение:**
+1. `safeRandomUUID()` при отсутствии `crypto.randomUUID` строит UUID v4 через `crypto.getRandomValues` (доступен в insecure context), а не `fallback-…`.
+2. `api.ts` `messageFromErrorBody` читает FastAPI `detail[]` (422), чтобы UI не показывал голый «Unprocessable Entity».
+**Альтернативы:** не слать `id` с клиента на insecure; принимать произвольный string id на API; оставить opaque statusText.
+**Причина:** на телефоне (`http://LAN-IP`) нет `randomUUID` → D-133 fallback → Pydantic `body.id` uuid_parsing → 422. Смена TZ в настройках сама по себе create не ломает (API accepts aware `starts_at`); симптом совпал с телефоном/LAN. Вложение «Ожидает сохранения» — следствие: create не прошёл.
+**Последствия:** pytest `test_create_note_after_settings_tz_differs_from_utc`, `test_create_note_rejects_non_uuid_client_id`; e2e `e2e_create_note_after_settings_tz_differs_from_device`, `e2e_insecure_context_create_note_succeeds`.
