@@ -1,6 +1,6 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 17:20 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 17:35 +06.
 
 Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-135** (poll без LISTEN на `reminders_changed`; также D-133/134 touch/UUID).
 
@@ -35,7 +35,7 @@
 | M24 Документация | готов | README/TESTING/HISTORY; `make docs-check`; D-124–126 |
 | M25 Список период + DnD календаря | готов | UI from/to+reset; DnD month/week/day+trash; create `/notes/new`; ghost clone; release-on-window D-128–132 |
 | M26 Touch / LAN open | готов | safeRandomUUID (H3); long-press tap (H1); CDP touch e2e D-133–134 |
-| M27 Изоляция / сдача | в работе | compose-порты, `make fresh-check`, docs D-135; полный verify — ниже |
+| M27 Изоляция / сдача | готов | compose-порты, `make fresh-check`, D-135; `make verify` 2026-11-04 |
 
 ## Работает
 
@@ -46,8 +46,8 @@
 - **M26:** insecure LAN UUID; long-press без move открывает карточку.
 - M9–M23: вложения; share; звонки/видео/YouTube; extract jobs; офлайн-очередь; антидрожание.
 - **Счётчики collect:** pytest **121**; Playwright chromium **110** / все проекты **132**.
-- Тесты: `make fresh-check` (2026-11-04) OK; полный `make e2e` / `make verify` — обновляется в этом заходе (M27).
-- T1–T21 закрыты с M6; отчёты `reports/verify-*.md`.
+- **Последний полный прогон (2026-11-04):** `make test` / verify pytest → **121 passed**; `make e2e` / verify playwright → **132 passed** (0 failed, 0 skipped); T1–T21 закрыты. Отчёт: [`reports/verify-20261104-172913.md`](reports/verify-20261104-172913.md). `make fresh-check` OK (изолированный `-p notetaker-fresh`).
+- `e2e_week_many_notes_in_slot`: стабилизирован (toggle overflow вместо Escape; 5/5 rerun). `e2e_scroll_10k` — passed.
 
 ## Не реализовано (явные пробелы / TODO)
 
@@ -78,7 +78,6 @@
 - «Неделя» в `/upcoming` — скользящее окно, не ISO (D-018).
 - YouTube: без captions разбор невозможен; нужен доступ api→youtube.com; id регистрозависим.
 - E2E_HOOKS только на время `make e2e` / `make verify`.
-- `e2e_week_many_notes_in_slot` иногда flaky (на повторном прогоне ок).
 - Calendar DnD e2e trash/relocate на mobile viewport по-прежнему mouse path; open/suppress touch — CDP в `m26_mobile_open` (D-134).
 
 ## Расширения сверх брифа
@@ -94,7 +93,7 @@
 | M24 | Документация + docs-check | готов |
 | M25 | Период списка + DnD всех видов | готов |
 | M26 | Touch open + insecure LAN UUID | готов |
-| M27 | Изоляция стека / сдача docs | в работе |
+| M27 | Изоляция стека / сдача docs + verify | готов |
 
 ## Экспорты сессий (`docs/sessions/`)
 
@@ -103,7 +102,5 @@
 
 ## Следующий заход
 
-1. Полный `make verify` и фиксация отчёта в `reports/verify-*.md` (приоритет сдачи).
-2. Ручная проверка на реальном телефоне по LAN.
-3. Стабилизация flake `e2e_week_many_notes_in_slot`, если воспроизведётся.
-4. Вне объёма: Web Push; сложные правила повтора; ICS; журнал WS; FTS; напоминания участникам; rate-limit / подтверждение email; опционально LISTEN на `reminders_changed` (D-135).
+1. Ручная проверка на реальном телефоне по LAN.
+2. Вне объёма: Web Push; сложные правила повтора; ICS; журнал WS; FTS; напоминания участникам; rate-limit / подтверждение email; опционально LISTEN на `reminders_changed` (D-135).

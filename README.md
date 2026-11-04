@@ -156,7 +156,7 @@ make docs-check  # синхронизация STATUS ↔ DECISIONS
 Эквиваленты **без make**, детали хуков и JUnit для verify — в [`docs/TESTING.md`](docs/TESTING.md).
 
 **Счётчики (collect):** pytest **121**; Playwright chromium **110** / все проекты **132**.  
-**Последний полный прогон:** будет записан в [`STATUS.md`](STATUS.md) и здесь после `make verify` (см. отчёты `reports/verify-*.md`).
+**Последний полный прогон (2026-11-04):** pytest **121 passed**; Playwright **132 passed** (0 failed / 0 skipped). Отчёт T1–T21: [`reports/verify-20261104-172913.md`](reports/verify-20261104-172913.md). Актуальный STATUS — [`STATUS.md`](STATUS.md).
 
 ## Что не работает / ограничения
 
@@ -164,9 +164,8 @@ make docs-check  # синхронизация STATUS ↔ DECISIONS
 
 ## Что сделали бы следующим заходом
 
-1. Полный `make verify` на чистом прогоне и стабилизация flake `e2e_week_many_notes_in_slot` (если ещё плавает).
-2. Ручная проверка на реальном телефоне по LAN (сейчас — симуляция insecure + CDP).
-3. Вне текущего объёма: Web Push; сложные правила повтора; ICS; журнал WS; FTS; напоминания участникам общих заметок; rate-limit / подтверждение email.
+1. Ручная проверка на реальном телефоне по LAN (сейчас — симуляция insecure + CDP).
+2. Вне текущего объёма: Web Push; сложные правила повтора; ICS; журнал WS; FTS; напоминания участникам общих заметок; rate-limit / подтверждение email; опционально LISTEN `reminders_changed` (D-135).
 
 Детали и приоритеты — [`STATUS.md`](STATUS.md) § «Следующий заход».
 
