@@ -168,7 +168,7 @@ task_id: 113956
 title: Run full make e2e with 3 browsers
 tool_call_id: call-de470aae-d687-4bfa-9243-b2f8610d2b63-163
 fc_dc8796f7-6a38-9607-b7b9-053beef57ecb_0
-output_path: /Users/diana/.cursor/projects/Users-diana-Documents-GitHub-notetaker-kit/terminals/113956.txt
+output_path: /Users/<user>/.cursor/projects/Users-<user>-Documents-GitHub-notetaker-kit/terminals/113956.txt
 </task>
 </system_notification>
 <user_query>Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.</user_query>

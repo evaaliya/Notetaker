@@ -266,7 +266,7 @@ The user selected this node in the browser preview.
 tag: div
 dom_path: div#root > div.app-frame.sidebar-collapsed > main.app-main > section.calendar-page > div.calendar-layout.with-panel > aside.side-panel.card.side-panel-editor > form.note-editor-form.side-panel-form > div.note-editor-body > div.share-panel
 class: share-panel
-visible_text: Общая · владелец: evaproject137@gmail.com Покинуть
+visible_text: Общая · владелец: owner@example.com Покинуть
 bounds_css_px: top=472 left=631 width=214 height=150
 framework: react
 component: SharePanel
@@ -275,7 +275,7 @@ attributes:
   class=share-panel
   data-testid=share-panel
 ```
- — “Общая · владелец: evaproject137@gmail.com Покинуть”: сделай эту панель чуть меньше, и сделай для ника гостя/контакта отдельную пилюлю как на моем референсе который скину следующим промптом, там кружок с фото и имя/почта/ник, берешь только дизайн, а цвет подгони под наш дизайн, и сделай так чтобы контакты/гости добавленные в общие заметки после одиного раза добавления сохранялись и выходили как рекомендации добавить в новых заметках, и для созданных тоже, но пусть добавленные и не добавленные можно будет отлчить
+ — “Общая · владелец: owner@example.com Покинуть”: сделай эту панель чуть меньше, и сделай для ника гостя/контакта отдельную пилюлю как на моем референсе который скину следующим промптом, там кружок с фото и имя/почта/ник, берешь только дизайн, а цвет подгони под наш дизайн, и сделай так чтобы контакты/гости добавленные в общие заметки после одиного раза добавления сохранялись и выходили как рекомендации добавить в новых заметках, и для созданных тоже, но пусть добавленные и не добавленные можно будет отлчить
 
 ---
 

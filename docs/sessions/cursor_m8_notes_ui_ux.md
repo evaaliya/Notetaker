@@ -137,7 +137,7 @@ task_id: 967121
 title: Inspect make e2e target database
 tool_call_id: call-23604da0-5022-4980-beb3-1a4937a5526a-114
 fc_c6ba4751-6225-93be-a69e-67fdad002cbd_0
-output_path: /Users/diana/.cursor/projects/Users-diana-Documents-GitHub-notetaker-kit/terminals/967121.txt
+output_path: /Users/<user>/.cursor/projects/Users-<user>-Documents-GitHub-notetaker-kit/terminals/967121.txt
 </task>
 </system_notification>
 <user_query>Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.</user_query>

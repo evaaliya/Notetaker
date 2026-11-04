@@ -196,7 +196,7 @@ Web в Docker без volume — после правок нужен `docker compo
 
 **User**
 
-(.venv) diana@Dianas-MacBook-Air notetaker-kit % docker compose up -d --build --force-recreate --no-deps web
+(.venv) user@MacBook-Air notetaker-kit % docker compose up -d --build --force-recreate --no-deps web
 [+] Building 24.8s (3/3) FINISHED                                                          
  => [internal] load local bake definitions                                            0.0s
  => => reading from stdin 546B                                                        0.0s
@@ -227,7 +227,7 @@ View build details: docker-desktop://dashboard/build/default/default/i41x9lka2xa
 
 What's next:
     Debug this Compose error with Gordon → docker ai "help me fix this compose error"
-(.venv) diana@Dianas-MacBook-Air notetaker-kit % (.venv) diana@Dianas-MacBook-Air notetaker-kit % docker compose up --build -d
+(.venv) user@MacBook-Air notetaker-kit % (.venv) user@MacBook-Air notetaker-kit % docker compose up --build -d
 [+] Building 60.6s (5/5) FINISHED                                                          
  => [internal] load local bake definitions                                            0.0s
  => => reading from stdin 1.48kB                                                      0.0s
@@ -264,7 +264,7 @@ View build details: docker-desktop://dashboard/build/default/default/q04pw17b3ff
 
 What's next:
     Debug this Compose error with Gordon → docker ai "help me fix this compose error"
-(.venv) diana@Dianas-MacBook-Air notetaker-kit %
+(.venv) user@MacBook-Air notetaker-kit %
 
 ---
 
@@ -439,7 +439,7 @@ docker compose logs -f worker 2>&1 | tee /tmp/extract-pipeline.log
 
 **User**
 
-(.venv) diana@Dianas-MacBook-Air api % docker compose logs -f worker 2>&1 | tee /tmp/extract-pipeline.log
+(.venv) user@MacBook-Air api % docker compose logs -f worker 2>&1 | tee /tmp/extract-pipeline.log
 worker-1  | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
 worker-1  | INFO  [alembic.runtime.migration] Will assume transactional DDL.
 

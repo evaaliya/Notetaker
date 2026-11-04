@@ -206,7 +206,7 @@ task_id: 324087
 title: Log D-063 and re-run extract tests
 tool_call_id: call-e8689cbe-0d7d-4bb1-bc8c-f3c5c6200040-152
 fc_535fb108-0846-9300-8612-8b2d4c037f62_3
-output_path: /Users/diana/.cursor/projects/Users-diana-Documents-GitHub-notetaker-kit/terminals/324087.txt
+output_path: /Users/<user>/.cursor/projects/Users-<user>-Documents-GitHub-notetaker-kit/terminals/324087.txt
 </task>
 </system_notification>
 <user_query>Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.</user_query>
@@ -221,7 +221,7 @@ output_path: /Users/diana/.cursor/projects/Users-diana-Documents-GitHub-notetake
 
 **User**
 
-@/Users/diana/.cursor/projects/Users-diana-Documents-GitHub-notetaker-kit/terminals/1.txt:423-426  ключи вставила, больше не заглядывай в env. Но я не вижу ничего что относиться к ИИ. прикрепила скриншот, где сам агент, как ему говорить что делать? и вообще покажи код, выведи сслыку к файлу, все файлы относительно модели 
+@/Users/<user>/.cursor/projects/Users-<user>-Documents-GitHub-notetaker-kit/terminals/1.txt:423-426  ключи вставила, больше не заглядывай в env. Но я не вижу ничего что относиться к ИИ. прикрепила скриншот, где сам агент, как ему говорить что делать? и вообще покажи код, выведи сслыку к файлу, все файлы относительно модели 
 
 ---
 
