@@ -40,7 +40,19 @@ async function gotoWeekWithTitle(page: import("@playwright/test").Page, title: s
   await expect(overflow).toBeVisible({ timeout: 5_000 });
   await overflow.click();
   await expect(page.getByTestId("tl-overflow-item").filter({ hasText: title })).toBeVisible();
-  await page.keyboard.press("Escape");
+  // Toggle closed — Escape does not clear openCluster (no key handler on the list).
+  await overflow.click();
+  await expect(page.getByTestId("tl-overflow-list")).toHaveCount(0);
+}
+
+/** Ensure timeline overflow list is open (button toggles; prior helper may leave it open). */
+async function openTimelineOverflow(page: import("@playwright/test").Page) {
+  const btn = page.getByTestId("tl-overflow-btn");
+  const list = page.getByTestId("tl-overflow-list");
+  if ((await list.count()) === 0) {
+    await btn.click();
+  }
+  await expect(list).toBeVisible();
 }
 
 test("e2e_tags_visible_everywhere", async ({ page }) => {
@@ -101,7 +113,7 @@ test("e2e_week_many_notes_in_slot", async ({ page }) => {
   // M17: up to 4 visible cards + overflow for the rest.
   await expect(page.getByTestId("tl-card")).toHaveCount(4);
   await expect(page.getByTestId("tl-overflow-btn")).toContainText("+1 ещё");
-  await page.getByTestId("tl-overflow-btn").click();
+  await openTimelineOverflow(page);
   for (const t of titles) {
     await expect(page.getByTestId("tl-overflow-item").filter({ hasText: t })).toBeVisible();
   }
