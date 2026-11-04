@@ -997,3 +997,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** оставить bottom sheet; рестайлить QuickAdd под новый редактор.
 **Причина:** после M8.2/M13 mobile FAB открывал устаревший лист, а desktop уже шёл в полноэкранный редактор — расхождение стиля и функций (autosave, вложения, AI).
 **Последствия:** один путь создания заметки; offline create через client UUID на `/notes/new` (D-120); calendar create без client id по-прежнему TODO(spec-gap).
+
+### D-131 · 2026-11-04 15:07 +06 · M25 · DnD ghost week/day = клон `.tl-card`
+**Решение:** portal-ghost использует классы `tl-card tl-dnd-ghost` и те же `--tag-bg`/`--tag-fg`; размер с `getBoundingClientRect` исходной карточки; оригинал на время drag — `opacity: 0.35`. Убран белый `background: var(--surface)`.
+**Альтернативы:** оставить нейтральную «пилюлю»; `html2canvas`/snapshot.
+**Причина:** в month FC тащит сам event; в week/day ghost выглядел как белая карточка, не как заметка.
+**Последствия:** e2e `e2e_dnd_ghost_not_stuck_at_origin` проверяет, что фон ghost не чистый white.

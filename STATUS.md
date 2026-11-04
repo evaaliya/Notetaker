@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 14:58 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 15:07 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-130** (mobile create → `/notes/new`; также D-128/129).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-131** (DnD ghost = клон `.tl-card`; также D-128–130).
 
 ## Этапы
 
@@ -40,7 +40,7 @@
 - Стек: `docker compose up --build` — postgres, mailhog, api, worker, web; миграции при старте.
 - Auth (cookie/argon2), заметки/теги/корзина, список (search/keyset/**период from–to**), календарь, «Ближайшее», повторы, reminders+outbox, realtime WS, уведомления.
 - UI по `docs/FRONTEND.md`: сайдбар, список/календарь/upcoming/tags/trash/settings, страница заметки, mobile ≤640.
-- **M25:** фильтр периода в списке + сброс (сорт сохраняется); DnD relocate+trash в month/week/day на desktop и mobile viewport (touch: long-press в хуке); ghost drag не остаётся в углу (D-129); mobile «Новая заметка» → `/notes/new` (D-130, без QuickAddSheet).
+- **M25:** фильтр периода в списке + сброс (сорт сохраняется); DnD relocate+trash в month/week/day на desktop и mobile viewport (touch: long-press в хуке); ghost drag не остаётся в углу (D-129) и в week/day клонирует `.tl-card` (D-131); mobile «Новая заметка» → `/notes/new` (D-130, без QuickAddSheet).
 - M9–M11: вложения; общие заметки; звонки/видео + YouTube captions (stub/OpenRouter).
 - M14–M23: extract jobs; персональные теги / `show_in_calendar`; плотность календаря; адаптивность; annotate UI; extract timeouts; офлайн-очередь; антидрожание (D-121–123).
 - **M24:** профессиональный README; `docs/TESTING.md`; сжатый STATUS + `docs/HISTORY.md`; `scripts/check_docs.py` / `make docs-check` в `make verify`.

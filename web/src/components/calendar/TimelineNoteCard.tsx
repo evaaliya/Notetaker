@@ -57,9 +57,12 @@ export function TimelineNoteCard({
   const range = eventTimeRangeLabel(occ.occurrence_start, timeZone);
   /** null = ghost not mounted (avoids stuck pill at 0,0). */
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
+  const [ghostSize, setGhostSize] = useState<{ w: number; h: number } | null>(null);
+  const [cardEl, setCardEl] = useState<HTMLButtonElement | null>(null);
 
   const clearDragChrome = useCallback(() => {
     setGhostPos(null);
+    setGhostSize(null);
     document.body.classList.remove("cal-dnd-active");
     onDraggingChange?.(false, false);
   }, [onDraggingChange]);
@@ -74,6 +77,10 @@ export function TimelineNoteCard({
     enabled: dndEnabled,
     onArmed: (x, y) => {
       onDraggingChange?.(true, false);
+      if (cardEl) {
+        const r = cardEl.getBoundingClientRect();
+        setGhostSize({ w: r.width, h: r.height });
+      }
       setGhostPos({ x: x + 8, y: y + 8 });
       document.body.classList.add("cal-dnd-active");
     },
@@ -107,21 +114,22 @@ export function TimelineNoteCard({
     },
   });
 
+  const tagStyle = {
+    "--tag-bg": colors.fill,
+    "--tag-fg": colors.ink,
+  } as CSSProperties;
+
   return (
     <>
       <button
         type="button"
-        className={`tl-card${dndEnabled ? " tl-card-dnd" : ""}`}
+        ref={setCardEl}
+        className={`tl-card${dndEnabled ? " tl-card-dnd" : ""}${ghostPos ? " is-dragging" : ""}`}
         data-testid="tl-card"
         data-occ-key={occKey(occ)}
         data-hm={hm}
         title={dndEnabled ? `${title} · удерживайте, чтобы перенести` : title}
-        style={
-          {
-            "--tag-bg": colors.fill,
-            "--tag-fg": colors.ink,
-          } as CSSProperties
-        }
+        style={tagStyle}
         {...bind}
         onClick={() => {
           if (suppressClickIfDragged()) return;
@@ -135,10 +143,16 @@ export function TimelineNoteCard({
         ghostPos &&
         createPortal(
           <div
-            className="tl-dnd-ghost is-visible"
+            className="tl-card tl-dnd-ghost is-visible"
             data-testid="tl-dnd-ghost"
             aria-hidden="true"
-            style={{ transform: `translate(${ghostPos.x}px, ${ghostPos.y}px)` }}
+            style={{
+              ...tagStyle,
+              transform: `translate(${ghostPos.x}px, ${ghostPos.y}px)`,
+              ...(ghostSize
+                ? { width: ghostSize.w, height: ghostSize.h, minWidth: ghostSize.w }
+                : null),
+            }}
           >
             <span className="tl-card-range">{range}</span>
             <span className="tl-card-title">{title}</span>

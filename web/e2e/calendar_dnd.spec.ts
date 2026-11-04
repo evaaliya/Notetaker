@@ -233,7 +233,13 @@ test("e2e_dnd_ghost_not_stuck_at_origin", async ({ page }) => {
   await page.mouse.move(box.x + 5, box.y + 5);
   await page.mouse.down();
   await page.mouse.move(box.x + 20, box.y + 5, { steps: 3 });
-  await expect(page.getByTestId("tl-dnd-ghost")).toHaveCount(1);
+  const ghost = page.getByTestId("tl-dnd-ghost");
+  await expect(ghost).toHaveCount(1);
+  // Ghost is a visual clone of .tl-card (tag fill), not a white surface pill.
+  const bg = await ghost.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(bg).not.toBe("rgba(0, 0, 0, 0)");
+  expect(bg).not.toMatch(/^rgb\(\s*255,\s*255,\s*255\s*\)$/);
+  await expect(ghost.locator(".tl-card-title")).toHaveText(title);
   await page.mouse.up();
   await expect(page.getByTestId("tl-dnd-ghost")).toHaveCount(0);
 });

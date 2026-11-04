@@ -966,7 +966,7 @@ body.cal-dnd-active .calendar-main {
   touch-action: manipulation;
 }
 
-/* Mounted only while dragging (portal). Never leave a static pill at 0,0. */
+/* Portal clone of .tl-card — same tag colors / chrome, not a white surface pill. */
 .tl-dnd-ghost {
   position: fixed;
   top: 0;
@@ -974,20 +974,18 @@ body.cal-dnd-active .calendar-main {
   z-index: 80;
   pointer-events: none;
   display: none;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 8rem;
-  max-width: 14rem;
-  padding: 6px 10px;
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  border: 1px solid var(--line);
+  max-width: none;
   box-shadow: var(--shadow-md);
-  opacity: 0.92;
+  opacity: 0.95;
+  cursor: grabbing;
 }
 
 .tl-dnd-ghost.is-visible {
   display: flex;
+}
+
+.tl-card.is-dragging {
+  opacity: 0.35;
 }
 
 @media (prefers-reduced-motion: reduce) {
