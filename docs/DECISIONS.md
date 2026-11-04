@@ -1059,3 +1059,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** полагаться на FullCalendar `dragScroll`; не скроллить parent; только window scroll.
 **Причина:** месяц — FC `height="auto"` → нет внутреннего scroller, `dragScroll` не крутит родителя; week/day — свой long-press DnD без автоскролла + `preventDefault` на move.
 **Последствия:** e2e `e2e_dnd_autoscroll_day_near_viewport_edge`; `calendar_dnd` + `m26_mobile_open` остаются зелёными.
+
+### D-141 · 2026-11-04 20:14 +06 · M28 · OverflowMenu portal + viewport clamp
+**Решение:** меню «Действия» рендерится через `createPortal(document.body)` с `position: fixed` и clamp во viewport (flip вверх / сдвиг по X); якорь — правый край триггера (не поверх заголовка).
+**Альтернативы:** `overflow: visible` на `.virtual-list`; popper/floating-ui зависимость.
+**Причина:** `position: absolute` внутри строки обрезался `overflow: auto` у `.virtual-list` и наезжал на текст заметки на узком экране.
+**Последствия:** e2e `e2e_list_actions_menu_not_clipped_on_narrow`; `m13_390_no_hscroll_and_more_menu` зелёный.
