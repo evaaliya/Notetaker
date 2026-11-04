@@ -12,6 +12,8 @@ type Handlers = {
   onMove: (clientX: number, clientY: number) => void;
   onEnd: (clientX: number, clientY: number) => void;
   onCancel: () => void;
+  /** Armed long-press released with no travel — browsers often omit click. */
+  onTapAfterArm?: () => void;
 };
 
 type DragRefs = {
@@ -29,6 +31,8 @@ type DragRefs = {
 /**
  * Touch/pen: long-press then drag (move before arm = scroll, cancel).
  * Mouse: arm after moving past threshold (no long-press) so click still selects.
+ * didDrag (click suppress) only after travel past threshold once armed —
+ * long-press + release without move still selects (M26 / D-133).
  *
  * After pointerdown, move/up/cancel listen on `window` so a lost
  * setPointerCapture (or up over trash/panel) still finishes the drag (D-132).
@@ -39,6 +43,7 @@ export function useLongPressDrag({
   onMove,
   onEnd,
   onCancel,
+  onTapAfterArm,
 }: Handlers) {
   const stateRef = useRef<DragRefs>({
     timer: undefined,
@@ -49,9 +54,16 @@ export function useLongPressDrag({
     pointerType: "mouse",
     target: null,
     windowListening: false,
-    handlers: { enabled, onArmed, onMove, onEnd, onCancel },
+    handlers: { enabled, onArmed, onMove, onEnd, onCancel, onTapAfterArm },
   });
-  stateRef.current.handlers = { enabled, onArmed, onMove, onEnd, onCancel };
+  stateRef.current.handlers = {
+    enabled,
+    onArmed,
+    onMove,
+    onEnd,
+    onCancel,
+    onTapAfterArm,
+  };
 
   // Stable window listeners (same function identity for add/remove).
   const windowListenersRef = useRef<{
@@ -94,7 +106,8 @@ export function useLongPressDrag({
       const s = stateRef.current;
       if (s.armed) return;
       s.armed = true;
-      s.didDrag = true;
+      // didDrag stays false until real move after arm — long-press+release
+      // without travel must still fire click / onSelect (M26 / H1).
       try {
         (s.target as HTMLElement | null)?.setPointerCapture?.(pointerId);
       } catch {
@@ -126,6 +139,7 @@ export function useLongPressDrag({
         }
       }
       if (e.cancelable) e.preventDefault();
+      if (dist > DND_MOVE_CANCEL_PX) s.didDrag = true;
       s.handlers.onMove(e.clientX, e.clientY);
     };
 
@@ -133,10 +147,18 @@ export function useLongPressDrag({
       const s = stateRef.current;
       if (s.pointerId !== e.pointerId) return;
       const wasArmed = s.armed;
+      const dragged = s.didDrag;
       const x = e.clientX;
       const y = e.clientY;
       resetTracking();
-      if (wasArmed) s.handlers.onEnd(x, y);
+      if (!wasArmed) return;
+      if (dragged) {
+        s.handlers.onEnd(x, y);
+        return;
+      }
+      // Armed but no travel: drop chrome; invoke tap (click often omitted after long-press).
+      s.handlers.onCancel();
+      s.handlers.onTapAfterArm?.();
     };
 
     const cancel = (e: PointerEvent) => {

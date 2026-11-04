@@ -112,6 +112,9 @@ export function TimelineNoteCard({
     onCancel: () => {
       clearDragChrome();
     },
+    onTapAfterArm: () => {
+      onSelect(occ);
+    },
   });
 
   const tagStyle = {
