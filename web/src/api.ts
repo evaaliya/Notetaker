@@ -144,7 +144,7 @@ type ErrorBody = {
   detail?: string | { loc?: (string | number)[]; msg?: string; type?: string }[];
 };
 
-/** Human-readable field names for FastAPI 422 `detail[].loc` (M28). */
+/** Human-readable field names for FastAPI 422 `detail[].loc` (M28.1). */
 const FIELD_LABELS_RU: Record<string, string> = {
   id: "идентификатор",
   title: "заголовок",

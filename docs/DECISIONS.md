@@ -1048,44 +1048,50 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Причина:** ручной клон путали с чужой БД/сессией; неочевидно, что stub без ключа не даёт 500; fresh-check не доказывал цепочку напоминание→письмо.
 **Последствия:** `make fresh-check` длиннее на ожидание воркера/MailHog (до ~45 с).
 
-### D-139 · 2026-11-04 19:58 +06 · M28 · Trash-undo toast: автоскрытие 15 с
+### D-139 · 2026-11-04 19:58 +06 · M28.1 · Trash-undo toast: автоскрытие 15 с
 **Решение:** константа `TRASH_UNDO_MS = 15_000` в `web/src/lib/trashUndo.ts`. Очередь и таймеры — module-level store (переживает remount UI); `TrashUndoProvider` в Shell только подписывается и рисует. Каждое удаление — отдельный item + свой `setTimeout`. Текст: «Заметка перемещена в корзину». Стек `.trash-undo-stack` слева внизу, чтобы не перехватывать клики правой note panel. `data-testid` сохранены.
 **Альтернативы:** оставить тост только на CalendarPage; один слот с перезапуском таймера; бесконечный тост до клика; React state без module store.
 **Причина:** тост без TTL висел «очень долго»; локальный state страницы пропадал при навигации; несколько удалений — параллельные 15 с; правый toast перекрывал «В корзину» в панели.
 **Последствия:** e2e `e2e_trash_undo_auto_hides_after_15s_survives_navigation`, `e2e_trash_undo_each_toast_has_own_15s` (Playwright clock).
 
-### D-140 · 2026-11-04 20:13 +06 · M28 · Calendar DnD edge autoscroll
+### D-140 · 2026-11-04 20:13 +06 · M28.1 · Calendar DnD edge autoscroll
 **Решение:** кастомный `dragAutoScroll` (rAF, край viewport и scroll-контейнеров `.calendar-main` / `.tl-day-view` / `.tl-week` / `.fc-scroller`). Подключён в month (`eventDragStart` + window `pointermove`) и week/day (`useLongPressDrag` onArmed/onMove). Константа `DRAG_AUTO_SCROLL_EDGE_PX = 48`.
 **Альтернативы:** полагаться на FullCalendar `dragScroll`; не скроллить parent; только window scroll.
 **Причина:** месяц — FC `height="auto"` → нет внутреннего scroller, `dragScroll` не крутит родителя; week/day — свой long-press DnD без автоскролла + `preventDefault` на move.
 **Последствия:** e2e `e2e_dnd_autoscroll_day_near_viewport_edge`; `calendar_dnd` + `m26_mobile_open` остаются зелёными.
 
-### D-141 · 2026-11-04 20:14 +06 · M28 · OverflowMenu portal + viewport clamp
+### D-141 · 2026-11-04 20:14 +06 · M28.1 · OverflowMenu portal + viewport clamp
 **Решение:** меню «Действия» рендерится через `createPortal(document.body)` с `position: fixed` и clamp во viewport (flip вверх / сдвиг по X); якорь — правый край триггера (не поверх заголовка).
 **Альтернативы:** `overflow: visible` на `.virtual-list`; popper/floating-ui зависимость.
 **Причина:** `position: absolute` внутри строки обрезался `overflow: auto` у `.virtual-list` и наезжал на текст заметки на узком экране.
 **Последствия:** e2e `e2e_list_actions_menu_not_clipped_on_narrow`; `m13_390_no_hscroll_and_more_menu` зелёный.
 
-### D-142 · 2026-11-04 20:15 +06 · M28 · Attachment delete = btn-danger + 422 field labels
+### D-142 · 2026-11-04 20:15 +06 · M28.1 · Attachment delete = btn-danger + 422 field labels
 **Решение:** кнопки «Удалить» у превью вложений — класс `btn-danger` (белый на danger, AA), не `linkish danger-text` поверх глобального accent. `messageFromErrorBody` печатает русские ярлыки полей (`id` → «идентификатор», …).
 **Альтернативы:** `secondary`; оставить linkish с !important color.
 **Причина:** на телефоне `button` + `danger-text` = бирюзовый фон и красный текст; сырой «Unprocessable Entity» / англ. `loc` плохо читаются.
 **Последствия:** e2e `e2e_attachment_delete_uses_btn_danger`.
 
-### D-143 · 2026-11-04 20:17 +06 · M28 · List toolbar adaptive wrap
+### D-143 · 2026-11-04 20:17 +06 · M28.1 · List toolbar adaptive wrap
 **Решение:** убрать `@media (min-width: 1200px) { flex-wrap: nowrap }` у `.list-toolbar-bar` / filters; поля дат и select с `flex: 1 1 …` + `min-width`, wrap всегда разрешён.
 **Альтернативы:** CSS grid `auto-fit`; уменьшить шрифт date inputs; горизонтальный scroll тулбара.
 **Причина:** на ~1280px nowrap заставлял «С»/«По» наезжать на сортировку «дата ↑».
 **Последствия:** скрины `reports/ui-fix-2026-11-04/list-toolbar-{before,after}-*.png`; e2e `e2e_list_toolbar_screenshots_and_no_overlap` (overlap assert на 1440/1280/1024/768/390).
 
-### D-144 · 2026-11-04 20:34 +06 · M28 · Autoscroll freeze над зоной корзины
+### D-144 · 2026-11-04 20:34 +06 · M28.1 · Autoscroll freeze над зоной корзины
 **Решение:** пока pointer в padded bbox видимой `cal-trash-zone`, `dragAutoScroll` не меняет `scrollTop` (иначе зона уезжает из-под курсора).
 **Альтернативы:** отключить autoscroll у нижнего края всегда; увеличить hit-test trash без freeze.
 **Причина:** после D-140 e2e `dnd_release_clears_ghost` trash/relocate флакали — скролл у нижнего края сдвигал drop-target во время move-to-zone.
 **Последствия:** `dnd_release_clears_ghost` + `calendar_dnd` + `dnd_autoscroll` зелёные в изоляции.
 
-### D-145 · 2026-11-04 20:47 +06 · M28 · Verify + README после UI-фиксов
+### D-145 · 2026-11-04 20:47 +06 · M28.1 · Verify + README после UI-фиксов
 **Решение:** зафиксировать прогон: pytest **128**, Playwright **140**; отчёт [`reports/verify-20261104-204738.md`](../reports/verify-20261104-204738.md); README/STATUS синхронизированы. Flake `e2e_dnd_week_relocate_and_trash` (detached после relocate) — harden `mouseDragTo` + повтор e2e зелёный.
 **Альтернативы:** оставить verify с exit 1 без повторного e2e.
-**Причина:** сдача M28 требует полных чисел и честного списка флаков.
-**Последствия:** `make docs-check` требует STATUS ≥ D-145.
+**Причина:** сдача M28.1 требует полных чисел и честного списка флаков.
+**Последствия:** `make docs-check` требует STATUS ≥ D-145 (далее D-146).
+
+### D-146 · 2026-11-04 20:51 +06 · M28.1 · Переименование этапа M28 → M28.1
+**Решение:** во всех документах, STATUS, DECISIONS D-139–145, комментариях кода и отчёте verify этап называется **M28.1** (не M28). Сообщения уже сделанных git-коммитов с префиксом `M28:` не переписывались (запрет rewrite history).
+**Альтернативы:** `git rebase`/`filter-branch` для смены префикса в истории.
+**Причина:** UI-дефекты — подэтап после M28-экспорта чата; нужна отдельная метка M28.1.
+**Последствия:** новые коммиты — префикс `M28.1:`.

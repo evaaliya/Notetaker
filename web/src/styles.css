@@ -1647,7 +1647,7 @@ body.cal-dnd-active .calendar-main {
   width: 100%;
 }
 
-/* M28: never force nowrap — dates/sort must wrap instead of overlapping at 1280. */
+/* M28.1: never force nowrap — dates/sort must wrap instead of overlapping at 1280. */
 
 @media (max-width: 899px) {
   .list-toolbar-search {
@@ -1844,14 +1844,14 @@ button.note-main,
   max-width: min(22rem, calc(100vw - 2rem));
 }
 
-/* Keep undo away from right-side note panel / trash actions (M28). */
+/* Keep undo away from right-side note panel / trash actions (M28.1). */
 .trash-undo-stack {
   right: auto;
   left: 1rem;
   bottom: 5rem;
 }
 
-/* Keep undo away from right-side note panel / trash actions (M28). */
+/* Keep undo away from right-side note panel / trash actions (M28.1). */
 .trash-undo-stack {
   right: auto;
   left: 1rem;
@@ -2519,7 +2519,7 @@ button.note-main,
   gap: var(--space-1);
 }
 
-/* Portaled to body so virtual-list overflow does not clip (M28). */
+/* Portaled to body so virtual-list overflow does not clip (M28.1). */
 .overflow-menu-list-portal {
   position: fixed;
   right: auto;

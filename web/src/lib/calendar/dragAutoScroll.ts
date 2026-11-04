@@ -1,4 +1,4 @@
-/** Edge band (px) that triggers auto-scroll during calendar DnD (M28). */
+/** Edge band (px) that triggers auto-scroll during calendar DnD (M28.1). */
 export const DRAG_AUTO_SCROLL_EDGE_PX = 48;
 /** Max scroll speed px/frame near the absolute edge. */
 const MAX_SPEED = 28;

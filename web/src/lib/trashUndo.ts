@@ -1,6 +1,6 @@
 import { safeRandomUUID } from "./safeRandomUUID";
 
-/** Auto-hide window for «перемещена в корзину» undo toasts (M28). */
+/** Auto-hide window for «перемещена в корзину» undo toasts (M28.1). */
 export const TRASH_UNDO_MS = 15_000;
 
 export type TrashUndoItem = {
