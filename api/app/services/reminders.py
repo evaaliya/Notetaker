@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -116,6 +116,45 @@ async def materialize_series_note(
         result = await db.execute(stmt)
         inserted += result.rowcount or 0
     return inserted
+
+
+async def finalize_reminders_on_restore(
+    db: AsyncSession, *, note: Note, now: datetime
+) -> None:
+    """After undelete: skip overdue pending and prune ``reminder_offsets``.
+
+    Spec §4.4 / T7: only reminders whose ``fire_at`` is still in the future
+    remain pending after restore. Relying solely on the worker while the note
+    was trashed leaves a gap if no tick ran (worker down / race) — those rows
+    would late-send on the next tick (D-007) even though the deadline passed
+    in the trash. Also drop past offsets from the note so the form does not
+    show them as upcoming.
+    """
+    now_u = now.astimezone(timezone.utc)
+    await db.execute(
+        update(Reminder)
+        .where(
+            Reminder.note_id == note.id,
+            Reminder.status == "pending",
+            Reminder.fire_at <= now_u,
+        )
+        .values(status="skipped")
+    )
+    result = await db.execute(
+        select(Reminder.offset_min)
+        .where(
+            Reminder.note_id == note.id,
+            Reminder.status == "pending",
+            Reminder.fire_at > now_u,
+        )
+        .distinct()
+    )
+    keep = {row[0] for row in result.all()}
+    note.reminder_offsets = [o for o in (note.reminder_offsets or []) if o in keep]
+    await db.execute(
+        text("SELECT pg_notify('reminders_changed', :payload)"),
+        {"payload": str(note.id)},
+    )
 
 
 async def rebuild_pending_for_note(

@@ -21,6 +21,7 @@ from app.services.access import (
 from app.services.note_list import list_notes
 from app.services.notes import note_to_out, notes_to_out, replace_note_tags
 from app.services.reminders import (
+    finalize_reminders_on_restore,
     materialize_series_note,
     materialize_single_note,
     rebuild_pending_for_note,
@@ -579,6 +580,7 @@ async def restore_note(
     note.updated_at = now
     note.version += 1
     note.updated_by_user_id = user.id
+    await finalize_reminders_on_restore(db, note=note, now=now)
     await notify_note_audience(db, note, "note.restored", ids=[note.id], version=note.version)
     await db.commit()
     await db.refresh(note)

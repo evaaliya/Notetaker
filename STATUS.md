@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 17:35 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 19:15 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-135** (poll без LISTEN на `reminders_changed`; также D-133/134 touch/UUID).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-136** (restore: skip overdue pending + prune `reminder_offsets`; также D-135 poll).
 
 ## Этапы
 
@@ -45,8 +45,9 @@
 - **M25:** фильтр периода; DnD month/week/day; mobile create → `/notes/new`.
 - **M26:** insecure LAN UUID; long-press без move открывает карточку.
 - M9–M23: вложения; share; звонки/видео/YouTube; extract jobs; офлайн-очередь; антидрожание.
-- **Счётчики collect:** pytest **121**; Playwright chromium **110** / все проекты **132**.
+- **Счётчики collect:** pytest **126** (+5 restore scenarios D-136); Playwright chromium **110** / все проекты **132**.
 - **Последний полный прогон (2026-11-04):** `make test` / verify pytest → **121 passed**; `make e2e` / verify playwright → **132 passed** (0 failed, 0 skipped); T1–T21 закрыты. Отчёт: [`reports/verify-20261104-172913.md`](reports/verify-20261104-172913.md). `make fresh-check` OK (изолированный `-p notetaker-fresh`).
+- **D-136:** restore из корзины не late-send’ит overdue и не показывает прошедшие offsets в форме; `tests/test_reminders_m3.py` — **18 passed**.
 - `e2e_week_many_notes_in_slot`: стабилизирован (toggle overflow вместо Escape; 5/5 rerun). `e2e_scroll_10k` — passed.
 
 ## Не реализовано (явные пробелы / TODO)

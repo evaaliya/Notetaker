@@ -1027,3 +1027,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** `LISTEN reminders_changed` в процессе worker + немедленный `tick(now)` (оценка 2–4 ч с тестами на wake/reconnect); убрать сам `pg_notify`, чтобы не вводить в заблуждение.
 **Причина:** для пресетов напоминаний ≥10 мин задержка до одного тика незаметна; poll уже закрывает T1/T4–T8/T18–T19; LISTEN усложняет reconnect и e2e без выигрыша по продукту.
 **Последствия:** после создания due-напоминания срабатывание может подождать до ~1 с; NOTIFY остаётся без подписчика (шум в логах Postgres нет, просто no-op для listener’ов).
+
+### D-136 · 2026-11-04 19:15 +06 · fix · Restore: skip overdue pending + prune reminder_offsets
+**Решение:** в `POST /notes/{id}/restore` вызывать `finalize_reminders_on_restore`: все `pending` с `fire_at <= now` → `skipped`; `notes.reminder_offsets` оставить только offsets, у которых ещё есть `pending` с `fire_at > now`. `pg_notify('reminders_changed')`.
+**Альтернативы:** полагаться только на воркер, пока заметка в корзине (как T7b); отдельно чистить offsets на клиенте.
+**Причина:** `test_restore_returns_future_only` тикает *в корзине* до restore → overdue уже `skipped`. Если тика не было (воркер простаивал / restore сразу после due), overdue остаются `pending` и после restore уходят late-send (D-007), а форма показывает все offsets из колонки заметки как предстоящие.
+**Последствия:** тесты `test_restore_skips_overdue_pending_without_prior_tick`, `test_restore_prunes_past_offsets_after_partial_fire`, `test_restore_already_sent_not_resent`, `test_restore_past_note_no_pending`, `test_restore_series_skips_overdue_keeps_future`; UI читает урезанный `reminder_offsets` из API.

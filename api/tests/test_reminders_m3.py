@@ -358,6 +358,208 @@ async def test_restore_returns_future_only(client: AsyncClient, clock: FrozenClo
 
 
 @pytest.mark.asyncio
+async def test_restore_skips_overdue_pending_without_prior_tick(
+    client: AsyncClient, clock: FrozenClock
+):
+    """Restore must skip overdue pending even if worker never ticked while trashed.
+
+    Existing test_restore_returns_future_only advances the clock *and* ticks while
+    the note is in trash, so overdue rows are already ``skipped`` before restore.
+    Real flow: delete → time passes (or worker was down) → restore → tick must not
+    late-send offsets whose fire_at is already past (spec §4.4 / T7).
+    """
+    await _setup_user(client)
+    starts = clock.now() + timedelta(hours=2)
+    created = await client.post(
+        "/api/notes",
+        json={
+            "title": "restore-no-tick",
+            "body": "",
+            "starts_at": starts.isoformat().replace("+00:00", "Z"),
+            "reminder_offsets": [90, 10],
+            "tag_ids": [],
+        },
+    )
+    note_id = uuid.UUID(created.json()["id"])
+    assert (await client.delete(f"/api/notes/{note_id}")).status_code == 200
+
+    # Overdue while trashed, but no worker tick — rows stay pending.
+    clock.set(clock.now() + timedelta(minutes=31))
+    by_offset = await _reminders_by_offset(note_id)
+    assert by_offset[90] == ["pending"]
+    assert by_offset[10] == ["pending"]
+
+    restored = await client.post(f"/api/notes/{note_id}/restore")
+    assert restored.status_code == 200
+    assert restored.json()["reminder_offsets"] == [10]
+
+    by_offset = await _reminders_by_offset(note_id)
+    assert by_offset[90] == ["skipped"]
+    assert by_offset[10] == ["pending"]
+
+    await tick(clock.now(), smtp_send=_noop_smtp)
+    assert await _outbox_count_for_note(note_id) == 0
+
+    clock.set(starts - timedelta(minutes=10) + timedelta(seconds=1))
+    await tick(clock.now(), smtp_send=_noop_smtp)
+    by_offset = await _reminders_by_offset(note_id)
+    assert by_offset[90] == ["skipped"]
+    assert by_offset[10] == ["sent"]
+    assert await _outbox_count_for_note(note_id) == 1
+
+
+@pytest.mark.asyncio
+async def test_restore_prunes_past_offsets_after_partial_fire(
+    client: AsyncClient, clock: FrozenClock
+):
+    """(a) Future note, 10/60/1440: after some fire_at passed, restore keeps only future."""
+    await _setup_user(client)
+    starts = clock.now() + timedelta(hours=2)
+    created = await client.post(
+        "/api/notes",
+        json={
+            "title": "partial-offsets",
+            "body": "",
+            "starts_at": starts.isoformat().replace("+00:00", "Z"),
+            "reminder_offsets": [10, 60, 1440],
+            "tag_ids": [],
+        },
+    )
+    assert created.status_code == 201
+    note_id = uuid.UUID(created.json()["id"])
+    # 1440 never materialized (fire_at already past at create); 60 and 10 pending.
+    by_offset = await _reminders_by_offset(note_id)
+    assert set(by_offset) == {10, 60}
+    assert created.json()["reminder_offsets"] == [10, 60, 1440]
+
+    clock.set(starts - timedelta(minutes=60) + timedelta(seconds=1))
+    await tick(clock.now(), smtp_send=_noop_smtp)
+    assert (await _reminders_by_offset(note_id))[60] == ["sent"]
+
+    assert (await client.delete(f"/api/notes/{note_id}")).status_code == 200
+    clock.set(clock.now() + timedelta(minutes=1))
+    await tick(clock.now(), smtp_send=_noop_smtp)
+
+    restored = await client.post(f"/api/notes/{note_id}/restore")
+    assert restored.status_code == 200
+    assert restored.json()["reminder_offsets"] == [10]
+    by_offset = await _reminders_by_offset(note_id)
+    assert by_offset[60] == ["sent"]
+    assert by_offset[10] == ["pending"]
+    assert 1440 not in by_offset
+
+
+@pytest.mark.asyncio
+async def test_restore_already_sent_not_resent(client: AsyncClient, clock: FrozenClock):
+    """(c) Email already sent before delete → restore must not create a second outbox."""
+    await _setup_user(client)
+    starts = clock.now() + timedelta(hours=1)
+    created = await client.post(
+        "/api/notes",
+        json={
+            "title": "sent-then-trash",
+            "body": "",
+            "starts_at": starts.isoformat().replace("+00:00", "Z"),
+            "reminder_offsets": [10],
+            "tag_ids": [],
+        },
+    )
+    note_id = uuid.UUID(created.json()["id"])
+    clock.set(starts - timedelta(minutes=10) + timedelta(seconds=1))
+    await tick(clock.now(), smtp_send=_noop_smtp)
+    assert await _outbox_count_for_note(note_id) == 1
+    assert (await _one_reminder(note_id)).status == "sent"
+
+    assert (await client.delete(f"/api/notes/{note_id}")).status_code == 200
+    clock.set(clock.now() + timedelta(minutes=5))
+    await tick(clock.now(), smtp_send=_noop_smtp)
+
+    restored = await client.post(f"/api/notes/{note_id}/restore")
+    assert restored.status_code == 200
+    assert restored.json()["reminder_offsets"] == []
+
+    await tick(clock.now(), smtp_send=_noop_smtp)
+    assert await _outbox_count_for_note(note_id) == 1
+    assert (await _one_reminder(note_id)).status == "sent"
+
+
+@pytest.mark.asyncio
+async def test_restore_past_note_no_pending(client: AsyncClient, clock: FrozenClock):
+    """(g) Note entirely in the past: restore leaves no pending and empty offsets."""
+    await _setup_user(client)
+    starts = clock.now() + timedelta(hours=1)
+    created = await client.post(
+        "/api/notes",
+        json={
+            "title": "past-note",
+            "body": "",
+            "starts_at": starts.isoformat().replace("+00:00", "Z"),
+            "reminder_offsets": [10, 60],
+            "tag_ids": [],
+        },
+    )
+    note_id = uuid.UUID(created.json()["id"])
+    # Let both fire (occurrence still ahead for first; then past).
+    clock.set(starts - timedelta(minutes=60) + timedelta(seconds=1))
+    await tick(clock.now(), smtp_send=_noop_smtp)
+    clock.set(starts - timedelta(minutes=10) + timedelta(seconds=1))
+    await tick(clock.now(), smtp_send=_noop_smtp)
+    clock.set(starts + timedelta(minutes=1))
+    await tick(clock.now(), smtp_send=_noop_smtp)
+
+    assert (await client.delete(f"/api/notes/{note_id}")).status_code == 200
+    restored = await client.post(f"/api/notes/{note_id}/restore")
+    assert restored.status_code == 200
+    assert restored.json()["reminder_offsets"] == []
+    by_offset = await _reminders_by_offset(note_id)
+    assert all(s != "pending" for statuses in by_offset.values() for s in statuses)
+    outbox_before = await _outbox_count_for_note(note_id)
+    await tick(clock.now(), smtp_send=_noop_smtp)
+    assert await _outbox_count_for_note(note_id) == outbox_before
+
+
+@pytest.mark.asyncio
+async def test_restore_series_skips_overdue_keeps_future(
+    client: AsyncClient, clock: FrozenClock
+):
+    """(b) Series: overdue pending skipped on restore; future occurrence reminders stay."""
+    await _setup_user(client)
+    starts = clock.now() + timedelta(hours=2)
+    until = (starts + timedelta(days=3)).date().isoformat()
+    created = await client.post(
+        "/api/notes",
+        json={
+            "title": "series-restore",
+            "body": "",
+            "starts_at": starts.isoformat().replace("+00:00", "Z"),
+            "reminder_offsets": [90, 10],
+            "tag_ids": [],
+            "recurrence": {"freq": "daily", "until": until, "tz": "UTC"},
+        },
+    )
+    assert created.status_code == 201
+    note_id = uuid.UUID(created.json()["id"])
+    assert (await client.delete(f"/api/notes/{note_id}")).status_code == 200
+
+    clock.set(clock.now() + timedelta(minutes=31))
+    # No tick while trashed — first-occurrence 90m is overdue pending.
+    restored = await client.post(f"/api/notes/{note_id}/restore")
+    assert restored.status_code == 200
+
+    async with db_module.SessionLocal() as session:
+        rows = (
+            await session.execute(select(Reminder).where(Reminder.note_id == note_id))
+        ).scalars().all()
+        overdue = [r for r in rows if r.fire_at <= clock.now()]
+        future = [r for r in rows if r.fire_at > clock.now()]
+        assert overdue and all(r.status == "skipped" for r in overdue)
+        assert future and all(r.status == "pending" for r in future)
+
+    await tick(clock.now(), smtp_send=_noop_smtp)
+    assert await _outbox_count_for_note(note_id) == 0
+
+
+@pytest.mark.asyncio
 async def test_trash_purge_30d(client: AsyncClient, clock: FrozenClock):
     """T8: 29d23h kept; older than 30d purged (spec: deleted_at < now - 30d)."""
     await _setup_user(client)
