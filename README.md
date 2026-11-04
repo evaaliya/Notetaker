@@ -159,8 +159,8 @@ make docs-check  # синхронизация STATUS ↔ DECISIONS
 
 Эквиваленты **без make**, детали хуков и JUnit для verify — в [`docs/TESTING.md`](docs/TESTING.md).
 
-**Счётчики (collect):** pytest **121**; Playwright chromium **110** / все проекты **132**.  
-**Последний полный прогон (2026-11-04):** pytest **121 passed**; Playwright **132 passed** (0 failed / 0 skipped). Отчёт T1–T21: [`reports/verify-20261104-172913.md`](reports/verify-20261104-172913.md). Актуальный STATUS — [`STATUS.md`](STATUS.md).
+**Счётчики (collect):** pytest **128**; Playwright все проекты **140** (chromium + m15 firefox/webkit).  
+**Последний полный прогон (2026-11-04 20:47 +06, M28):** pytest **128 passed**; Playwright **140 passed** (0 failed / 0 skipped). Отчёт: [`reports/verify-20261104-204738.md`](reports/verify-20261104-204738.md). Актуальный STATUS — [`STATUS.md`](STATUS.md).
 
 ## Что не работает / ограничения
 

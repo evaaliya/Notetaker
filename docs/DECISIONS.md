@@ -1083,3 +1083,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** отключить autoscroll у нижнего края всегда; увеличить hit-test trash без freeze.
 **Причина:** после D-140 e2e `dnd_release_clears_ghost` trash/relocate флакали — скролл у нижнего края сдвигал drop-target во время move-to-zone.
 **Последствия:** `dnd_release_clears_ghost` + `calendar_dnd` + `dnd_autoscroll` зелёные в изоляции.
+
+### D-145 · 2026-11-04 20:47 +06 · M28 · Verify + README после UI-фиксов
+**Решение:** зафиксировать прогон: pytest **128**, Playwright **140**; отчёт [`reports/verify-20261104-204738.md`](../reports/verify-20261104-204738.md); README/STATUS синхронизированы. Flake `e2e_dnd_week_relocate_and_trash` (detached после relocate) — harden `mouseDragTo` + повтор e2e зелёный.
+**Альтернативы:** оставить verify с exit 1 без повторного e2e.
+**Причина:** сдача M28 требует полных чисел и честного списка флаков.
+**Последствия:** `make docs-check` требует STATUS ≥ D-145.

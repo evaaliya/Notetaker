@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 20:17 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 20:47 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-143** (list toolbar wrap; также D-139–142).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-145** (M28 verify/README; также D-139–144).
 
 ## Этапы
 
@@ -36,27 +36,25 @@
 | M25 Список период + DnD календаря | готов | UI from/to+reset; DnD month/week/day+trash; create `/notes/new`; ghost clone; release-on-window D-128–132 |
 | M26 Touch / LAN open | готов | safeRandomUUID (H3); long-press tap (H1); CDP touch e2e D-133–134 |
 | M27 Изоляция / сдача | готов | compose-порты, `make fresh-check`, D-135; `make verify` 2026-11-04 |
-| M28 UI-дефекты сдачи | в работе | D-139–143 ✓; пункт 6 verify |
+| M28 UI-дефекты сдачи | готов | D-139–145; `make test` 128; `make e2e` 140; отчёт verify |
 
 ## Работает
 
 - Стек: `docker compose up --build` — postgres, mailhog, api, worker, web; миграции при старте. Порты/имя проекта — из `.env` (изоляция второй копии — README).
-- **M28 / D-139:** undo-тост «Заметка перемещена в корзину» — автоскрытие 15 с (`TRASH_UNDO_MS`), очередь в module store + Shell; e2e `trash_undo_ttl` **2 passed**.
-- **M28 / D-140:** автопрокрутка у края при DnD (month FC + week/day long-press); e2e `e2e_dnd_autoscroll_day_near_viewport_edge` + regression `calendar_dnd`/`m26_mobile_open` green.
-- **M28 / D-141:** меню «Действия» — portal + clamp; e2e `e2e_list_actions_menu_not_clipped_on_narrow`.
-- **M28 / D-142:** «Удалить» у вложения — `btn-danger` (AA); 422 с русскими именами полей; e2e `e2e_attachment_delete_uses_btn_danger`.
-- **M28 / D-143:** панель фильтров списка — adaptive wrap; скрины до/после [`reports/ui-fix-2026-11-04/`](reports/ui-fix-2026-11-04/); e2e no-overlap на 1440/1280/1024/768/390.
 - Auth (cookie/argon2), заметки/теги/корзина, список (search/keyset/**период from–to**), календарь, «Ближайшее», повторы, reminders+outbox, realtime WS, уведомления.
 - UI по `docs/FRONTEND.md`: сайдбар, список/календарь/upcoming/tags/trash/settings, страница заметки, mobile ≤640.
 - **M25:** фильтр периода; DnD month/week/day; mobile create → `/notes/new`.
 - **M26:** insecure LAN UUID; long-press без move открывает карточку.
 - M9–M23: вложения; share; звонки/видео/YouTube; extract jobs; офлайн-очередь; антидрожание.
-- **Счётчики collect:** pytest **128**; Playwright chromium ориентир **112** / все проекты **~134** (+2 e2e D-137).
-- **Регрессия после D-136–138 (2026-11-04 19:25 +06):** `make docs-check` OK; `make test` → **128 passed** (0 failed); `make fresh-check` OK (notes=0 → register → note → MailHog). E2e (chromium, корзина/reminders/tz/create): timezone + m26 + autosave + offline + m7_ui (**22 passed**); reminder_ui + alarm + realtime + m15_editor (**13 passed** после повторного прогона `e2e_reminder_from_ui_toast_and_mail` — первый раз 0 из‑за api без E2E_HOOKS). Полный `make e2e` / verify в этом заходе не гоняли. Старый полный отчёт: [`reports/verify-20261104-172913.md`](reports/verify-20261104-172913.md).
-- **D-136:** restore — overdue skipped + prune offsets.
-- **D-137:** phone/LAN create — RFC-4122 UUID; 422 detail в UI.
-- **D-138:** README stub/изоляция/volume; fresh-check→MailHog.
-- `e2e_week_many_notes_in_slot`: стабилизирован (toggle overflow вместо Escape; 5/5 rerun). `e2e_scroll_10k` — passed.
+- **M28 исправлено:**
+  - D-139: undo-тост «Заметка перемещена в корзину» — 15 с (`TRASH_UNDO_MS`), очередь в module store; e2e `trash_undo_ttl`.
+  - D-140/144: автопрокрутка у края при DnD; freeze над trash-zone; e2e `dnd_autoscroll` + regression calendar/m26.
+  - D-141: меню «Действия» — portal + clamp; e2e `overflow_menu_portal`.
+  - D-142: «Удалить» у вложения — `btn-danger` AA; русские ярлыки полей в 422.
+  - D-143: фильтры списка wrap; скрины [`reports/ui-fix-2026-11-04/`](reports/ui-fix-2026-11-04/).
+- **Счётчики:** pytest **128**; Playwright **140** (все проекты).
+- **Регрессия M28 (2026-11-04 20:47 +06):** `make test` → **128 passed**; `make e2e` → **140 passed**; полный отчёт [`reports/verify-20261104-204738.md`](reports/verify-20261104-204738.md) (первый `make verify` имел 1 flake week-trash — закрыт harden’ом, e2e повторён зелёным).
+- D-136–138: restore offsets; phone UUID; README stub/изоляция.
 
 ## Не реализовано (явные пробелы / TODO)
 
@@ -72,7 +70,8 @@
 - Генерация картинок / Web Push — вне объёма.
 - CI/GitHub Actions — вне M24 (по задаче).
 - URL-persistence фильтров списка — не делали (сброс при reload; D-128).
-- Реальный телефон на LAN в M26 не гоняли вручную — покрытие симуляцией insecure + CDP touch.
+- Реальный телефон на LAN в M26/M28 не гоняли вручную — покрытие симуляцией insecure + CDP touch.
+- Safari/Firefox полного UI (кроме m15 layout/editor) в M28 не гоняли.
 
 ## Известные ограничения
 
@@ -103,13 +102,14 @@
 | M25 | Период списка + DnD всех видов | готов |
 | M26 | Touch open + insecure LAN UUID | готов |
 | M27 | Изоляция стека / сдача docs + verify | готов |
+| M28 | UI-дефекты перед сдачей | готов |
 
 ## Экспорты сессий (`docs/sessions/`)
 
 Есть файлы для M0–M7, M7.1–M7.3, M8, M9–M26 (включая M11.1, M20; M25 — `cursor_m25_notetaker_functional_requirement.md`; M26 — `cursor_m26_mobile_notes_opening_issue.md`).  
-**Нет отдельного экспорта с именем этапа:** M7.fix, M8.2 (близкие чаты — `m7_*` / `m8_*`).
+**Нет отдельного экспорта с именем этапа:** M7.fix, M8.2 (близкие чаты — `m7_*` / `m8_*`). M28 — сохранить экспорт чата в `docs/sessions/`.
 
 ## Следующий заход
 
-1. Ручная проверка на реальном телефоне по LAN.
+1. Ручная проверка на реальном телефоне по LAN (create, вложения delete, DnD autoscroll к корзине).
 2. Вне объёма: Web Push; сложные правила повтора; ICS; журнал WS; FTS; напоминания участникам; rate-limit / подтверждение email; опционально LISTEN на `reminders_changed` (D-135).
