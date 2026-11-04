@@ -14,9 +14,24 @@ type Handlers = {
   onCancel: () => void;
 };
 
+type DragRefs = {
+  timer: number | undefined;
+  start: { x: number; y: number } | null;
+  armed: boolean;
+  didDrag: boolean;
+  pointerId: number | null;
+  pointerType: string;
+  target: Element | null;
+  windowListening: boolean;
+  handlers: Handlers;
+};
+
 /**
  * Touch/pen: long-press then drag (move before arm = scroll, cancel).
  * Mouse: arm after moving past threshold (no long-press) so click still selects.
+ *
+ * After pointerdown, move/up/cancel listen on `window` so a lost
+ * setPointerCapture (or up over trash/panel) still finishes the drag (D-132).
  */
 export function useLongPressDrag({
   enabled,
@@ -25,145 +40,178 @@ export function useLongPressDrag({
   onEnd,
   onCancel,
 }: Handlers) {
-  const timerRef = useRef<number | undefined>(undefined);
-  const startRef = useRef<{ x: number; y: number } | null>(null);
-  const armedRef = useRef(false);
-  const didDragRef = useRef(false);
-  const pointerIdRef = useRef<number | null>(null);
-  const pointerTypeRef = useRef<string>("mouse");
-  const targetRef = useRef<Element | null>(null);
-  const handlersRef = useRef({ onArmed, onMove, onEnd, onCancel });
-  handlersRef.current = { onArmed, onMove, onEnd, onCancel };
+  const stateRef = useRef<DragRefs>({
+    timer: undefined,
+    start: null,
+    armed: false,
+    didDrag: false,
+    pointerId: null,
+    pointerType: "mouse",
+    target: null,
+    windowListening: false,
+    handlers: { enabled, onArmed, onMove, onEnd, onCancel },
+  });
+  stateRef.current.handlers = { enabled, onArmed, onMove, onEnd, onCancel };
 
-  const clearTimer = useCallback(() => {
-    if (timerRef.current !== undefined) {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = undefined;
-    }
-  }, []);
+  // Stable window listeners (same function identity for add/remove).
+  const windowListenersRef = useRef<{
+    move: (e: PointerEvent) => void;
+    up: (e: PointerEvent) => void;
+    cancel: (e: PointerEvent) => void;
+    detach: () => void;
+    arm: (pointerId: number, x: number, y: number) => void;
+  } | null>(null);
 
-  const arm = useCallback((pointerId: number, x: number, y: number) => {
-    if (armedRef.current) return;
-    armedRef.current = true;
-    didDragRef.current = true;
-    try {
-      (targetRef.current as HTMLElement | null)?.setPointerCapture?.(pointerId);
-    } catch {
-      /* ignore */
-    }
-    handlersRef.current.onArmed(x, y);
-  }, []);
-
-  const resetTracking = useCallback(() => {
-    clearTimer();
-    startRef.current = null;
-    armedRef.current = false;
-    pointerIdRef.current = null;
-  }, [clearTimer]);
-
-  const onPointerDown = useCallback(
-    (e: ReactPointerEvent) => {
-      if (!enabled) return;
-      if (e.button !== 0 && e.pointerType === "mouse") return;
-      didDragRef.current = false;
-      pointerIdRef.current = e.pointerId;
-      pointerTypeRef.current = e.pointerType || "mouse";
-      targetRef.current = e.currentTarget;
-      startRef.current = { x: e.clientX, y: e.clientY };
-      armedRef.current = false;
-      clearTimer();
-      // Long-press only for touch/pen — protects scroll; mouse arms on move.
-      if (pointerTypeRef.current !== "mouse") {
-        const pid = e.pointerId;
-        const sx = e.clientX;
-        const sy = e.clientY;
-        timerRef.current = window.setTimeout(() => {
-          arm(pid, sx, sy);
-        }, DND_LONG_PRESS_MS);
+  if (!windowListenersRef.current) {
+    const clearTimer = () => {
+      const s = stateRef.current;
+      if (s.timer !== undefined) {
+        window.clearTimeout(s.timer);
+        s.timer = undefined;
       }
-    },
-    [enabled, clearTimer, arm],
-  );
+    };
 
-  const onPointerMove = useCallback(
-    (e: ReactPointerEvent) => {
-      if (pointerIdRef.current !== e.pointerId) return;
-      const start = startRef.current;
+    const detach = () => {
+      const s = stateRef.current;
+      if (!s.windowListening || !windowListenersRef.current) return;
+      s.windowListening = false;
+      const L = windowListenersRef.current;
+      window.removeEventListener("pointermove", L.move);
+      window.removeEventListener("pointerup", L.up);
+      window.removeEventListener("pointercancel", L.cancel);
+    };
+
+    const resetTracking = () => {
+      clearTimer();
+      detach();
+      const s = stateRef.current;
+      s.start = null;
+      s.armed = false;
+      s.pointerId = null;
+    };
+
+    const arm = (pointerId: number, x: number, y: number) => {
+      const s = stateRef.current;
+      if (s.armed) return;
+      s.armed = true;
+      s.didDrag = true;
+      try {
+        (s.target as HTMLElement | null)?.setPointerCapture?.(pointerId);
+      } catch {
+        /* capture is best-effort; window listeners still finish the drag */
+      }
+      s.handlers.onArmed(x, y);
+    };
+
+    const move = (e: PointerEvent) => {
+      const s = stateRef.current;
+      if (s.pointerId !== e.pointerId) return;
+      const start = s.start;
       if (!start) return;
       const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
-      if (!armedRef.current) {
-        if (pointerTypeRef.current !== "mouse") {
-          // Touch: movement before long-press → treat as scroll.
+      if (!s.armed) {
+        if (s.pointerType !== "mouse") {
           if (dist > DND_MOVE_CANCEL_PX) {
             clearTimer();
-            startRef.current = null;
-            pointerIdRef.current = null;
+            s.start = null;
+            s.pointerId = null;
+            detach();
           }
           return;
         }
-        // Mouse: arm once past threshold.
         if (dist > DND_MOVE_CANCEL_PX) {
           arm(e.pointerId, e.clientX, e.clientY);
         } else {
           return;
         }
       }
-      e.preventDefault();
-      handlersRef.current.onMove(e.clientX, e.clientY);
-    },
-    [clearTimer, arm],
-  );
+      if (e.cancelable) e.preventDefault();
+      s.handlers.onMove(e.clientX, e.clientY);
+    };
 
-  const finish = useCallback(
-    (e: ReactPointerEvent, kind: "up" | "cancel") => {
-      if (pointerIdRef.current !== e.pointerId) return;
-      const wasArmed = armedRef.current;
+    const up = (e: PointerEvent) => {
+      const s = stateRef.current;
+      if (s.pointerId !== e.pointerId) return;
+      const wasArmed = s.armed;
       const x = e.clientX;
       const y = e.clientY;
       resetTracking();
-      if (wasArmed) {
-        if (kind === "up") handlersRef.current.onEnd(x, y);
-        else handlersRef.current.onCancel();
+      if (wasArmed) s.handlers.onEnd(x, y);
+    };
+
+    const cancel = (e: PointerEvent) => {
+      const s = stateRef.current;
+      if (s.pointerId !== e.pointerId) return;
+      const wasArmed = s.armed;
+      resetTracking();
+      if (wasArmed) s.handlers.onCancel();
+    };
+
+    windowListenersRef.current = { move, up, cancel, detach, arm };
+  }
+
+  const L = windowListenersRef.current;
+
+  const onPointerDown = useCallback(
+    (e: ReactPointerEvent) => {
+      if (!enabled) return;
+      if (e.button !== 0 && e.pointerType === "mouse") return;
+      const s = stateRef.current;
+      s.didDrag = false;
+      s.pointerId = e.pointerId;
+      s.pointerType = e.pointerType || "mouse";
+      s.target = e.currentTarget;
+      s.start = { x: e.clientX, y: e.clientY };
+      s.armed = false;
+      if (s.timer !== undefined) {
+        window.clearTimeout(s.timer);
+        s.timer = undefined;
+      }
+      if (!s.windowListening) {
+        s.windowListening = true;
+        window.addEventListener("pointermove", L.move);
+        window.addEventListener("pointerup", L.up);
+        window.addEventListener("pointercancel", L.cancel);
+      }
+      if (s.pointerType !== "mouse") {
+        const pid = e.pointerId;
+        const sx = e.clientX;
+        const sy = e.clientY;
+        s.timer = window.setTimeout(() => {
+          L.arm(pid, sx, sy);
+        }, DND_LONG_PRESS_MS);
       }
     },
-    [resetTracking],
-  );
-
-  const onPointerUp = useCallback(
-    (e: ReactPointerEvent) => finish(e, "up"),
-    [finish],
-  );
-
-  const onPointerCancel = useCallback(
-    (e: ReactPointerEvent) => finish(e, "cancel"),
-    [finish],
+    [enabled, L],
   );
 
   const suppressClickIfDragged = useCallback(() => {
-    if (!didDragRef.current) return false;
-    didDragRef.current = false;
+    const s = stateRef.current;
+    if (!s.didDrag) return false;
+    s.didDrag = false;
     return true;
   }, []);
 
-  // If the card unmounts mid-drag (query invalidate), clear chrome via onCancel.
   useEffect(() => {
     return () => {
-      clearTimer();
-      if (armedRef.current) {
-        armedRef.current = false;
-        handlersRef.current.onCancel();
+      const s = stateRef.current;
+      if (s.timer !== undefined) {
+        window.clearTimeout(s.timer);
+        s.timer = undefined;
       }
-      pointerIdRef.current = null;
-      startRef.current = null;
+      if (s.armed) {
+        s.armed = false;
+        s.handlers.onCancel();
+      }
+      s.pointerId = null;
+      s.start = null;
+      L.detach();
     };
-  }, [clearTimer]);
+  }, [L]);
 
   return {
     bind: {
       onPointerDown,
-      onPointerMove,
-      onPointerUp,
-      onPointerCancel,
     },
     suppressClickIfDragged,
   };

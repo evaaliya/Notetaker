@@ -1003,3 +1003,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** оставить нейтральную «пилюлю»; `html2canvas`/snapshot.
 **Причина:** в month FC тащит сам event; в week/day ghost выглядел как белая карточка, не как заметка.
 **Последствия:** e2e `e2e_dnd_ghost_not_stuck_at_origin` проверяет, что фон ghost не чистый white.
+
+### D-132 · 2026-11-04 15:35 +06 · M25 · DnD finish на window, не только на карточке
+**Решение:** после `pointerdown` в `useLongPressDrag` слушать `pointermove` / `pointerup` / `pointercancel` на `window` (стабильные listener-идентичности). `setPointerCapture` остаётся best-effort. E2e `dnd_release_clears_ghost.spec.ts`: arm → `releasePointerCapture` → up (day/week, trash, sidebar collapsed/expanded, note panel open).
+**Альтернативы:** только element `onPointerUp`; отмена на `lostpointercapture` без window up.
+**Причина:** при потере capture (up над trash `pointer-events:auto`, панель, сбой capture) React-обработчик на кнопке не вызывался → ghost и `cal-dnd-active` залипали.
+**Последствия:** drop/cancel доходят даже без capture; month FullCalendar не затронут (свой lifecycle).
