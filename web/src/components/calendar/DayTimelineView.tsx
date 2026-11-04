@@ -1,5 +1,6 @@
+import type { RefObject } from "react";
 import { DateTime } from "luxon";
-import type { Occurrence, Tag } from "../../api";
+import type { Note, Occurrence, Tag } from "../../api";
 import { WEEKDAY_SHORT_RU } from "../../format";
 import { groupByLocalDay } from "../../lib/calendar/groupByLocalDay";
 import { AgendaDaySection } from "./AgendaDaySection";
@@ -10,13 +11,30 @@ type Props = {
   tags: Tag[];
   timeZone: string;
   onSelect: (occ: Occurrence) => void;
+  dndEnabled?: boolean;
+  trashZoneRef?: RefObject<HTMLElement | null>;
+  onDraggingChange?: (dragging: boolean, overTrash: boolean) => void;
+  onDropRelocate?: (note: Note, starts_at: string, originalStart: string | null) => void;
+  onTrashDrop?: (occ: Occurrence) => void;
+  onDropError?: (msg: string) => void;
 };
 
-export function DayTimelineView({ dayKey, items, tags, timeZone, onSelect }: Props) {
+export function DayTimelineView({
+  dayKey,
+  items,
+  tags,
+  timeZone,
+  onSelect,
+  dndEnabled = false,
+  trashZoneRef,
+  onDraggingChange,
+  onDropRelocate,
+  onTrashDrop,
+  onDropError,
+}: Props) {
   const byDay = groupByLocalDay(items, timeZone);
   const occs = byDay.get(dayKey) ?? [];
   const dt = DateTime.fromISO(dayKey, { zone: timeZone });
-  // luxon weekday: 1=Mon … 7=Sun
   const wd = WEEKDAY_SHORT_RU[dt.weekday - 1];
 
   return (
@@ -29,6 +47,12 @@ export function DayTimelineView({ dayKey, items, tags, timeZone, onSelect }: Pro
         timeZone={timeZone}
         variant="day"
         onSelect={onSelect}
+        dndEnabled={dndEnabled}
+        trashZoneRef={trashZoneRef}
+        onDraggingChange={onDraggingChange}
+        onDropRelocate={onDropRelocate}
+        onTrashDrop={onTrashDrop}
+        onDropError={onDropError}
       />
     </div>
   );

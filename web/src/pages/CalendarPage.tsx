@@ -250,7 +250,11 @@ export function CalendarPage({ user }: { user: User }) {
           {!isMobile && <div className="mut">{user.timezone}</div>}
         </div>
       </div>
-      {dropError && <p className="error">{dropError}</p>}
+      {dropError && (
+        <p className="error" data-testid="cal-drop-error" role="alert">
+          {dropError}
+        </p>
+      )}
       <div className={`calendar-layout${selected ? " with-panel" : ""}`}>
         <div
           className={`calendar-main card calendar-main-relative${isMobile ? " calendar-main-mobile" : ""}`}
@@ -285,7 +289,7 @@ export function CalendarPage({ user }: { user: User }) {
                 patchDrop.mutate({ note, starts_at, originalStart })
               }
               onDropError={setDropError}
-              editable={!isMobile}
+              editable
               trashZoneRef={trashZoneRef}
               onDraggingChange={(d, over) => {
                 setDragging(d);
@@ -303,6 +307,17 @@ export function CalendarPage({ user }: { user: User }) {
               timeZone={user.timezone}
               stacked={isMobile}
               onSelect={selectOcc}
+              dndEnabled
+              trashZoneRef={trashZoneRef}
+              onDraggingChange={(d, over) => {
+                setDragging(d);
+                setOverTrash(over);
+              }}
+              onDropRelocate={(note, starts_at, originalStart) =>
+                patchDrop.mutate({ note, starts_at, originalStart })
+              }
+              onTrashDrop={onTrashDrop}
+              onDropError={setDropError}
             />
           )}
           {view === "day" && (
@@ -312,22 +327,32 @@ export function CalendarPage({ user }: { user: User }) {
               tags={tagList}
               timeZone={user.timezone}
               onSelect={selectOcc}
+              dndEnabled
+              trashZoneRef={trashZoneRef}
+              onDraggingChange={(d, over) => {
+                setDragging(d);
+                setOverTrash(over);
+              }}
+              onDropRelocate={(note, starts_at, originalStart) =>
+                patchDrop.mutate({ note, starts_at, originalStart })
+              }
+              onTrashDrop={onTrashDrop}
+              onDropError={setDropError}
             />
           )}
-          {view === "month" && !isMobile && (
-            <div
-              ref={trashZoneRef}
-              className={`cal-trash-zone${dragging ? " visible" : ""}${overTrash ? " active" : ""}`}
-              data-testid="cal-trash-zone"
-              aria-hidden={!dragging}
-            >
-              <Trash2 aria-hidden="true" />
-              <span>
-                Отпустите, чтобы убрать в корзину{" "}
-                <span className="cal-trash-hint">· вернуть можно в течение 30 дней</span>
-              </span>
-            </div>
-          )}
+          <div
+            ref={trashZoneRef}
+            className={`cal-trash-zone${dragging ? " visible" : ""}${overTrash ? " active" : ""}`}
+            data-testid="cal-trash-zone"
+            data-cal-drop="trash"
+            aria-hidden={!dragging}
+          >
+            <Trash2 aria-hidden="true" />
+            <span>
+              Отпустите, чтобы убрать в корзину{" "}
+              <span className="cal-trash-hint">· вернуть можно в течение 30 дней</span>
+            </span>
+          </div>
         </div>
         {selected && (
           <NoteSidePanel

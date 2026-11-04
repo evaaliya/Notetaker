@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type RefObject } from "react";
 import { DateTime } from "luxon";
-import type { Occurrence, Tag } from "../../api";
+import type { Note, Occurrence, Tag } from "../../api";
 import { formatTimeHm } from "../../format";
 import { occKey } from "../../lib/calendar/groupByLocalDay";
 import { MAX_VISIBLE_IN_CLUSTER } from "../../lib/calendar/timelineLayout";
@@ -17,6 +17,12 @@ type Props = {
   /** day = full 24h spine by default; week = compact default spine */
   variant?: AgendaVariant;
   onSelect: (occ: Occurrence) => void;
+  dndEnabled?: boolean;
+  trashZoneRef?: RefObject<HTMLElement | null>;
+  onDraggingChange?: (dragging: boolean, overTrash: boolean) => void;
+  onDropRelocate?: (note: Note, starts_at: string, originalStart: string | null) => void;
+  onTrashDrop?: (occ: Occurrence) => void;
+  onDropError?: (msg: string) => void;
 };
 
 type HourMark = { kind: "hour"; key: string; labelHm: string; hour: number };
@@ -24,6 +30,7 @@ type NoteMark = {
   kind: "note";
   key: string;
   labelHm: string;
+  hour: number;
   occ: Occurrence;
   overflowHidden: Occurrence[];
   overflowAll: Occurrence[];
@@ -56,20 +63,20 @@ function clusterOccs(occs: Occurrence[], timeZone: string): Occurrence[][] {
   return groups;
 }
 
-function noteFlatRows(
-  occs: Occurrence[],
-  timeZone: string,
-): NoteMark[] {
+function noteFlatRows(occs: Occurrence[], timeZone: string): NoteMark[] {
   const clusters = clusterOccs(occs, timeZone);
   const rows: NoteMark[] = [];
   for (const group of clusters) {
     const visible = group.slice(0, MAX_VISIBLE_IN_CLUSTER);
     const hidden = group.slice(MAX_VISIBLE_IN_CLUSTER);
     visible.forEach((occ, i) => {
+      const hour = DateTime.fromISO(occ.occurrence_start, { zone: "utc" }).setZone(timeZone)
+        .hour;
       rows.push({
         kind: "note",
         key: occKey(occ),
         labelHm: formatTimeHm(occ.occurrence_start, timeZone),
+        hour,
         occ,
         overflowHidden: i === visible.length - 1 ? hidden : [],
         overflowAll: group,
@@ -106,16 +113,38 @@ function buildDayMarks(occs: Occurrence[], timeZone: string): Mark[] {
   return marks;
 }
 
-/** Week: notes if any; otherwise compact default spine with circles. */
+/**
+ * Week: note rows + default hour slots without notes (drop targets for time moves).
+ * Empty day → compact spine 06/09/12/15/18/21.
+ */
 function buildWeekMarks(occs: Occurrence[], timeZone: string): Mark[] {
-  if (occs.length > 0) return noteFlatRows(occs, timeZone);
-  // Default circles along the day (morning → evening).
-  return [6, 9, 12, 15, 18, 21].map((hour) => ({
-    kind: "hour" as const,
-    key: `h-${hour}`,
-    labelHm: `${String(hour).padStart(2, "0")}:00`,
-    hour,
-  }));
+  const defaults = [6, 9, 12, 15, 18, 21];
+  if (occs.length === 0) {
+    return defaults.map((hour) => ({
+      kind: "hour" as const,
+      key: `h-${hour}`,
+      labelHm: `${String(hour).padStart(2, "0")}:00`,
+      hour,
+    }));
+  }
+  const noteRows = noteFlatRows(occs, timeZone);
+  const hoursWithNotes = new Set(noteRows.map((r) => r.hour));
+  const marks: Mark[] = [...noteRows];
+  for (const hour of defaults) {
+    if (hoursWithNotes.has(hour)) continue;
+    marks.push({
+      kind: "hour",
+      key: `h-${hour}`,
+      labelHm: `${String(hour).padStart(2, "0")}:00`,
+      hour,
+    });
+  }
+  marks.sort((a, b) => {
+    if (a.hour !== b.hour) return a.hour - b.hour;
+    if (a.kind !== b.kind) return a.kind === "note" ? -1 : 1;
+    return a.key < b.key ? -1 : 1;
+  });
+  return marks;
 }
 
 export function AgendaDaySection({
@@ -126,6 +155,12 @@ export function AgendaDaySection({
   timeZone,
   variant = "week",
   onSelect,
+  dndEnabled = false,
+  trashZoneRef,
+  onDraggingChange,
+  onDropRelocate,
+  onTrashDrop,
+  onDropError,
 }: Props) {
   const dt = DateTime.fromISO(dayKey, { zone: timeZone });
   const isToday = DateTime.now().setZone(timeZone).toISODate() === dayKey;
@@ -140,6 +175,7 @@ export function AgendaDaySection({
       className={`tl-agenda-day tl-agenda-${variant}${isToday ? " tl-agenda-day-today" : ""}`}
       data-testid="tl-day"
       data-day={dayKey}
+      data-cal-drop-day={dayKey}
       data-variant={variant}
     >
       <div className="tl-agenda-date" data-testid="tl-day-heading">
@@ -159,6 +195,9 @@ export function AgendaDaySection({
               <li
                 key={mark.key}
                 className={`tl-agenda-row${isNote ? " tl-agenda-row-note" : " tl-agenda-row-hour"}`}
+                data-cal-drop-day={dayKey}
+                data-cal-drop-hour={String(mark.hour)}
+                data-testid={isNote ? "tl-drop-note" : "tl-drop-hour"}
               >
                 <span className="tl-agenda-hm">{mark.labelHm}</span>
                 <div className="tl-agenda-spine">
@@ -177,6 +216,12 @@ export function AgendaDaySection({
                         tags={tags}
                         timeZone={timeZone}
                         onSelect={onSelect}
+                        dndEnabled={dndEnabled}
+                        trashZoneRef={trashZoneRef}
+                        onDraggingChange={onDraggingChange}
+                        onDropRelocate={onDropRelocate}
+                        onTrashDrop={onTrashDrop}
+                        onDropError={onDropError}
                       />
                       {mark.overflowHidden.length > 0 && (
                         <div className="tl-overflow tl-overflow-flow">
@@ -192,21 +237,21 @@ export function AgendaDaySection({
                           </button>
                           {openCluster === mark.key && (
                             <ul className="tl-overflow-list" data-testid="tl-overflow-list">
-                              {mark.overflowAll.map((occ) => (
-                                <li key={occKey(occ)}>
+                              {mark.overflowAll.map((o) => (
+                                <li key={occKey(o)}>
                                   <button
                                     type="button"
                                     data-testid="tl-overflow-item"
-                                    data-occ-key={occKey(occ)}
+                                    data-occ-key={occKey(o)}
                                     onClick={() => {
-                                      onSelect(occ);
+                                      onSelect(o);
                                       setOpenCluster(null);
                                     }}
                                   >
                                     <span className="muted">
-                                      {formatTimeHm(occ.occurrence_start, timeZone)}
+                                      {formatTimeHm(o.occurrence_start, timeZone)}
                                     </span>{" "}
-                                    {occ.note.title || "Без названия"}
+                                    {o.note.title || "Без названия"}
                                   </button>
                                 </li>
                               ))}

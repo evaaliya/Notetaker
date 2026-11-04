@@ -26,6 +26,7 @@ import { NoteIllustration } from "../NoteIllustration";
 import { TagPill } from "../TagPill";
 import { tagColors } from "../../lib/tagColors";
 import { formatTimeHm, relocateKeepWallTime } from "../../format";
+import { DND_LONG_PRESS_MS } from "../../lib/calendar/dnd";
 import {
   groupByLocalDay,
   localDayKey,
@@ -339,6 +340,8 @@ export function MonthCalendar({
         editable={editable}
         eventStartEditable={editable}
         eventDurationEditable={false}
+        longPressDelay={DND_LONG_PRESS_MS}
+        eventLongPressDelay={DND_LONG_PRESS_MS}
         dayMaxEvents={1}
         moreLinkText="ещё"
         // Midnights: timed pills must not continue into the next day cell (D-104).
