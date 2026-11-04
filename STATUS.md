@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 19:25 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 20:09 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-138** (README stub/изоляция/volume; fresh-check→MailHog; также D-136/137).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-139** (trash-undo TTL 15 с; M28 в работе).
 
 ## Этапы
 
@@ -36,10 +36,12 @@
 | M25 Список период + DnD календаря | готов | UI from/to+reset; DnD month/week/day+trash; create `/notes/new`; ghost clone; release-on-window D-128–132 |
 | M26 Touch / LAN open | готов | safeRandomUUID (H3); long-press tap (H1); CDP touch e2e D-133–134 |
 | M27 Изоляция / сдача | готов | compose-порты, `make fresh-check`, D-135; `make verify` 2026-11-04 |
+| M28 UI-дефекты сдачи | в работе | D-139 trash-undo 15 с ✓; пункты 2–6 — дальше |
 
 ## Работает
 
 - Стек: `docker compose up --build` — postgres, mailhog, api, worker, web; миграции при старте. Порты/имя проекта — из `.env` (изоляция второй копии — README).
+- **M28 / D-139:** undo-тост «Заметка перемещена в корзину» — автоскрытие 15 с (`TRASH_UNDO_MS`), очередь в module store + Shell; e2e `trash_undo_ttl` **2 passed**.
 - Auth (cookie/argon2), заметки/теги/корзина, список (search/keyset/**период from–to**), календарь, «Ближайшее», повторы, reminders+outbox, realtime WS, уведомления.
 - UI по `docs/FRONTEND.md`: сайдбар, список/календарь/upcoming/tags/trash/settings, страница заметки, mobile ≤640.
 - **M25:** фильтр периода; DnD month/week/day; mobile create → `/notes/new`.

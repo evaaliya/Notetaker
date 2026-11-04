@@ -8,6 +8,7 @@ import { MobileNav } from "./components/MobileNav";
 import { NotificationsPopover } from "./components/NotificationsPopover";
 import { OfflineBanner } from "./components/OfflineBanner";
 import { ToastItem, ToastStack } from "./components/ToastStack";
+import { TrashUndoProvider } from "./components/TrashUndoProvider";
 import { browserTimeZone } from "./components/TimezonePicker";
 import { useRealtime } from "./hooks/useRealtime";
 import { getAlarmLoop } from "./lib/alarmLoop";
@@ -261,67 +262,69 @@ function Shell({ user, onLogout }: { user: User; onLogout: () => void }) {
     .join(" ");
 
   return (
-    <div className={frameClass}>
-      <OfflineBanner />
-      <AppSidebar
-        collapsed={effectiveCollapsed}
-        onToggleCollapsed={toggleSidebar}
-        unseenCount={unseenCount}
-        inboxOpen={inboxOpen}
-        onToggleInbox={() => setInboxOpen((v) => !v)}
-        userEmail={userEmail}
-        onLogout={logout}
-        logoutBusy={busy}
-        bellShake={bellShake}
-        soundPlaying={soundPlaying}
-      />
-      <main className={`app-main${isNoteRoute ? " note-route" : ""}`}>
-        <Routes>
-          <Route path="/" element={<Navigate to="/calendar" replace />} />
-          <Route path="/calendar" element={<CalendarPage user={user} />} />
-          <Route path="/upcoming" element={<UpcomingPage user={user} />} />
-          <Route path="/list" element={<ListPage user={user} />} />
-          <Route path="/capture/call" element={<CallCapturePage user={user} />} />
-          <Route path="/capture/video" element={<VideoNotesPage user={user} />} />
-          <Route path="/notes/new" element={<NoteEditorPage user={user} />} />
-          <Route path="/notes/:id" element={<NoteEditorPage user={user} />} />
-          <Route path="/tags" element={<TagsPage />} />
-          <Route path="/trash" element={<TrashPage user={user} />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/calendar" replace />} />
-        </Routes>
-        <NotificationsPopover
-          open={inboxOpen}
-          onClose={() => setInboxOpen(false)}
-          onMarkSeen={dismissToast}
-          soundPlaying={soundPlaying || alarmWanted}
-          onMuteSound={muteAlarm}
-        />
-      </main>
-      {!isNoteRoute && (
-        <MobileNav
+    <TrashUndoProvider>
+      <div className={frameClass}>
+        <OfflineBanner />
+        <AppSidebar
+          collapsed={effectiveCollapsed}
+          onToggleCollapsed={toggleSidebar}
           unseenCount={unseenCount}
-          onOpenInbox={() => setInboxOpen(true)}
+          inboxOpen={inboxOpen}
+          onToggleInbox={() => setInboxOpen((v) => !v)}
+          userEmail={userEmail}
+          onLogout={logout}
+          logoutBusy={busy}
+          bellShake={bellShake}
+          soundPlaying={soundPlaying}
         />
-      )}
-      {!isNoteRoute && (
-        <button
-          type="button"
-          className="mobile-fab"
-          data-testid="mobile-new-note"
-          aria-label="Новая заметка"
-          onClick={() => navigate("/notes/new")}
-        >
-          Новая заметка
-        </button>
-      )}
-      <ToastStack
-        toasts={toasts}
-        onDismiss={dismissToast}
-        onMuteSound={muteAlarm}
-        showMute={soundPlaying || alarmWanted}
-        audioBlockedHint={audioBlockedHint}
-      />
-    </div>
+        <main className={`app-main${isNoteRoute ? " note-route" : ""}`}>
+          <Routes>
+            <Route path="/" element={<Navigate to="/calendar" replace />} />
+            <Route path="/calendar" element={<CalendarPage user={user} />} />
+            <Route path="/upcoming" element={<UpcomingPage user={user} />} />
+            <Route path="/list" element={<ListPage user={user} />} />
+            <Route path="/capture/call" element={<CallCapturePage user={user} />} />
+            <Route path="/capture/video" element={<VideoNotesPage user={user} />} />
+            <Route path="/notes/new" element={<NoteEditorPage user={user} />} />
+            <Route path="/notes/:id" element={<NoteEditorPage user={user} />} />
+            <Route path="/tags" element={<TagsPage />} />
+            <Route path="/trash" element={<TrashPage user={user} />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/calendar" replace />} />
+          </Routes>
+          <NotificationsPopover
+            open={inboxOpen}
+            onClose={() => setInboxOpen(false)}
+            onMarkSeen={dismissToast}
+            soundPlaying={soundPlaying || alarmWanted}
+            onMuteSound={muteAlarm}
+          />
+        </main>
+        {!isNoteRoute && (
+          <MobileNav
+            unseenCount={unseenCount}
+            onOpenInbox={() => setInboxOpen(true)}
+          />
+        )}
+        {!isNoteRoute && (
+          <button
+            type="button"
+            className="mobile-fab"
+            data-testid="mobile-new-note"
+            aria-label="Новая заметка"
+            onClick={() => navigate("/notes/new")}
+          >
+            Новая заметка
+          </button>
+        )}
+        <ToastStack
+          toasts={toasts}
+          onDismiss={dismissToast}
+          onMuteSound={muteAlarm}
+          showMute={soundPlaying || alarmWanted}
+          audioBlockedHint={audioBlockedHint}
+        />
+      </div>
+    </TrashUndoProvider>
   );
 }

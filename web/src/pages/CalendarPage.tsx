@@ -13,6 +13,7 @@ import { Trash2 } from "lucide-react";
 import { api, EditScope, Note, Occurrence, User } from "../api";
 import { EditScopeDialog } from "../components/EditScopeDialog";
 import { NoteSidePanel } from "../components/NoteSidePanel";
+import { pushTrashUndo } from "../components/TrashUndoProvider";
 import { CalendarChrome } from "../components/calendar/CalendarChrome";
 import { MonthCalendar } from "../components/calendar/MonthCalendar";
 import { WeekTimelineView } from "../components/calendar/WeekTimelineView";
@@ -55,7 +56,6 @@ export function CalendarPage({ user }: { user: User }) {
   const [dragging, setDragging] = useState(false);
   const [overTrash, setOverTrash] = useState(false);
   const [pendingTrash, setPendingTrash] = useState<PendingTrash | null>(null);
-  const [undo, setUndo] = useState<{ noteId: string; title: string } | null>(null);
   const [monthTitle, setMonthTitle] = useState("");
 
   const trashZoneRef = useRef<HTMLDivElement>(null);
@@ -215,18 +215,8 @@ export function CalendarPage({ user }: { user: User }) {
     qc.invalidateQueries({ queryKey: ["trash"] });
     setSelected(null);
     if (!scope || scope === "all") {
-      setUndo({ noteId: note.id, title: note.title || "Без названия" });
+      pushTrashUndo(note.id, note.title || "Без названия");
     }
-  }
-
-  async function undoTrash() {
-    if (!undo) return;
-    await api.restoreNote(undo.noteId);
-    setUndo(null);
-    qc.invalidateQueries({ queryKey: ["calendar"] });
-    qc.invalidateQueries({ queryKey: ["upcoming"] });
-    qc.invalidateQueries({ queryKey: ["notes"] });
-    qc.invalidateQueries({ queryKey: ["trash"] });
   }
 
   function onTrashDrop(occ: Occurrence) {
@@ -404,24 +394,6 @@ export function CalendarPage({ user }: { user: User }) {
         />
       )}
 
-      {undo && (
-        <div className="toast-stack" data-testid="trash-undo-toast" aria-live="polite">
-          <div className="toast">
-            <div>
-              <strong>В корзине</strong>
-              <p className="small muted">{undo.title}</p>
-            </div>
-            <button
-              type="button"
-              className="secondary"
-              data-testid="trash-undo"
-              onClick={() => void undoTrash()}
-            >
-              Отменить
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

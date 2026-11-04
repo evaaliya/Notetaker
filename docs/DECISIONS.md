@@ -1047,3 +1047,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** оставить краткий AI-абзац; не проверять SMTP в fresh-check.
 **Причина:** ручной клон путали с чужой БД/сессией; неочевидно, что stub без ключа не даёт 500; fresh-check не доказывал цепочку напоминание→письмо.
 **Последствия:** `make fresh-check` длиннее на ожидание воркера/MailHog (до ~45 с).
+
+### D-139 · 2026-11-04 19:58 +06 · M28 · Trash-undo toast: автоскрытие 15 с
+**Решение:** константа `TRASH_UNDO_MS = 15_000` в `web/src/lib/trashUndo.ts`. Очередь и таймеры — module-level store (переживает remount UI); `TrashUndoProvider` в Shell только подписывается и рисует. Каждое удаление — отдельный item + свой `setTimeout`. Текст: «Заметка перемещена в корзину». Стек `.trash-undo-stack` слева внизу, чтобы не перехватывать клики правой note panel. `data-testid` сохранены.
+**Альтернативы:** оставить тост только на CalendarPage; один слот с перезапуском таймера; бесконечный тост до клика; React state без module store.
+**Причина:** тост без TTL висел «очень долго»; локальный state страницы пропадал при навигации; несколько удалений — параллельные 15 с; правый toast перекрывал «В корзину» в панели.
+**Последствия:** e2e `e2e_trash_undo_auto_hides_after_15s_survives_navigation`, `e2e_trash_undo_each_toast_has_own_15s` (Playwright clock).

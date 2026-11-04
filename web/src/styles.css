@@ -1869,6 +1869,20 @@ button.note-main,
   max-width: min(22rem, calc(100vw - 2rem));
 }
 
+/* Keep undo away from right-side note panel / trash actions (M28). */
+.trash-undo-stack {
+  right: auto;
+  left: 1rem;
+  bottom: 5rem;
+}
+
+/* Keep undo away from right-side note panel / trash actions (M28). */
+.trash-undo-stack {
+  right: auto;
+  left: 1rem;
+  bottom: 5rem;
+}
+
 .toast {
   display: flex;
   justify-content: space-between;
