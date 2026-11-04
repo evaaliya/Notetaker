@@ -1,8 +1,8 @@
 # STATUS
 
-Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 19:20 +06.
+Обновляется в конце каждого этапа. Последнее обновление: 2026-11-04 19:22 +06.
 
-Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-137** (RFC-4122 `safeRandomUUID` + 422 detail; также D-136 restore).
+Подробные смоки прошлых этапов — [`docs/HISTORY.md`](docs/HISTORY.md). Последнее решение в логе: **D-138** (README stub/изоляция/volume; fresh-check→MailHog; также D-136/137).
 
 ## Этапы
 
@@ -49,6 +49,7 @@
 - **Последний полный прогон (2026-11-04):** `make test` / verify pytest → **121 passed**; `make e2e` / verify playwright → **132 passed** (0 failed, 0 skipped); T1–T21 закрыты. Отчёт: [`reports/verify-20261104-172913.md`](reports/verify-20261104-172913.md). `make fresh-check` OK (изолированный `-p notetaker-fresh`).
 - **D-136:** restore — overdue skipped + prune offsets; `test_reminders_m3.py` **18 passed**.
 - **D-137:** create на телефоне/LAN — RFC-4122 fallback UUID; UI показывает FastAPI `detail` при 422. API после смены TZ OK; e2e timezone+m26 chromium **11 passed**.
+- **D-138:** README — таблица stub без ключа, cookie/`127.0.0.1`, volume `<project>_pgdata`; `make fresh-check` проверяет письмо в MailHog.
 - `e2e_week_many_notes_in_slot`: стабилизирован (toggle overflow вместо Escape; 5/5 rerun). `e2e_scroll_10k` — passed.
 
 ## Не реализовано (явные пробелы / TODO)

@@ -94,10 +94,16 @@ EMAIL="${LOGIN}@example.com"
 
 echo "=== fresh-check: register $LOGIN ==="
 REG="$(curl -sS -c "$TMP/cookies.txt" -H 'Content-Type: application/json' \
-  -d "{\"login\":\"$LOGIN\",\"password\":\"$PASS\",\"email\":\"$EMAIL\",\"timezone\":\"UTC\"}" \
+  -d "{\"login\":\"$LOGIN\",\"password\":\"$PASS\",\"timezone\":\"UTC\"}" \
   "http://127.0.0.1:${API_PORT}/api/auth/register")"
 echo "$REG" | head -c 240; echo
 echo "$REG" | grep -q '"login"' || { echo "fresh-check FAILED: register"; exit 1; }
+
+# Email is set via /api/me (register has no email field) so the worker can SMTP.
+ME="$(curl -sS -b "$TMP/cookies.txt" -X PATCH -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$EMAIL\"}" \
+  "http://127.0.0.1:${API_PORT}/api/me")"
+echo "$ME" | grep -q "$EMAIL" || { echo "fresh-check FAILED: patch email"; echo "$ME"; exit 1; }
 
 if STARTS="$(date -u -v+2H +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"; then
   :
@@ -110,6 +116,7 @@ NOTE="$(curl -sS -b "$TMP/cookies.txt" -H 'Content-Type: application/json' \
   "http://127.0.0.1:${API_PORT}/api/notes")"
 echo "$NOTE" | head -c 300; echo
 echo "$NOTE" | grep -q '"id"' || { echo "fresh-check FAILED: create note"; exit 1; }
+NOTE_ID="$(echo "$NOTE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
 
 NOTES2="$(docker compose -p "$PROJECT" exec -T postgres \
   psql -U notetaker -d notetaker -tAc 'SELECT count(*) FROM notes;')"
@@ -119,6 +126,28 @@ if [[ "$NOTES2" != "1" ]]; then
   echo "fresh-check FAILED: expected 1 note, got $NOTES2"
   exit 1
 fi
+
+# Force due so worker sends without waiting ~2h (same volume/project isolation still checked).
+echo "=== fresh-check: force reminder due + wait MailHog for $EMAIL ==="
+docker compose -p "$PROJECT" exec -T postgres \
+  psql -U notetaker -d notetaker -v ON_ERROR_STOP=1 \
+  -c "UPDATE reminders SET fire_at = now() - interval '1 second' WHERE note_id = '$NOTE_ID' AND status = 'pending';" \
+  >/dev/null
+mail_ok=0
+for _ in $(seq 1 45); do
+  mh_json="$(curl -sf "http://127.0.0.1:${MAILHOG_UI_PORT}/api/v2/messages" || true)"
+  if echo "$mh_json" | grep -q "$EMAIL"; then
+    mail_ok=1
+    break
+  fi
+  sleep 1
+done
+if [[ "$mail_ok" != "1" ]]; then
+  echo "fresh-check FAILED: no MailHog message to $EMAIL within timeout"
+  curl -s "http://127.0.0.1:${MAILHOG_UI_PORT}/api/v2/messages" | head -c 500; echo
+  exit 1
+fi
+echo "mailhog: message for $EMAIL present"
 
 # Informational: main stack on default ports should still have its own (usually non-zero) count.
 if curl -sf "http://127.0.0.1:8000/api/health" >/dev/null 2>&1; then

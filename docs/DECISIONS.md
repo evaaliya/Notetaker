@@ -1041,3 +1041,9 @@ API: `notifications.note_id` (миграция 008, backfill из reminders; acc
 **Альтернативы:** не слать `id` с клиента на insecure; принимать произвольный string id на API; оставить opaque statusText.
 **Причина:** на телефоне (`http://LAN-IP`) нет `randomUUID` → D-133 fallback → Pydantic `body.id` uuid_parsing → 422. Смена TZ в настройках сама по себе create не ломает (API accepts aware `starts_at`); симптом совпал с телефоном/LAN. Вложение «Ожидает сохранения» — следствие: create не прошёл.
 **Последствия:** pytest `test_create_note_after_settings_tz_differs_from_utc`, `test_create_note_rejects_non_uuid_client_id`; e2e `e2e_create_note_after_settings_tz_differs_from_device`, `e2e_insecure_context_create_note_succeeds`.
+
+### D-138 · 2026-11-04 19:22 +06 · docs · README stub-таблица + изоляция origin/volume; fresh-check → MailHog
+**Решение:** в README — таблица «режим без ключа» (stub vs openrouter); блок про cookie/localStorage и `127.0.0.1` vs `localhost`; явно что Postgres = named volume `<project>_pgdata`. `scripts/fresh_check.sh` после create форсирует `fire_at` и ждёт письмо в MailHog API.
+**Альтернативы:** оставить краткий AI-абзац; не проверять SMTP в fresh-check.
+**Причина:** ручной клон путали с чужой БД/сессией; неочевидно, что stub без ключа не даёт 500; fresh-check не доказывал цепочку напоминание→письмо.
+**Последствия:** `make fresh-check` длиннее на ожидание воркера/MailHog (до ~45 с).

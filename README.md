@@ -103,11 +103,13 @@ docker compose down -v
 
 Демо с 10 000 заметок: `make seed`, логин `demo` / `demo` (см. [`docs/TESTING.md`](docs/TESTING.md)).
 
-### Если у вас уже запущена другая копия
+### Если у вас уже запущена другая копия на localhost
 
 Два стека на одних и тех же хост-портах не поднимутся; при частичном старте UI может ходить в «чужой» API на `:8000`.
 
-1. В `.env` второй копии задайте **другие порты** и при необходимости имя проекта:
+**Cookie и localStorage привязаны к origin** (`scheme://host:port`). Две копии на `http://localhost:5173` и `http://localhost:15173` — разные origins (разные cookie). Но `http://localhost:5173` и `http://127.0.0.1:5173` для браузера — **разные** hosts; зато две вкладки на один и тот же URL делят сессию. Если параллельно открыт «оригинал» и клон на одном адресе — откройте клон в **приватном окне** или по `http://127.0.0.1:<WEB_PORT>` (другой host → свои cookie).
+
+1. В `.env` второй копии задайте **другие порты** и имя проекта:
    ```bash
    COMPOSE_PROJECT_NAME=notetaker-copy2
    API_PORT=18000
@@ -116,14 +118,16 @@ docker compose down -v
    MAILHOG_SMTP_PORT=11025
    MAILHOG_UI_PORT=18025
    ```
-2. Поднимите: `docker compose up --build -d` (тома будут `<COMPOSE_PROJECT_NAME>_pgdata`, не общие с первой копией).
-3. Проверьте, что это **ваша** пустая (или своя) БД:
+2. Поднимите: `docker compose up --build -d`.
+3. Проверьте, что это **ваша** БД (на чистом стеке без seed — **0**):
    ```bash
    docker compose exec postgres psql -U notetaker -d notetaker -c 'SELECT count(*) FROM notes;'
    ```
-   На только что поднятом стеке без seed ожидается **0**. Если видите чужие сотни тысяч строк — вы смотрите не тот проект/том (проверьте `COMPOSE_PROJECT_NAME` и порты).
+   Если видите чужие сотни тысяч строк — не тот `COMPOSE_PROJECT_NAME` / том / порт Postgres.
 
-Автопроверка изоляции: `make fresh-check` (клонирует текущий `HEAD` во временную папку, поднимает `-p notetaker-fresh` на портах 18xxx, проверяет `notes=0`, API и MailHog, затем сносит **только** этот временный проект с `-v`).
+**Где лежат данные Postgres:** именованный Docker volume `pgdata` (см. `docker-compose.yml`), не bind-mount в папку репозитория. Имя тома на хосте = `<project>_pgdata`, где `project` — `COMPOSE_PROJECT_NAME` или basename каталога (по умолчанию). Пример: проект `notetaker` → volume `notetaker_pgdata`. Список: `docker volume ls | grep pgdata`. `docker compose down` том **не** удаляет; `down -v` — удаляет.
+
+Автопроверка изоляции: `make fresh-check` (клон `HEAD` во временную папку, `-p notetaker-fresh` на портах 18xxx, ждёт `/api/health`, `notes=0`, регистрация → заметка → письмо в MailHog, затем `down -v` **только** этого временного проекта).
 
 ## Проверка работоспособности
 
@@ -185,19 +189,25 @@ make docs-check  # синхронизация STATUS ↔ DECISIONS
 
 В форме заметки выберите offset (10 мин / час / день). Либо `scripts/demo.py`. Письма — http://localhost:8025.
 
-### AI (звонки / видео)
+### AI (звонки / видео) — режим без ключа
 
-Stub — режим по умолчанию (заглушка). OpenRouter подключают отдельно: оба поля `AI_PROVIDER=openrouter` и `OPENROUTER_API_KEY` обязательны вместе.
+По умолчанию в `.env.example`: **`AI_PROVIDER=stub`** — ключ OpenRouter **не нужен**. Разбор идёт на заготовленных ответах; без ключа API **не** отвечает 500.
+
+| Функция | `AI_PROVIDER=stub` (без ключа) | `AI_PROVIDER=openrouter` + ключ |
+|---|---|---|
+| Звонок: текст / `.txt`/`.vtt`/`.srt` → черновики | да (детерминированный stub) | да (LLM) |
+| Видео: YouTube → субтитры → конспект | да (stub по тексту субтитров; нужен доступ api→youtube.com) | да (LLM) |
+| Плеер `.mp4` / не-YouTube URL | да (только плеер) | да (только плеер) |
+| «Разобрать субтитры» для не-YouTube | нет | нет |
+
+OpenRouter подключают явно: оба поля обязательны вместе.
 
 ```bash
 AI_PROVIDER=openrouter
 OPENROUTER_API_KEY=sk-or-...
 ```
 
-затем `docker compose up -d --force-recreate --no-deps api`. Без ключа при `openrouter` разбор не стартует (M21).
-
-- Сайдбар → **Звонок**: текст или `.txt`/`.vtt`/`.srt` → извлечь черновики → подтвердить.  
-- **Видео**: ссылка YouTube → «Разобрать субтитры» → выбрать English или Русский.
+затем `docker compose up -d --force-recreate --no-deps api`. Без ключа при `openrouter` разбор **не стартует** (ошибка preflight, не 500) — M21.
 
 Звук на сервер не пишется. Zoom как бот не подключаем.
 
